@@ -27,8 +27,8 @@ BEGIN
     INSERT INTO lecture_session_registry (course_id, active_session_id, last_activated_at)
         VALUES (p_course_id, p_session_id, NOW())
     ON DUPLICATE KEY UPDATE
-        active_session_id   = VALUES(active_session_id),
-        last_activated_at   = VALUES(last_activated_at);
+        active_session_id   = p_session_id,
+        last_activated_at   = NOW();
 END$$
 
 DELIMITER ;

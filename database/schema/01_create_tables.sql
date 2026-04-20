@@ -297,7 +297,40 @@ CREATE TABLE strategies (
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
 
-CREATE UNIQUE INDEX uq_default_strategy_per_type ON strategies (type, is_default, is_active);
+DELIMITER $$
+
+CREATE TRIGGER trg_strategies_single_default_insert
+BEFORE INSERT ON strategies
+FOR EACH ROW
+BEGIN
+    IF NEW.is_default = 1 AND NEW.is_active = 1 AND EXISTS (
+        SELECT 1 FROM strategies s
+        WHERE s.type = NEW.type
+          AND s.is_default = 1
+          AND s.is_active = 1
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type';
+    END IF;
+END$$
+
+CREATE TRIGGER trg_strategies_single_default_update
+BEFORE UPDATE ON strategies
+FOR EACH ROW
+BEGIN
+    IF NEW.is_default = 1 AND NEW.is_active = 1 AND EXISTS (
+        SELECT 1 FROM strategies s
+        WHERE s.type = NEW.type
+          AND s.is_default = 1
+          AND s.is_active = 1
+          AND s.id <> NEW.id
+    ) THEN
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type';
+    END IF;
+END$$
+
+DELIMITER ;
 
 CREATE TABLE alerts (
     id              CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
@@ -429,7 +462,8 @@ CREATE INDEX idx_audit_logs_user_time    ON audit_logs (user_id, occurred_at DES
 CREATE INDEX idx_audit_logs_resource     ON audit_logs (resource_type, resource_id, occurred_at DESC);
 CREATE INDEX idx_audit_logs_action_time  ON audit_logs (action, occurred_at DESC);
 
-CREATE OR REPLACE VIEW dashboard_session_view AS
+DROP VIEW IF EXISTS dashboard_session_view;
+CREATE VIEW dashboard_session_view AS
 SELECT
     ls.id                                           AS session_id,
     ls.course_id,
