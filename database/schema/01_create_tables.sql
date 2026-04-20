@@ -292,45 +292,16 @@ CREATE TABLE strategies (
     config        JSON,
     is_default    TINYINT(1)   NOT NULL DEFAULT 0,
     is_active     TINYINT(1)   NOT NULL DEFAULT 1,
+    default_type_guard VARCHAR(20) GENERATED ALWAYS AS (
+        CASE
+            WHEN is_default = 1 AND is_active = 1 THEN type
+            ELSE NULL
+        END
+    ) STORED UNIQUE,
     description   TEXT,
     created_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB;
-
-DELIMITER $$
-
-CREATE TRIGGER trg_strategies_single_default_insert
-BEFORE INSERT ON strategies
-FOR EACH ROW
-BEGIN
-    IF NEW.is_default = 1 AND NEW.is_active = 1 AND EXISTS (
-        SELECT 1 FROM strategies s
-        WHERE s.type = NEW.type
-          AND s.is_default = 1
-          AND s.is_active = 1
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type. Deactivate the existing default before setting a new one';
-    END IF;
-END$$
-
-CREATE TRIGGER trg_strategies_single_default_update
-BEFORE UPDATE ON strategies
-FOR EACH ROW
-BEGIN
-    IF NEW.is_default = 1 AND NEW.is_active = 1 AND EXISTS (
-        SELECT 1 FROM strategies s
-        WHERE s.type = NEW.type
-          AND s.is_default = 1
-          AND s.is_active = 1
-          AND s.id <> NEW.id
-    ) THEN
-        SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type. Deactivate the existing default before setting a new one';
-    END IF;
-END$$
-
-DELIMITER ;
 
 CREATE TABLE alerts (
     id              CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
