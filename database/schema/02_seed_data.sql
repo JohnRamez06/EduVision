@@ -20,14 +20,20 @@ INSERT INTO permissions (id, name, resource, action, description) VALUES
     (UUID(), 'consent:manage',  'consent', 'manage',   'Manage student consent');
 
 INSERT INTO role_permissions (role_id, permission_id)
-SELECT r.id, p.id FROM roles r, permissions p
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p
 WHERE r.name = 'admin'
 UNION ALL
-SELECT r.id, p.id FROM roles r, permissions p
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p
 WHERE r.name = 'lecturer'
   AND p.name IN ('session:start','session:stop','session:view','emotion:view','emotion:export','report:generate','report:view','alert:manage','alert:view')
 UNION ALL
-SELECT r.id, p.id FROM roles r, permissions p
+SELECT r.id, p.id
+FROM roles r
+JOIN permissions p
 WHERE r.name = 'student'
   AND p.name IN ('session:view','report:view','alert:view');
 
