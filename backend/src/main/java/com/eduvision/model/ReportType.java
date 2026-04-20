@@ -1,0 +1,9 @@
+package com.eduvision.model;
+
+public enum ReportType {
+    session_summary,
+    student_progress,
+    course_analytics,
+    engagement_trend,
+    custom
+}
