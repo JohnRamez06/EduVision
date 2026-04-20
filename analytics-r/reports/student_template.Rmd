@@ -1,0 +1,11 @@
+---
+title: "EduVision student_template"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+source("../config.R")
+```
+
+## Summary
+TODO: add report sections
