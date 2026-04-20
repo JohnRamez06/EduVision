@@ -493,7 +493,8 @@ LEFT JOIN emotion_snapshots es
     )
 LEFT JOIN alerts a              ON a.session_id = ls.id
 GROUP BY
-    ls.id, c.code, c.title, ls.lecturer_id,
+    ls.id, ls.course_id, c.code, c.title, ls.lecturer_id,
+    ls.status, ls.scheduled_start, ls.actual_start, ls.actual_end,
     u.first_name, u.last_name,
     es.avg_concentration, es.dominant_emotion,
     es.engagement_score, es.captured_at;
