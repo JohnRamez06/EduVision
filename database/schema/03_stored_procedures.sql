@@ -17,7 +17,7 @@ BEGIN
 
     IF v_count > 0 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Singleton violation: course already has an active session';
+        SET MESSAGE_TEXT = 'Cannot activate session: course already has an active session running';
     END IF;
 
     UPDATE lecture_sessions

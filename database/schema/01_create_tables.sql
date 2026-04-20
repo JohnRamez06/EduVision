@@ -310,7 +310,7 @@ BEGIN
           AND s.is_active = 1
     ) THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type';
+        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type. Deactivate the existing default before setting a new one';
     END IF;
 END$$
 
@@ -326,7 +326,7 @@ BEGIN
           AND s.id <> NEW.id
     ) THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type';
+        SET MESSAGE_TEXT = 'Only one active default strategy is allowed per strategy type. Deactivate the existing default before setting a new one';
     END IF;
 END$$
 
