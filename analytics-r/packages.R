@@ -1,3 +1,9 @@
-pkgs <- c("DBI","RMySQL","plumber","dplyr","ggplot2","tidyr","lubridate","jsonlite","forecast","changepoint","corrplot","knitr","rmarkdown","shiny")
-for (p in pkgs) if (//cran.r-project.org")
+pkgs <- c("DBI","RMariaDB","plumber","dplyr","ggplot2","tidyr","lubridate","jsonlite")
+
+for (p in pkgs) {
+  if (!requireNamespace(p, quietly = TRUE)) {
+    install.packages(p, repos = "https://cloud.r-project.org")
+  }
+}
+
 message("All R packages ready")

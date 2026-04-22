@@ -1,1 +1,3 @@
-ECHO is off.
+"""
+Factories package for camera sources (Abstract Factory pattern).
+"""
