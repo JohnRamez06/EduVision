@@ -71,7 +71,7 @@ public class AdminService {
         user.setPasswordHash(passwordEncoder.encode(req.getPassword()));
         user.setFirstName(req.getFirstName());
         user.setLastName(req.getLastName());
-        user.setStatus(UserStatus.ACTIVE);
+        user.setStatus(UserStatus.active);
         user.setLocale("en");
         user.setTimezone("UTC");
         user.setCreatedAt(LocalDateTime.now());
@@ -95,8 +95,8 @@ public class AdminService {
 
         if (req.getIsActive() != null) {
             user.setStatus(req.getIsActive()
-                    ? UserStatus.ACTIVE
-                    : UserStatus.INACTIVE);
+                    ? UserStatus.active
+                    : UserStatus.inactive);
         }
 
         if (req.getRoleName() != null) {
@@ -117,7 +117,7 @@ public class AdminService {
     public void deleteUser(String id) {
         User user = findActiveUserById(id);
         user.setDeletedAt(LocalDateTime.now());
-        user.setStatus(UserStatus.INACTIVE);
+        user.setStatus(UserStatus.inactive);
         user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
     }
