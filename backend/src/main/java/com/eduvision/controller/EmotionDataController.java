@@ -1,4 +1,43 @@
 package com.eduvision.controller;
-import org.springframework.web.bind.annotation.*;
+
+import com.eduvision.dto.emotion.AggregatedEmotionDTO;
+import com.eduvision.dto.emotion.EmotionSnapshotDTO;
+import com.eduvision.dto.emotion.StudentEmotionDTO;
+import com.eduvision.dto.emotion.StudentSnapshotBatchDTO;
+import com.eduvision.service.EmotionSnapshotService;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 @RestController
-@RequestMapping("/api/v1"
+@RequestMapping("/api/v1/emotion-data")
+public class EmotionDataController {
+
+    private final EmotionSnapshotService emotionSnapshotService;
+
+    public EmotionDataController(EmotionSnapshotService emotionSnapshotService) {
+        this.emotionSnapshotService = emotionSnapshotService;
+    }
+
+    @PostMapping("/class-snapshot")
+    public ResponseEntity<EmotionSnapshotDTO> saveClassSnapshot(@RequestBody EmotionSnapshotDTO request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(emotionSnapshotService.saveClassSnapshot(request));
+    }
+
+    @PostMapping("/student-snapshots")
+    public ResponseEntity<List<StudentEmotionDTO>> saveStudentSnapshots(@RequestBody StudentSnapshotBatchDTO request) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(
+                emotionSnapshotService.saveStudentSnapshots(request.getSnapshotId(), request.getStudentSnapshots()));
+    }
+
+    @GetMapping("/session/{id}")
+    public ResponseEntity<AggregatedEmotionDTO> getSessionHistory(@PathVariable("id") String sessionId) {
+        return ResponseEntity.ok(emotionSnapshotService.getSessionHistory(sessionId));
+    }
+}
