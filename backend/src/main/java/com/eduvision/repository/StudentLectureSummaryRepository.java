@@ -24,6 +24,9 @@ public interface StudentLectureSummaryRepository
     List<StudentLectureSummary> findByStudent_IdAndCourse_IdOrderByGeneratedAtDesc(
             String studentId, String courseId);
 
+    // Used in: DashboardService for at-risk students
+    List<StudentLectureSummary> findBySession_Id(String sessionId);
+
     // Used in: OverallStatsDTO.avgConcentration fast read
     @Query("SELECT AVG(s.avgConcentration) FROM StudentLectureSummary s " +
            "WHERE s.student.id = :studentId")
