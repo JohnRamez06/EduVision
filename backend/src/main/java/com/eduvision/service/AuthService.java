@@ -110,9 +110,9 @@ public class AuthService {
             default         -> { /* no profile needed for unknown roles */ }
         }
 
-        // 6. Generate JWT and return
+        // 6. Generate JWT and return (pass role name explicitly; in-memory userRoles set is empty)
         String token = jwtService.generateToken(savedUser.getEmail());
-        return buildResponse(savedUser, token);
+        return buildResponse(savedUser, token, Set.of(role.getName()));
     }
 
     // ─── PRIVATE BUILDERS ─────────────────────────────────────────────────
@@ -186,7 +186,10 @@ public class AuthService {
                         .filter(ur -> ur.getRole() != null)
                         .map(ur -> ur.getRole().getName())
                         .collect(Collectors.toSet());
+        return buildResponse(user, token, roles);
+    }
 
+    private LoginResponse buildResponse(User user, String token, Set<String> roles) {
         return new LoginResponse(
                 token,
                 user.getEmail(),

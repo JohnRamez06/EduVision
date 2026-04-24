@@ -7,6 +7,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.stream.Collectors;
@@ -24,6 +25,7 @@ public class CustomUserDetailsService implements UserDetailsService {
      * Called by JwtAuthenticationFilter with the email (JWT subject).
      * Returns a UserDetails whose authorities are the real Role names.
      */
+    @Transactional(readOnly = true)
     @Override
     public UserDetails loadUserByUsername(String email)
             throws UsernameNotFoundException {

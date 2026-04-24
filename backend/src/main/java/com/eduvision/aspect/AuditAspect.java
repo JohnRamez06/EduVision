@@ -44,8 +44,12 @@ public class AuditAspect {
             throw e;
         } finally {
             long duration = System.currentTimeMillis() - start;
-            auditLogService.logAction(userId, null, action, "controller", uri,
-                null, null, ip, userAgent, success);
+            try {
+                auditLogService.logAction(userId, null, action, "controller", uri,
+                    null, null, ip, userAgent, success);
+            } catch (Exception auditEx) {
+                // Audit logging must never break the main request
+            }
         }
         return result;
     }

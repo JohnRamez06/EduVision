@@ -28,9 +28,9 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                        "/api/auth/**",
-                        "/ws/**",          // allow websocket handshake
-                        "/actuator/health" // optional
+                        "/api/v1/auth/**",
+                        "/ws/**",
+                        "/actuator/health"
                 ).permitAll()
                 .anyRequest().authenticated()
             )
