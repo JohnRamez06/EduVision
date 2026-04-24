@@ -67,7 +67,7 @@ public class LecturerService {
         User lecturer = getCurrentLecturer();
 
         return courseLecturerRepository
-                .findByLecturer_User_Id(lecturer.getId())
+                .findByLecturerId(lecturer.getId())
                 .stream()
                 .map(cl -> {
                     Course c = cl.getCourse();

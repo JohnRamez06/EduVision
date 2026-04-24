@@ -1,42 +1,47 @@
-package com.eduvision.controller;
+                                                                                                 package com.eduvision.controller;
 
-import com.eduvision.dto.lecturer.SessionHistoryDTO;
-import com.eduvision.service.LecturerService;
+import com.eduvision.model.Lecturer;
+import com.eduvision.model.User;
+import com.eduvision.service.UserService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
 import java.util.List;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1/lecturer")
+@RequestMapping("/api/v1/lecturers")
 public class LecturerController {
 
-    private final LecturerService lecturerService;
+    @Autowired
+    private UserService userService;
 
-    public LecturerController(LecturerService lecturerService) {
-        this.lecturerService = lecturerService;
+    @GetMapping
+    public List<User> getAllLecturers() {
+        return userService.findAll().stream()
+            .filter(user -> user.getLecturer() != null)
+            .collect(Collectors.toList());
     }
 
-    @GetMapping("/profile")
-    public ResponseEntity<LecturerService.LecturerProfileDTO> getProfile() {
-        return ResponseEntity.ok(lecturerService.getProfile());
+    @GetMapping("/{id}")
+    public User getLecturer(@PathVariable String id) {
+        return userService.findById(id).orElse(null);
     }
 
-    @GetMapping("/courses")
-    public ResponseEntity<List<LecturerService.LecturerCourseDTO>> getCourses() {
-        return ResponseEntity.ok(lecturerService.getCourses());
+    @PostMapping
+    public User createLecturer(@RequestBody User user) {
+        // Assume lecturer data is in user
+        return userService.save(user);
     }
 
-    @GetMapping("/sessions")
-    public ResponseEntity<List<SessionHistoryDTO>> getSessionHistory() {
-        return ResponseEntity.ok(lecturerService.getSessionHistory());
+    @PutMapping("/{id}")
+    public User updateLecturer(@PathVariable String id, @RequestBody User user) {
+        user.setId(id);
+        return userService.save(user);
     }
 
-    @GetMapping("/session/{id}/students")
-    public ResponseEntity<List<LecturerService.StudentSessionDTO>> getSessionStudents(@PathVariable("id") String sessionId) {
-        return ResponseEntity.ok(lecturerService.getSessionStudents(sessionId));
+    @DeleteMapping("/{id}")
+    public void deleteLecturer(@PathVariable String id) {
+        userService.deleteById(id);
     }
 }
-
