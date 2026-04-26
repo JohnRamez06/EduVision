@@ -1,5 +1,6 @@
 package com.eduvision.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -35,9 +36,11 @@ public class Role {
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "role")
     private Set<RolePermission> rolePermissions = new HashSet<>();
 
+    @JsonIgnore
     @OneToMany(mappedBy = "role")
     private Set<UserRole> userRoles = new HashSet<>();
 

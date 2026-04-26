@@ -128,16 +128,17 @@ public class EmotionSnapshotService {
 
     @Transactional(readOnly = true)
     public AggregatedEmotionDTO getLatestSnapshot(String sessionId) {
-        EmotionSnapshot snapshot = emotionSnapshotRepository.findTopBySessionIdOrderByCapturedAtDesc(sessionId)
-                .orElseThrow(() -> new ResourceNotFoundException("No snapshots found for session: " + sessionId));
-
-        AggregatedEmotionDTO aggregate = new AggregatedEmotionDTO();
-        aggregate.setClassSnapshot(toDto(snapshot));
-        aggregate.setStudentSnapshots(studentEmotionSnapshotRepository.findBySnapshotId(snapshot.getId())
-                .stream()
-                .map(this::toDto)
-                .toList());
-        return aggregate;
+        return emotionSnapshotRepository
+                .findTopBySessionIdOrderByCapturedAtDesc(sessionId)
+                .map(snapshot -> {
+                    AggregatedEmotionDTO aggregate = new AggregatedEmotionDTO();
+                    aggregate.setClassSnapshot(toDto(snapshot));
+                    aggregate.setStudentSnapshots(studentEmotionSnapshotRepository
+                            .findBySnapshotId(snapshot.getId())
+                            .stream().map(this::toDto).toList());
+                    return aggregate;
+                })
+                .orElse(null);  // null = no data yet, not an error
     }
 
     private User resolveStudent(String studentId) {

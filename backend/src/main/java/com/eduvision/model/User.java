@@ -46,7 +46,7 @@ public class User {
     @Column(name = "phone_number", length = 30)
     private String phoneNumber;
 
-    @Column(name = "profile_picture_url")
+    @Column(name = "profile_picture_url", columnDefinition = "MEDIUMTEXT")
     private String profilePictureUrl;
 
     @Column(name = "locale", nullable = false, length = 10)

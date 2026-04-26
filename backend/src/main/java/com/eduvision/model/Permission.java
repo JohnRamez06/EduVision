@@ -1,5 +1,6 @@
 package com.eduvision.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -35,6 +36,7 @@ public class Permission {
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
+    @JsonIgnore
     @OneToMany(mappedBy = "permission")
     private Set<RolePermission> rolePermissions = new HashSet<>();
 

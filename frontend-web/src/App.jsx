@@ -13,24 +13,37 @@ import StudentRecommendations  from './pages/StudentPortal/StudentRecommendation
 import StudentConsent          from './pages/StudentPortal/StudentConsent'
 import StudentProfile          from './pages/StudentPortal/StudentProfile'
 
-import LecturerDashboard from './pages/LecturerPortal/LecturerDashboard'
-import LecturerCourses   from './pages/LecturerPortal/LecturerCourses'
-import LecturerSessions  from './pages/LecturerPortal/LecturerSessions'
-import LecturerProfile   from './pages/LecturerPortal/LecturerProfile'
+import LecturerDashboard    from './pages/LecturerPortal/LecturerDashboard'
+import LecturerCourses      from './pages/LecturerPortal/LecturerCourses'
+import LecturerSessions     from './pages/LecturerPortal/LecturerSessions'
+import LecturerProfile      from './pages/LecturerPortal/LecturerProfile'
+import LecturerLiveSession  from './pages/LecturerPortal/LecturerLiveSession'
+
+import AdminDashboard from './pages/AdminPortal/AdminDashboard'
+import AdminUsers     from './pages/AdminPortal/AdminUsers'
+import AdminRoles     from './pages/AdminPortal/AdminRoles'
+
+const ROLE_REDIRECT = {
+  student:  '/student',
+  lecturer: '/lecturer',
+  dean:     '/dean',
+  admin:    '/admin',
+}
 
 const Guard = ({ role, children }) => (
   <ProtectedRoute role={role}>{children}</ProtectedRoute>
 )
 
 export default function App() {
-  const { token } = useContext(AuthContext)
+  const { token, user } = useContext(AuthContext)
+  const home = token ? (ROLE_REDIRECT[user?.role] ?? '/student') : null
 
   return (
     <Routes>
       {/* Public */}
-      <Route path="/"         element={<SplashPage />} />
-      <Route path="/login"    element={token ? <Navigate to="/" replace /> : <LoginPage />} />
-      <Route path="/register" element={token ? <Navigate to="/" replace /> : <RegisterPage />} />
+      <Route path="/"         element={token ? <Navigate to={home} replace /> : <SplashPage />} />
+      <Route path="/login"    element={token ? <Navigate to={home} replace /> : <LoginPage />} />
+      <Route path="/register" element={token ? <Navigate to={home} replace /> : <RegisterPage />} />
 
       {/* Student portal */}
       <Route path="/student"                  element={<Guard role="student"><StudentDashboard /></Guard>} />
@@ -43,12 +56,17 @@ export default function App() {
       {/* Lecturer portal */}
       <Route path="/lecturer"          element={<Guard role="lecturer"><LecturerDashboard /></Guard>} />
       <Route path="/lecturer/courses"  element={<Guard role="lecturer"><LecturerCourses /></Guard>} />
+      <Route path="/lecturer/live"     element={<Guard role="lecturer"><LecturerLiveSession /></Guard>} />
       <Route path="/lecturer/sessions" element={<Guard role="lecturer"><LecturerSessions /></Guard>} />
       <Route path="/lecturer/profile"  element={<Guard role="lecturer"><LecturerProfile /></Guard>} />
 
+      {/* Admin portal */}
+      <Route path="/admin"        element={<Guard role="admin"><AdminDashboard /></Guard>} />
+      <Route path="/admin/users"  element={<Guard role="admin"><AdminUsers /></Guard>} />
+      <Route path="/admin/roles"  element={<Guard role="admin"><AdminRoles /></Guard>} />
+
       {/* Placeholders */}
-      <Route path="/dean/*"  element={<Guard role="dean"><ComingSoon label="Dean" /></Guard>} />
-      <Route path="/admin/*" element={<Guard role="admin"><ComingSoon label="Admin" /></Guard>} />
+      <Route path="/dean/*" element={<Guard role="dean"><ComingSoon label="Dean" /></Guard>} />
 
       {/* Fallbacks */}
       <Route path="/unauthorized" element={

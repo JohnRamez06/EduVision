@@ -1,21 +1,18 @@
 import React, { useContext, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  GraduationCap, LayoutDashboard, BookOpen, Clock,
-  User, LogOut, Bell, Menu, Video,
+  Shield, LayoutDashboard, Users, ShieldCheck, LogOut, Bell, Menu,
 } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
 import authService from '../services/authService'
 
 const NAV = [
-  { to: '/lecturer',              icon: LayoutDashboard, label: 'Dashboard',    end: true  },
-  { to: '/lecturer/courses',      icon: BookOpen,        label: 'My Courses',   end: false },
-  { to: '/lecturer/live',         icon: Video,           label: 'Live Session', end: false },
-  { to: '/lecturer/sessions',     icon: Clock,           label: 'Sessions',     end: false },
-  { to: '/lecturer/profile',      icon: User,            label: 'Profile',      end: false },
+  { to: '/admin',       icon: LayoutDashboard, label: 'Dashboard',          end: true },
+  { to: '/admin/users', icon: Users,           label: 'Users',              end: false },
+  { to: '/admin/roles', icon: ShieldCheck,     label: 'Roles & Permissions', end: false },
 ]
 
-export default function LecturerLayout({ children, unread = 0 }) {
+export default function AdminLayout({ children }) {
   const { user, logout } = useContext(AuthContext)
   const navigate = useNavigate()
   const [open, setOpen] = useState(false)
@@ -28,19 +25,18 @@ export default function LecturerLayout({ children, unread = 0 }) {
 
   const initials = user?.fullName
     ? user.fullName.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
-    : 'L'
+    : 'A'
 
   const Sidebar = ({ mobile = false }) => (
     <aside className={`flex flex-col h-full bg-navy-900 border-r border-slate-800/60 ${mobile ? 'w-full' : 'w-60'}`}>
       {/* Logo */}
       <div className="flex items-center gap-2.5 px-5 py-5 border-b border-slate-800/60">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shrink-0">
-          <GraduationCap size={16} className="text-white" />
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0">
+          <Shield size={16} className="text-white" />
         </div>
-        <div>
-          <span className="font-bold text-white tracking-tight block leading-none">EduVision</span>
-          <span className="text-[10px] text-emerald-400 font-medium">Lecturer</span>
-        </div>
+        <span className="font-bold text-white tracking-tight">
+          EduVision <span className="text-xs text-violet-400 font-normal">Admin</span>
+        </span>
       </div>
 
       {/* Nav */}
@@ -54,7 +50,7 @@ export default function LecturerLayout({ children, unread = 0 }) {
             className={({ isActive }) =>
               `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 ${
                 isActive
-                  ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20'
+                  ? 'bg-violet-500/15 text-violet-300 border border-violet-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
               }`
             }
@@ -68,11 +64,11 @@ export default function LecturerLayout({ children, unread = 0 }) {
       {/* User */}
       <div className="px-3 py-4 border-t border-slate-800/60">
         <div className="flex items-center gap-3 px-3 py-2 rounded-xl mb-1">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
             {initials}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-200 truncate">{user?.fullName ?? 'Lecturer'}</p>
+            <p className="text-sm font-medium text-slate-200 truncate">{user?.fullName ?? 'Admin'}</p>
             <p className="text-xs text-slate-500 truncate">{user?.email ?? ''}</p>
           </div>
         </div>
@@ -115,17 +111,14 @@ export default function LecturerLayout({ children, unread = 0 }) {
           <div className="flex items-center gap-3">
             <button className="relative w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
               <Bell size={17} />
-              {unread > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500" />
-              )}
             </button>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-xs font-bold text-white">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white">
               {initials}
             </div>
           </div>
         </header>
 
-        {/* Content */}
+        {/* Scrollable content */}
         <main className="flex-1 overflow-y-auto bg-navy-950 p-5 md:p-7">
           {children}
         </main>

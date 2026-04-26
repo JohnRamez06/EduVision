@@ -43,7 +43,7 @@ public class EmotionDataController {
                                                @RequestParam(value = "latest", defaultValue = "false") boolean latest) {
         if (latest) {
             AggregatedEmotionDTO snapshot = emotionSnapshotService.getLatestSnapshot(sessionId);
-            return ResponseEntity.ok(snapshot);
+            return snapshot != null ? ResponseEntity.ok(snapshot) : ResponseEntity.noContent().build();
         }
         return ResponseEntity.ok(Map.of("sessionId", sessionId, "history", emotionSnapshotService.getSessionHistory(sessionId)));
     }

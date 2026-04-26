@@ -12,6 +12,7 @@ public class UserResponseDTO {
     private String id;
     private String email;
     private String fullName;
+    private String profilePictureUrl;
     private Set<String> roles;    // role names e.g. ["LECTURER"]
     private boolean isActive;
     private LocalDateTime lastLogin;
@@ -20,9 +21,10 @@ public class UserResponseDTO {
     // Static factory — maps directly from User entity
     public static UserResponseDTO from(User user) {
         UserResponseDTO dto = new UserResponseDTO();
-        dto.id        = user.getId();
-        dto.email     = user.getEmail();
-        dto.fullName  = user.getFirstName() + " " + user.getLastName();
+        dto.id                 = user.getId();
+        dto.email              = user.getEmail();
+        dto.fullName           = user.getFirstName() + " " + user.getLastName();
+        dto.profilePictureUrl  = user.getProfilePictureUrl();
         dto.isActive  = user.getStatus() != null &&
                         user.getStatus().name().equalsIgnoreCase("ACTIVE");
         dto.lastLogin  = user.getLastLoginAt();
@@ -39,6 +41,7 @@ public class UserResponseDTO {
     public String getId() { return id; }
     public String getEmail() { return email; }
     public String getFullName() { return fullName; }
+    public String getProfilePictureUrl() { return profilePictureUrl; }
     public Set<String> getRoles() { return roles; }
     public boolean isActive() { return isActive; }
     public LocalDateTime getLastLogin() { return lastLogin; }

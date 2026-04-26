@@ -11,7 +11,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -40,11 +39,8 @@ public class RoleService {
 
     @Transactional(readOnly = true)
     public List<Permission> getRolePermissions(String roleId) {
-        Role role = findActiveRole(roleId);
-        return role.getRolePermissions().stream()
-                .map(RolePermission::getPermission)
-                .filter(Permission::isActive)
-                .collect(Collectors.toList());
+        findActiveRole(roleId); // validates the role exists
+        return permissionRepository.findActiveByRoleId(roleId);
     }
 
     // ─── UPDATE PERMISSIONS FOR A ROLE ───────────────────────────────────────

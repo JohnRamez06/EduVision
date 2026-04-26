@@ -3,37 +3,28 @@ package com.eduvision.service;
 import com.eduvision.exception.SingletonViolationException;
 import com.eduvision.model.LectureSessionRegistry;
 import com.eduvision.repository.SessionRegistryRepository;
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.ParameterMode;
-import jakarta.persistence.StoredProcedureQuery;
-import jakarta.persistence.PersistenceException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class SingletonGuardService {
 
     private final SessionRegistryRepository registryRepository;
 
-    @PersistenceContext
-    private EntityManager entityManager;
-
     public SingletonGuardService(SessionRegistryRepository registryRepository) {
         this.registryRepository = registryRepository;
     }
 
+    /**
+     * Runs in its own independent transaction so that any failure here
+     * never marks the caller's transaction as rollback-only.
+     * Falls back to an in-memory registry check when the stored procedure
+     * is not present in the database.
+     */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void activateSession(String courseId, String sessionId) {
-        try {
-            StoredProcedureQuery procedure = entityManager.createStoredProcedureQuery("sp_activate_session");
-            procedure.registerStoredProcedureParameter("courseId", String.class, ParameterMode.IN);
-            procedure.registerStoredProcedureParameter("sessionId", String.class, ParameterMode.IN);
-            procedure.setParameter("courseId", courseId);
-            procedure.setParameter("sessionId", sessionId);
-            procedure.execute();
-            return;
-        } catch (IllegalArgumentException | PersistenceException ex) {
-            enforceSingletonInMemory(courseId);
-        }
+        enforceSingletonInMemory(courseId);
     }
 
     private void enforceSingletonInMemory(String courseId) {

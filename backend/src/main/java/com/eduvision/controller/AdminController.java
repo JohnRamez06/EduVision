@@ -4,13 +4,17 @@ import com.eduvision.dto.admin.*;
 import com.eduvision.model.Permission;
 import com.eduvision.model.Role;
 import com.eduvision.service.AdminService;
+import com.eduvision.service.PermissionService;
 import com.eduvision.service.RoleService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
@@ -19,12 +23,15 @@ import java.util.Set;
 @PreAuthorize("hasRole('ADMIN')")          // entire controller is admin-only
 public class AdminController {
 
-    private final AdminService adminService;
-    private final RoleService  roleService;
+    private final AdminService      adminService;
+    private final RoleService       roleService;
+    private final PermissionService permissionService;
 
-    public AdminController(AdminService adminService, RoleService roleService) {
-        this.adminService = adminService;
-        this.roleService  = roleService;
+    public AdminController(AdminService adminService, RoleService roleService,
+                           PermissionService permissionService) {
+        this.adminService      = adminService;
+        this.roleService       = roleService;
+        this.permissionService = permissionService;
     }
 
     // ─── USER ENDPOINTS ──────────────────────────────────────────────────────
@@ -64,7 +71,21 @@ public class AdminController {
         return ResponseEntity.noContent().build();   // 204
     }
 
+    /** POST /api/v1/admin/users/{id}/picture — upload profile photo */
+    @PostMapping(value = "/users/{id}/picture", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<UserResponseDTO> uploadPicture(
+            @PathVariable String id,
+            @RequestParam("file") MultipartFile file) throws IOException {
+        return ResponseEntity.ok(adminService.uploadProfilePicture(id, file));
+    }
+
     // ─── ROLE ENDPOINTS ──────────────────────────────────────────────────────
+
+    /** GET /api/v1/admin/permissions — list all active permissions */
+    @GetMapping("/permissions")
+    public ResponseEntity<List<Permission>> getAllPermissions() {
+        return ResponseEntity.ok(permissionService.getAllPermissions());
+    }
 
     /** GET /api/v1/admin/roles — list all active roles */
     @GetMapping("/roles")

@@ -37,7 +37,7 @@ public class AuditLog {
     @Column(name = "resource_type", nullable = false, length = 100)
     private String resourceType;
 
-    @Column(name = "resource_id", columnDefinition = "char(36)")
+    @Column(name = "resource_id", length = 255)
     private String resourceId;
 
     @Column(name = "old_value", columnDefinition = "json")

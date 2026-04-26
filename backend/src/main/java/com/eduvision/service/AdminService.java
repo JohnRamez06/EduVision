@@ -9,7 +9,12 @@ import com.eduvision.repository.UserRoleRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -74,6 +79,7 @@ public class AdminService {
         user.setStatus(UserStatus.active);
         user.setLocale("en");
         user.setTimezone("UTC");
+        user.setProfilePictureUrl(req.getProfilePictureUrl());
         user.setCreatedAt(LocalDateTime.now());
         user.setUpdatedAt(LocalDateTime.now());
 
@@ -90,8 +96,9 @@ public class AdminService {
     public UserResponseDTO updateUser(String id, UserUpdateRequest req) {
         User user = findActiveUserById(id);
 
-        if (req.getFirstName() != null) user.setFirstName(req.getFirstName());
-        if (req.getLastName()  != null) user.setLastName(req.getLastName());
+        if (req.getFirstName()         != null) user.setFirstName(req.getFirstName());
+        if (req.getLastName()          != null) user.setLastName(req.getLastName());
+        if (req.getProfilePictureUrl() != null) user.setProfilePictureUrl(req.getProfilePictureUrl());
 
         if (req.getIsActive() != null) {
             user.setStatus(req.getIsActive()
@@ -120,6 +127,29 @@ public class AdminService {
         user.setStatus(UserStatus.inactive);
         user.setUpdatedAt(LocalDateTime.now());
         userRepository.save(user);
+    }
+
+    // ─── PROFILE PICTURE ─────────────────────────────────────────────────────
+
+    public UserResponseDTO uploadProfilePicture(String id, MultipartFile file) throws IOException {
+        User user = findActiveUserById(id);
+
+        // Derive a safe file extension from the original filename or content type
+        String originalName = file.getOriginalFilename() != null ? file.getOriginalFilename() : "";
+        String ext = originalName.contains(".")
+                ? originalName.substring(originalName.lastIndexOf('.'))
+                : ".jpg";
+
+        // Store under uploads/profile-pictures/ using userId as the stable filename
+        // (overwrites previous picture automatically on re-upload)
+        Path dir = Paths.get("uploads", "profile-pictures");
+        Files.createDirectories(dir);
+        Path target = dir.resolve(user.getId() + ext);
+        file.transferTo(target.toAbsolutePath().toFile());
+
+        user.setProfilePictureUrl("/uploads/profile-pictures/" + user.getId() + ext);
+        user.setUpdatedAt(LocalDateTime.now());
+        return UserResponseDTO.from(userRepository.save(user));
     }
 
     // ─── ROLE ASSIGNMENT ─────────────────────────────────────────────────────
