@@ -5,5 +5,9 @@ public enum ReportType {
     student_progress,
     course_analytics,
     engagement_trend,
+    weekly_student,
+    weekly_lecturer,
+    weekly_dean,
+    comparison,
     custom
 }
