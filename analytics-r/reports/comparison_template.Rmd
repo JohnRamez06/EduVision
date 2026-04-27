@@ -1,0 +1,102 @@
+---
+title: "Comparison Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: false
+params:
+  compare_type: "lecturers"   # "lecturers" | "courses"
+  ids:          ""            # comma-separated IDs
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 8, fig.height = 5)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
+source(file.path(ANALYTICS_HOME, "config.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+source(file.path(ANALYTICS_HOME, "analysis", "compare_lecturers.R"))
+source(file.path(ANALYTICS_HOME, "analysis", "compare_courses.R"))
+
+compare_type <- params$compare_type
+ids          <- strsplit(params$ids, ",")[[1]]
+
+if (compare_type == "lecturers") {
+  comp_data <- compare_lecturers(ids)
+  label_col <- "lecturer_name"
+} else {
+  comp_data <- compare_courses(ids)
+  label_col <- "code"
+}
+```
+
+**Comparison Type:** `r tools::toTitleCase(compare_type)`
+
+---
+
+## Engagement Comparison
+
+```{r eng-compare}
+if (!is.null(comp_data) && nrow(comp_data) > 0) {
+  comp_data$label <- comp_data[[label_col]]
+  ggplot(comp_data, aes(x = reorder(label, avg_engagement),
+                        y = avg_engagement, fill = label)) +
+    geom_col(show.legend = FALSE) +
+    scale_fill_brewer(palette = "Set1") +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    coord_flip() +
+    labs(x = "", y = "Avg Engagement",
+         title = sprintf("%s Engagement Comparison",
+                         tools::toTitleCase(compare_type))) +
+    theme_minimal()
+} else {
+  cat("No data available for comparison.")
+}
+```
+
+## Concentration Comparison
+
+```{r conc-compare}
+if (!is.null(comp_data) && nrow(comp_data) > 0) {
+  comp_data$label <- comp_data[[label_col]]
+  ggplot(comp_data, aes(x = reorder(label, avg_concentration),
+                        y = avg_concentration, fill = label)) +
+    geom_col(show.legend = FALSE) +
+    scale_fill_brewer(palette = "Set2") +
+    coord_flip() +
+    labs(x = "", y = "Avg Concentration",
+         title = "Concentration Comparison") +
+    theme_minimal()
+}
+```
+
+## Sessions Count
+
+```{r sessions-compare}
+if (!is.null(comp_data) && nrow(comp_data) > 0 && "n_sessions" %in% names(comp_data)) {
+  comp_data$label <- comp_data[[label_col]]
+  ggplot(comp_data, aes(x = label, y = n_sessions, fill = label)) +
+    geom_col(show.legend = FALSE) +
+    scale_fill_brewer(palette = "Set3") +
+    labs(x = "", y = "Number of Sessions",
+         title = "Sessions Comparison") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+}
+```
+
+## Detailed Table
+
+```{r detail-table}
+if (!is.null(comp_data) && nrow(comp_data) > 0) {
+  show_cols <- intersect(c(label_col, "n_sessions",
+                           "avg_engagement","avg_concentration",
+                           "total_students"),
+                         names(comp_data))
+  knitr::kable(comp_data[, show_cols], digits = 3)
+}
+```

@@ -1,0 +1,188 @@
+---
+title: "Weekly Student Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+params:
+  student_id: ""
+  week_id:    ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 7, fig.height = 4)
+library(ggplot2)
+library(dplyr)
+
+ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
+source(file.path(ANALYTICS_HOME, "config.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+source(file.path(ANALYTICS_HOME, "analysis", "weekly_student_analysis.R"))
+source(file.path(ANALYTICS_HOME, "analysis", "weekly_trend_analysis.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_student_snapshots.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_data.R"))
+
+student_id <- params$student_id
+week_id    <- params$week_id
+
+stats   <- weekly_student_analysis(student_id, week_id)
+trends  <- weekly_trend_analysis(student_id, num_weeks = 8)
+student <- fetch_student(student_id)
+wp      <- fetch_weekly_period(week_id)
+
+snaps <- with_connection(function(con) {
+  dbGetQuery(con, sqlInterpolate(con,
+    "SELECT ses.*, ls.actual_start
+       FROM student_emotion_snapshots ses
+       JOIN lecture_sessions ls ON ls.id = ses.session_id
+       JOIN weekly_periods wp ON wp.id = ?wid
+      WHERE ses.student_id = ?sid
+        AND ses.captured_at BETWEEN wp.start_date
+            AND DATE_ADD(wp.end_date, INTERVAL 1 DAY)
+      ORDER BY ses.captured_at",
+    wid = week_id, sid = student_id))
+})
+```
+
+---
+
+**Student:** `r paste(student$first_name, student$last_name)` (`r student$student_number`)  
+**Programme:** `r student$program`  
+**Week:** `r wp$week_number` / `r wp$year` (`r wp$start_date` – `r wp$end_date`)
+
+---
+
+## 1. Overall Stats
+
+```{r overall-stats}
+tbl <- data.frame(
+  Metric = c("Sessions Attended", "Total Snapshots",
+             "Avg Concentration", "Attentive %",
+             "Drowsy Episodes", "Confusion Duration (min)",
+             "Dominant Emotion"),
+  Value  = c(stats$sessions_attended,
+             stats$n_snapshots,
+             ifelse(is.na(stats$avg_concentration), "N/A",
+                    sprintf("%.1f / 100", stats$avg_concentration)),
+             ifelse(is.na(stats$attentive_percentage), "N/A",
+                    pct(stats$attentive_percentage)),
+             stats$drowsy_episodes,
+             round(stats$confusion_duration, 1),
+             ifelse(is.na(stats$dominant_emotion), "N/A",
+                    stats$dominant_emotion)),
+  stringsAsFactors = FALSE
+)
+knitr::kable(tbl, col.names = c("Metric", "Value"))
+```
+
+## 2. Concentration Timeline
+
+```{r conc-timeline}
+if (nrow(snaps) > 0) {
+  snaps_plot <- snaps %>%
+    mutate(
+      captured_at = as.POSIXct(captured_at),
+      conc_score  = concentration_to_score(concentration)
+    ) %>%
+    filter(!is.na(conc_score)) %>%
+    arrange(captured_at)
+
+  ggplot(snaps_plot, aes(x = captured_at, y = conc_score)) +
+    geom_line(colour = "#2196F3", linewidth = 0.7, alpha = 0.5) +
+    geom_smooth(method = "loess", span = 0.3, se = FALSE,
+                colour = "#0D47A1", linewidth = 1.2) +
+    scale_y_continuous(limits = c(0, 100), breaks = seq(0, 100, 25)) +
+    labs(x = "Time", y = "Concentration Score (0-100)",
+         title = "Concentration Over the Week") +
+    theme_minimal()
+} else {
+  cat("No snapshot data available for this week.")
+}
+```
+
+## 3. Emotion Breakdown
+
+```{r emotion-pie}
+if (nrow(snaps) > 0) {
+  emo_tbl <- snaps %>%
+    count(emotion) %>%
+    mutate(pct = n / sum(n))
+
+  ggplot(emo_tbl, aes(x = reorder(emotion, -n), y = n, fill = emotion)) +
+    geom_col(show.legend = FALSE) +
+    scale_fill_brewer(palette = "Set2") +
+    labs(x = "Emotion", y = "Count",
+         title = "Emotion Distribution This Week") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+} else {
+  cat("No emotion data available.")
+}
+```
+
+## 4. Comparison to Class Average
+
+```{r class-comparison}
+class_avg <- with_connection(function(con) {
+  dbGetQuery(con, sqlInterpolate(con,
+    "SELECT AVG(CASE WHEN concentration='high'   THEN 85
+                     WHEN concentration='medium' THEN 55
+                     WHEN concentration='low'    THEN 25
+                     ELSE 10 END) AS avg_class_conc
+       FROM student_emotion_snapshots ses
+       JOIN lecture_sessions ls ON ls.id = ses.session_id
+       JOIN weekly_periods wp ON wp.id = ?wid
+      WHERE ses.captured_at BETWEEN wp.start_date
+            AND DATE_ADD(wp.end_date, INTERVAL 1 DAY)",
+    wid = week_id))
+})
+
+comp_df <- data.frame(
+  Group = c("This Student", "Class Average"),
+  Conc  = c(stats$avg_concentration,
+            as.numeric(class_avg$avg_class_conc))
+)
+
+ggplot(comp_df, aes(x = Group, y = Conc, fill = Group)) +
+  geom_col(width = 0.5, show.legend = FALSE) +
+  scale_fill_manual(values = c("#42A5F5", "#EF5350")) +
+  scale_y_continuous(limits = c(0, 100)) +
+  labs(y = "Avg Concentration Score", x = "",
+       title = "Student vs Class Average Concentration") +
+  theme_minimal()
+```
+
+## 5. Multi-Week Trend
+
+```{r trend}
+if (nrow(trends$weekly_stats) >= 2) {
+  ggplot(trends$weekly_stats,
+         aes(x = as.integer(week_number), y = avg_concentration)) +
+    geom_line(colour = "#4CAF50", linewidth = 1) +
+    geom_point(colour = "#4CAF50", size = 2) +
+    geom_smooth(method = "lm", se = FALSE, colour = "#1B5E20",
+                linetype = "dashed", linewidth = 0.8) +
+    labs(x = "Week Number", y = "Avg Concentration",
+         title = sprintf("8-Week Trend (%s)", trends$trend_direction)) +
+    theme_minimal()
+} else {
+  cat("Insufficient data for trend analysis.")
+}
+```
+
+## 6. Recommendations
+
+```{r recs}
+cat(recommend_from_concentration(stats$avg_concentration))
+if (!is.na(stats$drowsy_episodes) && stats$drowsy_episodes > 3) {
+  cat("\n• Repeated drowsiness detected. Consider discussing sleep habits.")
+}
+if (!is.na(stats$confusion_duration) && stats$confusion_duration > 15) {
+  cat("\n• Extended confusion episodes. Academic support may be beneficial.")
+}
+if (identical(trends$trend_direction, "declining")) {
+  cat("\n• Concentration trend is declining. Early intervention recommended.")
+}
+```

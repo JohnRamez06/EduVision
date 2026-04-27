@@ -1,0 +1,79 @@
+---
+title: "Multi-Week Engagement Trend"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: false
+params:
+  student_id: ""
+  num_weeks:  8
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 8, fig.height = 5)
+library(ggplot2)
+library(dplyr)
+
+ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
+source(file.path(ANALYTICS_HOME, "config.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+source(file.path(ANALYTICS_HOME, "analysis", "weekly_trend_analysis.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_data.R"))
+
+student_id <- params$student_id
+num_weeks  <- as.integer(params$num_weeks)
+trend      <- weekly_trend_analysis(student_id, num_weeks)
+student    <- fetch_student(student_id)
+```
+
+**Student:** `r student$full_name` (`r student$student_number`)  
+**Analysis Period:** Last `r num_weeks` weeks | **Trend:** `r trend$trend_direction`
+
+---
+
+## Concentration Trend
+
+```{r conc-trend}
+wdf <- trend$weekly_stats
+if (!is.null(wdf) && nrow(wdf) >= 2) {
+  ggplot(wdf, aes(x = week_number, y = avg_concentration)) +
+    geom_line(colour = "#42A5F5", linewidth = 1.2) +
+    geom_point(colour = "#42A5F5", size = 3) +
+    geom_smooth(method = "lm", se = TRUE, fill = "#BBDEFB",
+                colour = "#0D47A1", linetype = "dashed", linewidth = 1) +
+    scale_y_continuous(limits = c(0, 100)) +
+    labs(x = "Week Number", y = "Avg Concentration Score (0-100)",
+         title = sprintf("Concentration Trend — %s", trend$trend_direction),
+         subtitle = sprintf("Slope: %.2f pts/week", trend$trend_slope)) +
+    theme_minimal()
+} else {
+  cat("Not enough weekly data to plot a trend.")
+}
+```
+
+## Attentiveness Over Weeks
+
+```{r attentive-trend}
+if (!is.null(wdf) && nrow(wdf) >= 2 &&
+    "attentive_percentage" %in% names(wdf)) {
+  ggplot(wdf, aes(x = week_number, y = attentive_percentage * 100)) +
+    geom_col(fill = "#A5D6A7") +
+    scale_y_continuous(limits = c(0, 100)) +
+    labs(x = "Week Number", y = "Attentive %",
+         title = "Weekly Attentiveness Percentage") +
+    theme_minimal()
+}
+```
+
+## Sessions Attended per Week
+
+```{r sessions-attended}
+if (!is.null(wdf) && nrow(wdf) > 0) {
+  ggplot(wdf, aes(x = week_number, y = sessions_attended)) +
+    geom_col(fill = "#90CAF9") +
+    labs(x = "Week Number", y = "Sessions Attended",
+         title = "Sessions Attended per Week") +
+    theme_minimal()
+}
+```

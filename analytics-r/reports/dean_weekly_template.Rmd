@@ -1,0 +1,125 @@
+---
+title: "Weekly Dean Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+params:
+  dean_id: ""
+  week_id: ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 7, fig.height = 4)
+library(ggplot2)
+library(dplyr)
+
+ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
+source(file.path(ANALYTICS_HOME, "config.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+source(file.path(ANALYTICS_HOME, "analysis", "weekly_dean_analysis.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_data.R"))
+
+dean_id <- params$dean_id
+week_id <- params$week_id
+stats   <- weekly_dean_analysis(dean_id, week_id)
+wp      <- fetch_weekly_period(week_id)
+```
+
+---
+
+**Week:** `r wp$week_number` / `r wp$year` (`r wp$start_date` – `r wp$end_date`)
+
+---
+
+## 1. Department Overview
+
+```{r overview}
+knitr::kable(data.frame(
+  Metric = c("Total Sessions", "Lecturers Active", "Courses Active",
+             "Dept Avg Engagement"),
+  Value  = c(stats$n_sessions, stats$n_lecturers, stats$n_courses,
+             ifelse(is.na(stats$avg_engagement), "N/A",
+                    sprintf("%.2f", stats$avg_engagement)))
+), col.names = c("Metric","Value"))
+```
+
+## 2. Course Rankings
+
+```{r course-rank}
+if (!is.null(stats$course_summary) && nrow(stats$course_summary) > 0) {
+  cs <- stats$course_summary %>% arrange(desc(avg_eng))
+  ggplot(cs, aes(x = reorder(code, avg_eng), y = avg_eng, fill = avg_eng)) +
+    geom_col(show.legend = FALSE) +
+    scale_fill_gradient(low = "#EF5350", high = "#66BB6A") +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    coord_flip() +
+    labs(x = "Course", y = "Avg Engagement",
+         title = "Course Engagement Rankings") +
+    theme_minimal()
+} else {
+  cat("No course data available.")
+}
+```
+
+## 3. Lecturer Performance
+
+```{r lecturer-perf}
+if (!is.null(stats$lecturer_ranking) && nrow(stats$lecturer_ranking) > 0) {
+  lr <- stats$lecturer_ranking
+  ggplot(lr, aes(x = reorder(lecturer_name, avg_eng), y = avg_eng)) +
+    geom_col(fill = "#42A5F5") +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    coord_flip() +
+    labs(x = "Lecturer", y = "Avg Engagement",
+         title = "Lecturer Engagement Comparison") +
+    theme_minimal()
+} else {
+  cat("No lecturer data available.")
+}
+```
+
+## 4. At-Risk Courses
+
+```{r at-risk}
+if (!is.null(stats$at_risk_courses) && nrow(stats$at_risk_courses) > 0) {
+  knitr::kable(
+    stats$at_risk_courses[, c("code","course_title","avg_eng")],
+    col.names = c("Code","Title","Avg Engagement"),
+    digits = 3
+  )
+} else {
+  cat("No at-risk courses this week.")
+}
+```
+
+## 5. Weekly Trends
+
+```{r weekly-trends}
+hist_data <- with_connection(function(con) {
+  dbGetQuery(con,
+    "SELECT wp.week_number, wp.year,
+            AVG(es.engagement_score) AS avg_eng
+       FROM emotion_snapshots es
+       JOIN lecture_sessions ls ON ls.id = es.session_id
+       JOIN weekly_periods wp ON es.captured_at BETWEEN wp.start_date
+            AND DATE_ADD(wp.end_date, INTERVAL 1 DAY)
+      GROUP BY wp.id, wp.week_number, wp.year
+      ORDER BY wp.year, wp.week_number
+      LIMIT 12")
+})
+if (nrow(hist_data) >= 2) {
+  ggplot(hist_data, aes(x = week_number, y = avg_eng, group = year,
+                        colour = factor(year))) +
+    geom_line(linewidth = 1) +
+    geom_point(size = 2) +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    labs(x = "Week", y = "Avg Engagement", colour = "Year",
+         title = "Department Engagement Trend") +
+    theme_minimal()
+} else {
+  cat("Insufficient historical data for trend chart.")
+}
+```
