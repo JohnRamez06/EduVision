@@ -1,42 +1,61 @@
-# =============================================================================
-# analysis/correlation_analysis.R
-# =============================================================================
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-if (!exists("get_connection")) source(file.path(BASE_DIR, "config.R"))
-if (!exists("fetch_query"))    source(file.path(BASE_DIR, "scripts", "fetch_data.R"))
-library(dplyr)
+# ============================================================
+# correlation_analysis.R — Pearson correlations between key metrics
+# ============================================================
 
-run_correlation_analysis <- function(session_id = NULL) {
-  if (!is.null(session_id)) {
-    sql <- sprintf(
-      "SELECT es.engagement_score, es.avg_concentration, es.student_count,
-              HOUR(es.captured_at) AS hour_of_day,
-              DAYOFWEEK(es.captured_at) AS day_of_week
-       FROM emotion_snapshots es WHERE es.session_id = '%s'", session_id)
-  } else {
-    sql <- "SELECT es.engagement_score, es.avg_concentration, es.student_count,
-                   HOUR(es.captured_at) AS hour_of_day,
-                   DAYOFWEEK(es.captured_at) AS day_of_week
-            FROM emotion_snapshots es LIMIT 5000"
+AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(AN_DIR)
+source(file.path(ROOT, "config.R"),   local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
+
+#' Compute a table of Pearson correlations for a set of sessions.
+#' Metrics: confusion_rate, engagement_score, concentration_score,
+#'          hour_of_day, class_size.
+#' @param session_ids Character vector of session IDs.
+#' @return data.frame with columns: var1, var2, r, p_value.
+correlation_analysis <- function(session_ids) {
+  data <- with_connection(function(con) {
+    placeholders <- paste(sprintf("'%s'", session_ids), collapse = ",")
+    dbGetQuery(con, sprintf("
+      SELECT
+        HOUR(es.captured_at)                                     AS hour_of_day,
+        es.student_count                                         AS class_size,
+        es.engagement_score,
+        es.avg_concentration,
+        SUM(CASE WHEN ses.emotion='confused' THEN 1 ELSE 0 END) /
+          NULLIF(COUNT(ses.id),0)                                AS confusion_rate
+      FROM emotion_snapshots es
+      LEFT JOIN student_emotion_snapshots ses ON ses.snapshot_id = es.id
+      WHERE es.session_id IN (%s)
+      GROUP BY es.id, es.captured_at, es.student_count,
+               es.engagement_score, es.avg_concentration
+    ", placeholders))
+  })
+
+  if (nrow(data) < 5) {
+    message("Not enough data points for correlation analysis.")
+    return(data.frame())
   }
 
-  df <- fetch_query(sql)
-  if (nrow(df) < 5) return(list(error = "Insufficient data for correlation"))
-
-  df <- df[complete.cases(df[, c("engagement_score","avg_concentration","student_count","hour_of_day")]),]
-
-  pearson <- cor(df[, c("engagement_score","avg_concentration","student_count","hour_of_day")],
-                 use = "pairwise.complete.obs", method = "pearson")
-
-  # Individual correlations with p-values
-  eng_vs_hour   <- cor.test(df$engagement_score, df$hour_of_day)
-  eng_vs_size   <- cor.test(df$engagement_score, df$student_count)
-  conc_vs_hour  <- cor.test(df$avg_concentration, df$hour_of_day)
-
-  list(
-    pearson_matrix      = pearson,
-    engagement_vs_hour  = list(r = round(eng_vs_hour$estimate, 3),  p = round(eng_vs_hour$p.value,  4)),
-    engagement_vs_size  = list(r = round(eng_vs_size$estimate, 3),  p = round(eng_vs_size$p.value,  4)),
-    concentration_vs_hour = list(r = round(conc_vs_hour$estimate,3), p = round(conc_vs_hour$p.value, 4))
+  pairs <- list(
+    c("confusion_rate",   "hour_of_day"),
+    c("engagement_score", "class_size"),
+    c("avg_concentration","hour_of_day"),
+    c("engagement_score", "avg_concentration"),
+    c("confusion_rate",   "engagement_score")
   )
+
+  results <- lapply(pairs, function(p) {
+    x <- as.numeric(data[[p[1]]])
+    y <- as.numeric(data[[p[2]]])
+    valid <- !is.na(x) & !is.na(y)
+    if (sum(valid) < 5) return(NULL)
+    ct <- cor.test(x[valid], y[valid], method = "pearson")
+    data.frame(var1    = p[1],
+               var2    = p[2],
+               r       = round(as.numeric(ct$estimate), 4),
+               p_value = round(ct$p.value, 4),
+               stringsAsFactors = FALSE)
+  })
+
+  do.call(rbind, Filter(Negate(is.null), results))
 }

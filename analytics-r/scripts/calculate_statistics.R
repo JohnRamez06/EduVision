@@ -1,58 +1,72 @@
-# =============================================================================
-# scripts/calculate_statistics.R
-# =============================================================================
+# ============================================================
+# calculate_statistics.R — Summary statistics helpers
+# ============================================================
 
-# Mean with 95% confidence interval
-mean_ci <- function(x, conf = 0.95) {
-  x   <- na.omit(x)
-  n   <- length(x)
-  if (n < 2) return(list(mean = mean(x), lower = NA, upper = NA, n = n))
-  se  <- sd(x) / sqrt(n)
-  t   <- qt((1 + conf) / 2, df = n - 1)
-  list(mean = mean(x), lower = mean(x) - t * se, upper = mean(x) + t * se, n = n)
-}
+library(dplyr)
 
-# Median + IQR
-median_iqr <- function(x) {
-  x <- na.omit(x)
-  list(median = median(x), q1 = quantile(x, 0.25), q3 = quantile(x, 0.75), iqr = IQR(x))
-}
-
-# Trend direction from a numeric vector
-# Returns: list(direction, slope, p_value)
-trend_direction <- function(x) {
-  x <- na.omit(as.numeric(x))
-  if (length(x) < 3) return(list(direction = "stable", slope = 0, p_value = 1))
-  t   <- seq_along(x)
-  fit <- lm(x ~ t)
-  sm  <- summary(fit)
-  slope   <- coef(fit)[2]
-  p_value <- sm$coefficients[2, 4]
-  direction <- if (p_value > 0.05) "stable" else if (slope > 0) "improving" else "declining"
-  list(direction = direction, slope = round(slope, 5), p_value = round(p_value, 4))
-}
-
-# Moving average
-moving_avg <- function(x, window = 5) {
-  filter(x, rep(1 / window, window), sides = 2)
-}
-
-# Engagement level classification
-classify_engagement <- function(score) {
-  dplyr::case_when(
-    score >= 0.75 ~ "high",
-    score >= 0.50 ~ "medium",
-    score >= 0.25 ~ "low",
-    TRUE          ~ "very_low"
+#' Compute summary stats for a numeric vector.
+summary_stats <- function(x) {
+  x <- x[!is.na(x)]
+  if (length(x) == 0) {
+    return(list(n = 0L, mean = NA_real_, median = NA_real_,
+                sd = NA_real_, min = NA_real_, max = NA_real_,
+                q25 = NA_real_, q75 = NA_real_))
+  }
+  list(
+    n      = length(x),
+    mean   = mean(x),
+    median = median(x),
+    sd     = sd(x),
+    min    = min(x),
+    max    = max(x),
+    q25    = quantile(x, 0.25),
+    q75    = quantile(x, 0.75)
   )
 }
 
-# Concentration classification matching DB enum
-classify_concentration <- function(score_0_to_100) {
-  dplyr::case_when(
-    score_0_to_100 >= 70 ~ "high",
-    score_0_to_100 >= 45 ~ "medium",
-    score_0_to_100 >= 20 ~ "low",
-    TRUE                 ~ "distracted"
-  )
+#' Compute dominant emotion from a character vector.
+dominant_emotion <- function(emotions) {
+  if (length(emotions) == 0 || all(is.na(emotions))) return(NA_character_)
+  tbl <- table(emotions[!is.na(emotions)])
+  names(which.max(tbl))
+}
+
+#' Compute attentive percentage.
+#' Attentive = concentration IN ('high', 'medium') OR emotion = 'engaged'
+attentive_percentage <- function(snapshots_df) {
+  if (nrow(snapshots_df) == 0) return(NA_real_)
+  attentive <- with(snapshots_df,
+    (concentration %in% c("high", "medium")) | (emotion == "engaged"))
+  mean(attentive, na.rm = TRUE)
+}
+
+#' Count drowsy episodes.
+#' A drowsy episode is a run of consecutive snapshots where
+#' emotion == 'neutral' and concentration == 'distracted' or 'low'.
+count_drowsy_episodes <- function(snapshots_df) {
+  if (nrow(snapshots_df) == 0) return(0L)
+  drowsy <- with(snapshots_df,
+    concentration %in% c("distracted", "low") &
+    emotion %in% c("neutral", "sad"))
+  # count transitions FALSE→TRUE
+  sum(diff(c(FALSE, drowsy)) == 1, na.rm = TRUE)
+}
+
+#' Compute confusion duration in minutes from snapshots.
+confusion_duration_mins <- function(snapshots_df, interval_secs = 5) {
+  if (nrow(snapshots_df) == 0) return(0)
+  confused <- sum(snapshots_df$emotion == "confused", na.rm = TRUE)
+  confused * interval_secs / 60
+}
+
+#' Compute engagement score time series (numeric 0-1 from engagement_score col).
+compute_engagement_series <- function(snapshots_df) {
+  snapshots_df %>%
+    dplyr::mutate(
+      captured_at    = as.POSIXct(captured_at),
+      engagement_val = as.numeric(engagement_score)
+    ) %>%
+    dplyr::select(captured_at, engagement_val) %>%
+    dplyr::filter(!is.na(engagement_val)) %>%
+    dplyr::arrange(captured_at)
 }

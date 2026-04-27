@@ -1,72 +1,89 @@
-# =============================================================================
-# EduVision - Generic Data Fetch Utilities
-# scripts/fetch_data.R
-# =============================================================================
+# ============================================================
+# fetch_data.R — Generic data-fetching helpers
+# ============================================================
 
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-if (!exists("get_connection")) source(file.path(BASE_DIR, "config.R"))
+SCRIPTS_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+source(file.path(dirname(SCRIPTS_DIR), "config.R"), local = TRUE)
 
-# -----------------------------------------------------------------------------
-# fetch_query(sql) -> data.frame
-# -----------------------------------------------------------------------------
-fetch_query <- function(sql) {
-  con <- get_connection()
-  on.exit(dbDisconnect(con))
-  tryCatch(
-    dbGetQuery(con, sql),
-    error = function(e) { log_message(paste("fetch_query failed:", e$message), "ERROR"); data.frame() }
-  )
+#' Fetch all lecture sessions for a course between two dates.
+fetch_sessions_for_course <- function(course_id, date_from = NULL, date_to = NULL) {
+  with_connection(function(con) {
+    sql <- "
+      SELECT ls.id, ls.course_id, ls.lecturer_id,
+             ls.title, ls.status,
+             ls.scheduled_start, ls.actual_start, ls.actual_end,
+             CONCAT(u.first_name, ' ', u.last_name) AS lecturer_name,
+             c.code AS course_code, c.title AS course_title
+        FROM lecture_sessions ls
+        JOIN courses c ON c.id = ls.course_id
+        JOIN users   u ON u.id = ls.lecturer_id
+       WHERE ls.course_id = ?"
+    params <- list(course_id)
+    if (!is.null(date_from)) {
+      sql <- paste0(sql, " AND ls.actual_start >= ?")
+      params <- c(params, list(format(date_from)))
+    }
+    if (!is.null(date_to)) {
+      sql <- paste0(sql, " AND ls.actual_start <= ?")
+      params <- c(params, list(format(date_to)))
+    }
+    sql <- paste0(sql, " ORDER BY ls.actual_start")
+    dbGetQuery(con, do.call(sqlInterpolate,
+                            c(list(con, sql), params)))
+  })
 }
 
-# -----------------------------------------------------------------------------
-# fetch_week_dates(week_id) -> list(start_date, end_date, week_number, year)
-# -----------------------------------------------------------------------------
-fetch_week_dates <- function(week_id) {
-  df <- fetch_query(sprintf(
-    "SELECT week_number, year, start_date, end_date FROM weekly_periods WHERE id = '%s'", week_id
-  ))
-  if (nrow(df) == 0) stop("weekly_period not found: ", week_id)
-  list(
-    start_date   = as.POSIXct(df$start_date[1]),
-    end_date     = as.POSIXct(df$end_date[1]),
-    week_number  = df$week_number[1],
-    year         = df$year[1]
-  )
+#' Fetch weekly period row by id.
+fetch_weekly_period <- function(week_id) {
+  with_connection(function(con) {
+    dbGetQuery(con,
+      sqlInterpolate(con,
+        "SELECT * FROM weekly_periods WHERE id = ?week_id",
+        week_id = week_id))
+  })
 }
 
-# -----------------------------------------------------------------------------
-# fetch_session(session_id) -> single row data.frame
-# -----------------------------------------------------------------------------
-fetch_session <- function(session_id) {
-  fetch_query(sprintf(
-    "SELECT ls.*, c.code AS course_code, c.title AS course_title,
-            CONCAT(u.first_name,' ',u.last_name) AS lecturer_name
-     FROM lecture_sessions ls
-     JOIN courses c ON c.id = ls.course_id
-     JOIN users u   ON u.id = ls.lecturer_id
-     WHERE ls.id = '%s'", session_id
-  ))
+#' Fetch all weekly periods for the past N weeks.
+fetch_recent_weekly_periods <- function(n_weeks = 8) {
+  with_connection(function(con) {
+    dbGetQuery(con, sprintf(
+      "SELECT * FROM weekly_periods ORDER BY year DESC, week_number DESC LIMIT %d",
+      as.integer(n_weeks)))
+  })
 }
 
-# -----------------------------------------------------------------------------
-# fetch_course(course_id) -> single row data.frame
-# -----------------------------------------------------------------------------
-fetch_course <- function(course_id) {
-  fetch_query(sprintf(
-    "SELECT c.*, CONCAT(u.first_name,' ',u.last_name) AS primary_lecturer
-     FROM courses c
-     LEFT JOIN course_lecturers cl ON cl.course_id = c.id AND cl.is_primary = 1
-     LEFT JOIN users u ON u.id = cl.lecturer_id
-     WHERE c.id = '%s'", course_id
-  ))
+#' Fetch lecturer info row.
+fetch_lecturer <- function(lecturer_id) {
+  with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT u.id, u.first_name, u.last_name, u.email,
+              CONCAT(u.first_name,' ',u.last_name) AS full_name
+         FROM users u WHERE u.id = ?lid", lid = lecturer_id))
+  })
 }
 
-# -----------------------------------------------------------------------------
-# fetch_student_info(student_id) -> single row data.frame
-# -----------------------------------------------------------------------------
-fetch_student_info <- function(student_id) {
-  fetch_query(sprintf(
-    "SELECT u.first_name, u.last_name, u.email, s.student_number, s.program, s.year_of_study
-     FROM users u JOIN students s ON s.user_id = u.id WHERE u.id = '%s'", student_id
-  ))
+#' Fetch student info row.
+fetch_student <- function(student_id) {
+  with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT u.id, u.first_name, u.last_name, u.email,
+              CONCAT(u.first_name,' ',u.last_name) AS full_name,
+              s.student_number, s.program, s.year_of_study
+         FROM users u
+         JOIN students s ON s.user_id = u.id
+        WHERE u.id = ?sid", sid = student_id))
+  })
+}
+
+#' Fetch all students enrolled in a course.
+fetch_students_in_course <- function(course_id) {
+  with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT u.id, CONCAT(u.first_name,' ',u.last_name) AS full_name,
+              s.student_number
+         FROM users u
+         JOIN students s ON s.user_id = u.id
+         JOIN course_students cs ON cs.student_id = u.id
+        WHERE cs.course_id = ?cid", cid = course_id))
+  })
 }

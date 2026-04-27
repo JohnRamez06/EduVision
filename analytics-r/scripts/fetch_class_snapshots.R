@@ -1,26 +1,41 @@
-# =============================================================================
-# EduVision - Fetch Class-Level Emotion Snapshots
-# scripts/fetch_class_snapshots.R
-# =============================================================================
+# ============================================================
+# fetch_class_snapshots.R — Fetch class-level emotion snapshots
+# ============================================================
 
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-if (!exists("fetch_query")) source(file.path(BASE_DIR, "scripts", "fetch_data.R"))
+SCRIPTS_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+source(file.path(dirname(SCRIPTS_DIR), "config.R"), local = TRUE)
 
+#' Fetch all class-level emotion snapshots for a session.
+#' Columns: id, session_id, seq_index, captured_at, student_count,
+#'          avg_concentration, dominant_emotion, engagement_score.
 fetch_class_snapshots <- function(session_id) {
-  fetch_query(sprintf(
-    "SELECT es.id, es.seq_index, es.captured_at,
-            es.student_count, es.avg_concentration,
-            es.dominant_emotion, es.engagement_score, es.processing_ms
-     FROM emotion_snapshots es
-     WHERE es.session_id = '%s'
-     ORDER BY es.seq_index ASC", session_id
-  ))
+  with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT id, session_id, seq_index, captured_at,
+              student_count, avg_concentration, dominant_emotion,
+              engagement_score, processing_ms
+         FROM emotion_snapshots
+        WHERE session_id = ?sid
+        ORDER BY seq_index ASC",
+      sid = session_id))
+  })
 }
 
-fetch_class_snapshots_range <- function(session_id, from_seq, to_seq) {
-  fetch_query(sprintf(
-    "SELECT * FROM emotion_snapshots
-     WHERE session_id = '%s' AND seq_index BETWEEN %d AND %d
-     ORDER BY seq_index ASC", session_id, from_seq, to_seq
-  ))
+#' Fetch class snapshots for multiple sessions (e.g. a whole week).
+fetch_class_snapshots_bulk <- function(session_ids) {
+  if (length(session_ids) == 0) return(data.frame())
+  with_connection(function(con) {
+    placeholders <- paste(rep("?", length(session_ids)), collapse = ", ")
+    sql <- sprintf(
+      "SELECT es.id, es.session_id, es.seq_index, es.captured_at,
+              es.student_count, es.avg_concentration, es.dominant_emotion,
+              es.engagement_score
+         FROM emotion_snapshots es
+        WHERE es.session_id IN (%s)
+        ORDER BY es.session_id, es.seq_index", placeholders)
+    query <- DBI::sqlInterpolate(con, sql,
+               .dots = setNames(as.list(session_ids),
+                                rep("", length(session_ids))))
+    dbGetQuery(con, query)
+  })
 }

@@ -1,0 +1,13 @@
+# python version and virtual environment configuration consumed by init_python.R
+python_version: "3.10"
+virtualenv_name: ".venv"
+# Absolute or relative path to the virtual environment directory
+virtualenv_path: "analytics-r/.venv"
+# Packages that must be present in the virtualenv
+required_python_packages:
+  - opencv-python
+  - numpy
+  - tensorflow
+  - scikit-learn
+  - mtcnn
+  - deepface

@@ -1,32 +1,51 @@
-# =============================================================================
-# analysis/engagement_analysis.R
-# =============================================================================
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-source(file.path(BASE_DIR, "config.R"))
-source(file.path(BASE_DIR, "scripts", "calculate_statistics.R"))
-library(forecast); library(ggplot2)
+# ============================================================
+# engagement_analysis.R — Time-series engagement with smoothing
+# ============================================================
 
-engagement_analysis <- function(snapshots_df) {
-  x <- as.numeric(snapshots_df$engagement_score)
-  x <- x[!is.na(x)]
-  if (length(x) < 5) return(list(error = "Insufficient data"))
+AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(AN_DIR)
+source(file.path(ROOT, "config.R"),                          local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"),                local = TRUE)
+source(file.path(ROOT, "scripts", "fetch_class_snapshots.R"), local = TRUE)
+source(file.path(ROOT, "scripts", "calculate_statistics.R"),  local = TRUE)
 
-  ma5  <- as.numeric(stats::filter(x, rep(1/5,  5),  sides = 2))
-  ma10 <- as.numeric(stats::filter(x, rep(1/10, 10), sides = 2))
+#' Compute smoothed engagement time-series and find peaks/drops.
+#' @param session_id Character.
+#' @param k          Window size for rolling mean.
+#' @return Named list.
+engagement_analysis <- function(session_id, k = 5L) {
+  snaps <- fetch_class_snapshots(session_id)
+  if (nrow(snaps) == 0) {
+    return(list(session_id = session_id, series = data.frame(),
+                peaks = integer(0), drops = integer(0)))
+  }
 
-  peaks <- which(diff(sign(diff(x))) == -2) + 1
-  drops <- which(diff(sign(diff(x))) == 2)  + 1
+  series <- snaps %>%
+    dplyr::mutate(
+      captured_at  = as.POSIXct(captured_at),
+      raw_eng      = as.numeric(engagement_score),
+      smooth_eng   = rolling_mean(as.numeric(engagement_score), k = k)
+    ) %>%
+    dplyr::arrange(captured_at)
 
-  ts_model <- tryCatch(auto.arima(ts(x)), error = function(e) NULL)
+  # Detect peaks: local maxima in smoothed series
+  sm      <- series$smooth_eng
+  n       <- length(sm)
+  peaks   <- which(
+    !is.na(sm) &
+    c(FALSE, sm[-n] < sm[-1]) &
+    c(sm[-1] < sm[-n], FALSE))
+  drops   <- which(
+    !is.na(sm) &
+    c(FALSE, sm[-n] > sm[-1]) &
+    c(sm[-1] > sm[-n], FALSE) &
+    sm < 0.4)
 
   list(
-    mean_engagement = round(mean(x), 3),
-    sd_engagement   = round(sd(x),   3),
-    trend           = trend_direction(x),
-    moving_avg_5    = ma5,
-    moving_avg_10   = ma10,
-    peak_indices    = peaks,
-    drop_indices    = drops,
-    arima_model     = ts_model
+    session_id = session_id,
+    series     = series,
+    peaks      = peaks,
+    drops      = drops,
+    stats      = summary_stats(series$raw_eng)
   )
 }

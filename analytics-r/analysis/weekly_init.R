@@ -1,39 +1,39 @@
-# =============================================================================
-# analysis/weekly_init.R
-# Usage: Rscript weekly_init.R   (called by cron/Spring Boot scheduler)
-# =============================================================================
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-source(file.path(BASE_DIR, "config.R"))
-library(lubridate)
+# ============================================================
+# weekly_init.R — Insert current week into weekly_periods
+# Called by cron job at the start of each week.
+# Usage: Rscript weekly_init.R
+# ============================================================
 
-initialize_weekly_period <- function(reference_date = Sys.Date()) {
-  ref       <- as.Date(reference_date)
-  week_num  <- isoweek(ref)
-  yr        <- isoyear(ref)
-  start_dt  <- floor_date(ref, "week", week_start = 1)   # Monday
-  end_dt    <- start_dt + days(6)                         # Sunday
+AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(AN_DIR)
+source(file.path(ROOT, "config.R"), local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
 
-  existing <- query_df(sprintf(
-    "SELECT id FROM weekly_periods WHERE week_number = %d AND year = %d", week_num, yr
-  ))
+today      <- Sys.Date()
+week_num   <- as.integer(format(today, "%V"))
+year       <- as.integer(format(today, "%Y"))
+start_date <- today - (as.integer(format(today, "%u")) - 1)  # Monday
+end_date   <- start_date + 6L                                  # Sunday
+
+with_connection(function(con) {
+  existing <- dbGetQuery(con, sqlInterpolate(con,
+    "SELECT id FROM weekly_periods WHERE week_number = ?w AND year = ?y",
+    w = week_num, y = year))
 
   if (nrow(existing) > 0) {
-    log_message(sprintf("Weekly period W%d/%d already exists (id=%s)", week_num, yr, existing$id[1]))
-    return(existing$id[1])
+    log_message(sprintf("Weekly period week %d / %d already exists (id=%s).",
+                        week_num, year, existing$id[1]))
+    return(invisible(NULL))
   }
 
-  new_id <- paste0(format(Sys.time(), "%Y%m%d%H%M%S"), sample(1000:9999, 1))
-  execute_sql(sprintf(
-    "INSERT INTO weekly_periods (id, week_number, year, start_date, end_date)
-     VALUES ('%s', %d, %d, '%s', '%s')",
-    new_id, week_num, yr,
-    format(start_dt, "%Y-%m-%d"),
-    format(end_dt,   "%Y-%m-%d")
-  ))
-  log_message(sprintf("Created weekly period W%d/%d: %s to %s (id=%s)",
-                       week_num, yr, start_dt, end_dt, new_id))
-  new_id
-}
+  dbExecute(con, sqlInterpolate(con,
+    "INSERT INTO weekly_periods (week_number, year, start_date, end_date)
+     VALUES (?w, ?y, ?sd, ?ed)",
+    w  = week_num,
+    y  = year,
+    sd = format(start_date),
+    ed = format(end_date)))
 
-week_id <- initialize_weekly_period()
-cat(jsonlite::toJSON(list(week_id = week_id), auto_unbox = TRUE), "\n")
+  log_message(sprintf("Created weekly_period: week %d / %d (%s – %s)",
+                      week_num, year, start_date, end_date))
+})

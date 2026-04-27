@@ -1,93 +1,63 @@
-# =============================================================================
-# EduVision - Student Face Enrollment (MAIN SCRIPT)
-# face_learning/enroll_student.R
-#
+# ============================================================
+# enroll_student.R — Main enrollment entry point
 # Usage: Rscript enroll_student.R <student_id>
-# =============================================================================
+# ============================================================
+
+FL_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(FL_DIR)
+source(file.path(ROOT, "config.R"),                          local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"),                local = TRUE)
+source(file.path(FL_DIR, "verify_enrollment.R"),             local = TRUE)
+source(file.path(FL_DIR, "extract_embeddings.R"),            local = TRUE)
+source(file.path(FL_DIR, "update_recognition_model.R"),      local = TRUE)
+
+LOG_FILE <- file.path(ROOT, "logs", "enrollment.log")
 
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 1) stop("Usage: Rscript enroll_student.R <student_id>")
 student_id <- args[1]
 
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-source(file.path(BASE_DIR, "config.R"))
-source(file.path(BASE_DIR, "face_learning", "verify_enrollment.R"))
-source(file.path(BASE_DIR, "face_learning", "extract_embeddings.R"))
-source(file.path(BASE_DIR, "face_learning", "update_recognition_model.R"))
-source(file.path(BASE_DIR, "reticulate", "embedding_extraction.R"))
+log_message(sprintf("=== Enrolling student: %s ===", student_id), LOG_FILE)
 
-enroll_student <- function(student_id) {
-  log_message(sprintf("=== Starting enrollment for student: %s ===", student_id))
-
-  # 1. Verify student exists in DB
-  student <- query_df(sprintf(
-    "SELECT s.user_id, u.first_name, u.last_name FROM students s
-     JOIN users u ON u.id = s.user_id WHERE s.user_id = '%s'", student_id
-  ))
-  if (nrow(student) == 0) stop("Student not found in database: ", student_id)
-  log_message(sprintf("Student: %s %s", student$first_name, student$last_name))
-
-  # 2. Verify photo quality
-  log_message("Step 1/4: Verifying photos...")
-  verification <- verify_enrollment(student_id)
-  valid_photos  <- Filter(function(v) isTRUE(v$valid), verification)
-  invalid       <- Filter(function(v) !isTRUE(v$valid), verification)
-
-  if (length(invalid) > 0) {
-    log_message(sprintf("WARNING: %d photos failed quality check:", length(invalid)), "WARN")
-    lapply(invalid, function(v) log_message(sprintf("  - %s: %s", v$file, v$issues), "WARN"))
-  }
-  if (length(valid_photos) < 3) {
-    stop(sprintf("Enrollment aborted: only %d valid photos (minimum 3 required)", length(valid_photos)))
-  }
-  log_message(sprintf("%d/%d photos passed quality check", length(valid_photos), length(verification)))
-
-  # 3. Extract embeddings
-  log_message("Step 2/4: Extracting face embeddings...")
-  embeddings <- extract_student_embeddings(student_id)
-  if (length(embeddings) == 0) stop("No embeddings extracted")
-
-  # 4. Average embeddings into one representative vector
-  log_message("Step 3/4: Computing average embedding...")
-  avg_embedding <- average_embeddings(embeddings)
-  if (is.null(avg_embedding)) stop("Failed to compute average embedding")
-
-  embedding_json <- embedding_to_json(avg_embedding)
-
-  # 5. Save to DB
-  log_message("Step 4/4: Saving to database...")
-  execute_sql(sprintf(
-    "UPDATE students SET face_encoding = '%s' WHERE user_id = '%s'",
-    gsub("'", "''", embedding_json), student_id
-  ))
-  log_message("Face encoding saved to students table")
-
-  # 6. Also record in face_enrollment_photos table
-  photo_dir <- file.path(FACE_DIR, student_id)
-  photos    <- list.files(photo_dir, pattern = "\\.(jpg|jpeg|png|bmp)$",
-                          full.names = FALSE, ignore.case = TRUE)
-  for (fname in photos) {
-    tryCatch(execute_sql(sprintf(
-      "INSERT IGNORE INTO face_enrollment_photos (student_id, photo_filename, created_at)
-       VALUES ('%s', '%s', NOW())",
-      student_id, fname
-    )), error = function(e) invisible())
-  }
-
-  # 7. Update recognition model
-  log_message("Updating recognition model...")
-  update_recognition_model()
-
-  log_message(sprintf("=== Enrollment complete for student: %s ===", student_id))
-  invisible(list(student_id = student_id, embedding_dim = length(avg_embedding), photos_used = length(embeddings)))
+# 1. Verify enrollment photos
+photos_dir <- file.path("face_enrollment", student_id)
+log_message("Step 1: Verifying photos...", LOG_FILE)
+verification <- verify_enrollment(student_id, photos_dir)
+if (!verification$valid) {
+  log_message(sprintf("Verification FAILED: %s", verification$issues), LOG_FILE)
+  stop(sprintf("Enrollment aborted for student %s: %s",
+               student_id, verification$issues))
 }
+log_message(sprintf("Verification OK (%d photos).",
+                    nrow(verification$results)), LOG_FILE)
 
-# Run when called from command line
-result <- tryCatch(
-  enroll_student(student_id),
-  error = function(e) {
-    log_message(paste("ENROLLMENT FAILED:", e$message), "ERROR")
-    quit(status = 1)
-  }
-)
-cat(jsonlite::toJSON(result, auto_unbox = TRUE), "\n")
+# 2. Extract embeddings
+log_message("Step 2: Extracting face embeddings...", LOG_FILE)
+emb_list <- extract_student_embeddings(student_id, photos_dir)
+if (length(emb_list) == 0) {
+  log_message("No embeddings extracted.", LOG_FILE)
+  stop("No valid embeddings could be extracted.")
+}
+log_message(sprintf("Extracted %d embeddings.", length(emb_list)), LOG_FILE)
+
+# 3. Average embeddings
+avg_emb <- average_embeddings(emb_list)
+emb_json <- jsonlite::toJSON(as.numeric(avg_emb), auto_unbox = TRUE)
+
+# 4. Store in DB
+log_message("Step 3: Saving face encoding to DB...", LOG_FILE)
+with_connection(function(con) {
+  dbExecute(con,
+    sqlInterpolate(con,
+      "UPDATE students SET face_encoding = ?emb WHERE user_id = ?sid",
+      emb = emb_json,
+      sid = student_id))
+})
+log_message("Face encoding saved.", LOG_FILE)
+
+# 5. Update recognition model
+log_message("Step 4: Updating recognition model...", LOG_FILE)
+update_recognition_model()
+
+log_message(sprintf("Enrollment complete for student %s.", student_id), LOG_FILE)
+cat("SUCCESS\n")

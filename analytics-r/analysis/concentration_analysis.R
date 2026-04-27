@@ -1,32 +1,48 @@
-# =============================================================================
-# analysis/concentration_analysis.R
-# =============================================================================
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-source(file.path(BASE_DIR, "config.R"))
-source(file.path(BASE_DIR, "scripts", "calculate_statistics.R"))
-library(dplyr)
+# ============================================================
+# concentration_analysis.R — Distribution and low-concentration periods
+# ============================================================
 
-concentration_analysis <- function(snapshots_df) {
-  conc_map <- c(high = 85, medium = 60, low = 35, distracted = 10)
-  if ("concentration" %in% names(snapshots_df)) {
-    scores <- conc_map[snapshots_df$concentration]
-  } else {
-    scores <- as.numeric(snapshots_df$avg_concentration)
+AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(AN_DIR)
+source(file.path(ROOT, "config.R"),                           local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"),                 local = TRUE)
+source(file.path(ROOT, "scripts", "fetch_student_snapshots.R"), local = TRUE)
+source(file.path(ROOT, "scripts", "calculate_statistics.R"),   local = TRUE)
+
+#' Distribution analysis of concentration scores for a session.
+#' @param session_id Character.
+#' @return Named list.
+concentration_analysis <- function(session_id) {
+  snaps <- fetch_all_student_snapshots_for_session(session_id)
+  if (nrow(snaps) == 0) {
+    return(list(session_id = session_id, distribution = table(),
+                low_periods = data.frame(), stats = list()))
   }
-  scores <- scores[!is.na(scores)]
-  if (length(scores) == 0) return(list(error = "No concentration data"))
 
-  dist <- table(classify_concentration(scores))
-  low_periods <- which(scores < 35)
-  runs <- rle(scores < 35)
-  sustained_low <- sum(runs$values & runs$lengths >= 5)
+  snaps <- snaps %>%
+    dplyr::mutate(
+      conc_score  = concentration_to_score(concentration),
+      captured_at = as.POSIXct(captured_at)
+    )
+
+  # Distribution table
+  dist <- table(snaps$concentration)
+
+  # Identify low-concentration periods (5-min buckets where avg < 35)
+  low_periods <- snaps %>%
+    dplyr::mutate(bucket = floor(
+      as.numeric(difftime(captured_at,
+                          min(captured_at, na.rm = TRUE),
+                          units = "mins")) / 5) * 5) %>%
+    dplyr::group_by(bucket) %>%
+    dplyr::summarise(avg_conc = mean(conc_score, na.rm = TRUE),
+                     .groups = "drop") %>%
+    dplyr::filter(avg_conc < 35)
 
   list(
-    mean_concentration = round(mean(scores), 1),
-    median_concentration = round(median(scores), 1),
-    distribution       = as.list(prop.table(dist)),
-    low_concentration_indices = low_periods,
-    sustained_low_periods = sustained_low,
-    trend             = trend_direction(scores)
+    session_id  = session_id,
+    distribution = dist,
+    low_periods  = low_periods,
+    stats        = summary_stats(snaps$conc_score)
   )
 }

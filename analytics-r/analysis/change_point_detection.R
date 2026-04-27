@@ -1,44 +1,53 @@
-# =============================================================================
-# analysis/change_point_detection.R
-# =============================================================================
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-if (!exists("get_connection")) source(file.path(BASE_DIR, "config.R"))
+# ============================================================
+# change_point_detection.R — Find engagement drop timestamps via cpt.mean()
+# ============================================================
+
+AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(AN_DIR)
+source(file.path(ROOT, "config.R"),                          local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"),                local = TRUE)
+source(file.path(ROOT, "scripts", "fetch_class_snapshots.R"), local = TRUE)
+
 library(changepoint)
 
-detect_engagement_changepoints <- function(snapshots_df) {
-  x <- as.numeric(snapshots_df$engagement_score)
-  x <- x[!is.na(x)]
-  if (length(x) < 10) return(list(changepoints = integer(0), n_changepoints = 0))
-
-  cpt_obj  <- cpt.mean(x, method = "PELT", penalty = "BIC")
-  cpt_locs <- cpts(cpt_obj)
-
-  # Map indices back to timestamps if available
-  timestamps <- NULL
-  if ("captured_at" %in% names(snapshots_df)) {
-    ts_vec <- as.POSIXct(snapshots_df$captured_at)
-    ts_vec <- ts_vec[!is.na(snapshots_df$engagement_score)]
-    timestamps <- ts_vec[cpt_locs]
+#' Detect change points in the engagement score of a session.
+#' @param session_id Character.
+#' @param method     Changepoint method: "PELT" or "BinSeg".
+#' @return Named list: changepoints (timestamps), series (data.frame).
+change_point_detection <- function(session_id, method = "PELT") {
+  snaps <- fetch_class_snapshots(session_id)
+  if (nrow(snaps) < 10) {
+    message("Not enough snapshots for change-point detection.")
+    return(list(session_id = session_id, changepoints = character(0),
+                series = data.frame()))
   }
 
-  # Mean before/after each changepoint
-  segments <- lapply(seq_along(cpt_locs), function(i) {
-    start <- if (i == 1) 1 else cpt_locs[i - 1] + 1
-    end   <- cpt_locs[i]
-    list(
-      start_idx  = start,
-      end_idx    = end,
-      mean_before = round(mean(x[start:end]), 3),
-      timestamp   = if (!is.null(timestamps)) timestamps[i] else NA,
-      drop        = if (i > 1) round(mean(x[start:end]) - mean(x[max(1, start-10):(start-1)]), 3) else NA
-    )
-  })
+  series <- snaps %>%
+    dplyr::mutate(
+      captured_at  = as.POSIXct(captured_at),
+      eng          = as.numeric(engagement_score)
+    ) %>%
+    dplyr::arrange(captured_at) %>%
+    dplyr::filter(!is.na(eng))
+
+  eng_vec <- series$eng
+
+  cp_result <- tryCatch(
+    cpt.mean(eng_vec, method = method, penalty = "BIC"),
+    error = function(e) {
+      message("changepoint error: ", e$message)
+      NULL
+    })
+
+  cp_indices <- if (!is.null(cp_result)) cpts(cp_result) else integer(0)
+  cp_times   <- if (length(cp_indices) > 0)
+                  as.character(series$captured_at[cp_indices])
+                else character(0)
 
   list(
-    changepoints   = cpt_locs,
-    n_changepoints = length(cpt_locs),
-    timestamps     = timestamps,
-    segments       = segments,
-    cpt_object     = cpt_obj
+    session_id    = session_id,
+    changepoints  = cp_times,
+    cp_indices    = cp_indices,
+    series        = series
   )
 }

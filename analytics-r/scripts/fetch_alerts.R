@@ -1,34 +1,58 @@
-# =============================================================================
-# scripts/fetch_alerts.R
-# =============================================================================
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-if (!exists("fetch_query")) source(file.path(BASE_DIR, "scripts", "fetch_data.R"))
+# ============================================================
+# fetch_alerts.R — Fetch alert records
+# ============================================================
 
-fetch_alerts <- function(session_id) {
-  fetch_query(sprintf(
-    "SELECT a.id, a.severity, a.status, a.title, a.message,
-            a.threshold_value, a.actual_value, a.triggered_at,
-            a.acknowledged_at, a.resolved_at,
-            st.name AS strategy_name
-     FROM alerts a
-     LEFT JOIN strategies st ON st.id = a.strategy_id
-     WHERE a.session_id = '%s'
-     ORDER BY a.triggered_at ASC", session_id
-  ))
+SCRIPTS_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+source(file.path(dirname(SCRIPTS_DIR), "config.R"), local = TRUE)
+
+#' Fetch alerts for a session.
+fetch_alerts_for_session <- function(session_id) {
+  with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT id, session_id, student_id, alert_type, severity,
+              message, status, triggered_at, resolved_at
+         FROM alerts
+        WHERE session_id = ?sess
+        ORDER BY triggered_at ASC",
+      sess = session_id))
+  })
 }
 
-fetch_alerts_weekly <- function(start_date, end_date, lecturer_id = NULL) {
-  base_sql <- sprintf(
-    "SELECT a.*, ls.course_id, c.title AS course_title
-     FROM alerts a
-     JOIN lecture_sessions ls ON ls.id = a.session_id
-     JOIN courses c           ON c.id  = ls.course_id
-     WHERE a.triggered_at BETWEEN '%s' AND '%s'",
-    format(start_date, "%Y-%m-%d %H:%M:%S"),
-    format(end_date,   "%Y-%m-%d %H:%M:%S")
-  )
-  if (!is.null(lecturer_id)) {
-    base_sql <- paste0(base_sql, sprintf(" AND ls.lecturer_id = '%s'", lecturer_id))
-  }
-  fetch_query(paste0(base_sql, " ORDER BY a.triggered_at DESC"))
+#' Fetch alerts for a student in a date range.
+fetch_alerts_for_student <- function(student_id, date_from = NULL, date_to = NULL) {
+  with_connection(function(con) {
+    sql <- "
+      SELECT a.id, a.session_id, a.alert_type, a.severity,
+             a.message, a.status, a.triggered_at
+        FROM alerts a
+        JOIN lecture_sessions ls ON ls.id = a.session_id
+       WHERE a.student_id = ?"
+    params <- list(student_id)
+    if (!is.null(date_from)) {
+      sql    <- paste0(sql, " AND a.triggered_at >= ?")
+      params <- c(params, list(format(date_from)))
+    }
+    if (!is.null(date_to)) {
+      sql    <- paste0(sql, " AND a.triggered_at <= ?")
+      params <- c(params, list(format(date_to)))
+    }
+    sql <- paste0(sql, " ORDER BY a.triggered_at ASC")
+    dbGetQuery(con, do.call(sqlInterpolate, c(list(con, sql), params)))
+  })
+}
+
+#' Fetch open (unresolved) alerts for all sessions of a lecturer.
+fetch_open_alerts_for_lecturer <- function(lecturer_id) {
+  with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT a.id, a.session_id, a.student_id, a.alert_type,
+              a.severity, a.message, a.triggered_at,
+              CONCAT(u.first_name,' ',u.last_name) AS student_name
+         FROM alerts a
+         JOIN lecture_sessions ls ON ls.id = a.session_id
+         JOIN users u ON u.id = a.student_id
+        WHERE ls.lecturer_id = ?lid AND a.status = 'open'
+        ORDER BY a.triggered_at DESC",
+      lid = lecturer_id))
+  })
 }

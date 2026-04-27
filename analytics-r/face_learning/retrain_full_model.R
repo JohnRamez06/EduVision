@@ -1,55 +1,94 @@
-# =============================================================================
-# EduVision - Full Model Retraining from Scratch (weekly scheduled job)
-# face_learning/retrain_full_model.R
-#
+# ============================================================
+# retrain_full_model.R — Full face recogniser retraining from scratch
+# Intended to be called by a weekly cron job.
 # Usage: Rscript retrain_full_model.R
-# =============================================================================
+# ============================================================
 
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-source(file.path(BASE_DIR, "config.R"))
-source(file.path(BASE_DIR, "reticulate", "init_python.R"))
-source(file.path(BASE_DIR, "reticulate", "embedding_extraction.R"))
-source(file.path(BASE_DIR, "face_learning", "update_recognition_model.R"))
+FL_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(FL_DIR)
+source(file.path(ROOT, "config.R"),                     local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"),           local = TRUE)
+source(file.path(ROOT, "reticulate", "init_python.R"),  local = TRUE)
 
-retrain_full_model <- function() {
-  log_message("=== Starting full model retraining ===")
+LOG_FILE <- file.path(ROOT, "logs", "enrollment.log")
 
-  # Archive existing model
-  model_path <- file.path(MODEL_DIR, "face_recognizer.pkl")
-  if (file.exists(model_path)) {
-    archive_path <- file.path(MODEL_DIR, paste0("face_recognizer_", format(Sys.time(), "%Y%m%d_%H%M%S"), ".pkl"))
-    file.copy(model_path, archive_path)
-    log_message(paste("Archived old model to:", basename(archive_path)))
-  }
+log_message("=== Full face recogniser retraining started ===", LOG_FILE)
 
-  # Count available embeddings
-  count_df <- query_df("SELECT COUNT(*) as n FROM students WHERE face_encoding IS NOT NULL AND face_encoding != ''")
-  n_students <- count_df$n[1]
-  log_message(sprintf("Training on %d students with embeddings", n_students))
+# Fetch all enrolled students
+data <- with_connection(function(con) {
+  dbGetQuery(con,
+    "SELECT user_id, face_encoding FROM students WHERE face_encoding IS NOT NULL")
+})
 
-  if (n_students < 2) {
-    log_message("Not enough students to train — need at least 2", "WARN")
-    return(invisible(FALSE))
-  }
-
-  # Delegate to update_recognition_model (which already does full retraining)
-  success <- update_recognition_model()
-
-  # Record new version in model_versions
-  version_num <- format(Sys.time(), "%Y%m%d%H%M")
-  tryCatch(execute_sql(sprintf(
-    "INSERT INTO model_versions (version, model_type, total_faces, is_active, created_at, last_trained_at)
-     VALUES ('%s', 'face_recognition', %d, 0, NOW(), NOW())
-     ON DUPLICATE KEY UPDATE total_faces = %d, last_trained_at = NOW()",
-    version_num, n_students, n_students
-  )), error = function(e) log_message(paste("model_versions insert failed:", e$message), "WARN"))
-
-  log_message("=== Full retraining complete ===")
-  invisible(success)
+if (nrow(data) < 2) {
+  log_message("Not enough enrolled students (need >= 2). Aborting.", LOG_FILE)
+  quit(status = 1)
 }
 
-result <- tryCatch(retrain_full_model(), error = function(e) {
-  log_message(paste("RETRAINING FAILED:", e$message), "ERROR")
-  quit(status = 1)
+log_message(sprintf("Training on %d students...", nrow(data)), LOG_FILE)
+
+model_path <- file.path(MODEL_DIR, "face_recognizer.pkl")
+tmp <- tempfile(fileext = ".json")
+jsonlite::write_json(data, tmp, auto_unbox = TRUE)
+
+py_run_string(sprintf('
+import json, numpy as np, pickle, os, shutil, datetime
+from sklearn.svm import LinearSVC
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import cross_val_score
+
+data_path  = r"%s"
+model_path = r"%s"
+
+with open(data_path) as f:
+    rows = json.load(f)
+
+X, y = [], []
+for row in rows:
+    emb = json.loads(row["face_encoding"])
+    X.append(emb)
+    y.append(row["user_id"])
+
+X = np.array(X)
+le = LabelEncoder()
+y_enc = le.fit_transform(y)
+
+clf = LinearSVC(C=1.0, max_iter=10000)
+clf.fit(X, y_enc)
+
+cv_scores = cross_val_score(clf, X, y_enc, cv=min(3, len(set(y_enc))))
+cv_accuracy = float(cv_scores.mean())
+
+# Backup old model
+if os.path.exists(model_path):
+    ts = datetime.datetime.now().strftime("%%Y%%m%%d_%%H%%M%%S")
+    shutil.copy(model_path, model_path + "." + ts + ".bak")
+
+os.makedirs(os.path.dirname(model_path), exist_ok=True)
+with open(model_path, "wb") as f:
+    pickle.dump({"classifier": clf, "label_encoder": le}, f)
+
+total_faces = int(len(y))
+retrain_ok  = True
+', convert = TRUE))
+
+file.remove(tmp)
+
+cv_acc <- as.numeric(py$cv_accuracy)
+total  <- as.integer(py$total_faces)
+log_message(sprintf("Retrain complete: %d students, CV accuracy: %.1f%%",
+                    total, cv_acc * 100), LOG_FILE)
+
+# Update model_versions
+with_connection(function(con) {
+  dbExecute(con,
+    sqlInterpolate(con,
+      "UPDATE model_versions
+          SET total_faces = ?n, last_trained_at = NOW(), accuracy = ?acc
+        WHERE is_active = 1 AND model_type = 'face_recognition'",
+      n   = total,
+      acc = cv_acc))
 })
-cat(jsonlite::toJSON(list(success = isTRUE(result)), auto_unbox = TRUE), "\n")
+
+log_message("model_versions updated.", LOG_FILE)
+cat("RETRAIN_OK\n")

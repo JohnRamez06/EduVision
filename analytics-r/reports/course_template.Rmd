@@ -1,0 +1,111 @@
+---
+title: "Course Analytics Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+params:
+  course_id: ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 7, fig.height = 4)
+library(ggplot2)
+library(dplyr)
+
+ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
+source(file.path(ANALYTICS_HOME, "config.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_data.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_class_snapshots.R"))
+
+course_id <- params$course_id
+
+course <- with_connection(function(con) {
+  dbGetQuery(con, sqlInterpolate(con,
+    "SELECT id, code, title FROM courses WHERE id = ?cid",
+    cid = course_id))
+})
+sessions <- fetch_sessions_for_course(course_id)
+```
+
+---
+
+**Course:** `r course$code` – `r course$title`  
+**Total Sessions:** `r nrow(sessions)`
+
+---
+
+## 1. Engagement Trend Across Sessions
+
+```{r eng-trend}
+if (nrow(sessions) > 0) {
+  eng_per_session <- lapply(sessions$id, function(sid) {
+    snaps <- fetch_class_snapshots(sid)
+    if (nrow(snaps) == 0) return(NULL)
+    data.frame(
+      session_id   = sid,
+      actual_start = sessions$actual_start[sessions$id == sid][1],
+      avg_eng      = mean(as.numeric(snaps$engagement_score), na.rm = TRUE)
+    )
+  })
+  eng_df <- do.call(rbind, Filter(Negate(is.null), eng_per_session))
+  if (!is.null(eng_df) && nrow(eng_df) > 0) {
+    eng_df$actual_start <- as.POSIXct(eng_df$actual_start)
+    ggplot(eng_df, aes(x = actual_start, y = avg_eng)) +
+      geom_line(colour = "#42A5F5", linewidth = 1) +
+      geom_point(colour = "#1565C0", size = 2) +
+      geom_smooth(method = "lm", se = FALSE, colour = "#FF7043",
+                  linetype = "dashed") +
+      scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+      labs(x = "Session Date", y = "Avg Engagement",
+           title = "Engagement Trend Across Sessions") +
+      theme_minimal()
+  } else {
+    cat("No engagement data.")
+  }
+} else {
+  cat("No sessions found for this course.")
+}
+```
+
+## 2. Session-by-Session Statistics
+
+```{r session-stats}
+if (nrow(sessions) > 0) {
+  knitr::kable(sessions[, c("title","actual_start","students_present")],
+               col.names = c("Session","Date","Students"),
+               digits = 0)
+} else {
+  cat("No session data.")
+}
+```
+
+## 3. Student Participation Over Time
+
+```{r participation}
+if (nrow(sessions) > 0) {
+  attend_data <- with_connection(function(con) {
+    placeholders <- paste(sprintf("'%s'", sessions$id), collapse=",")
+    dbGetQuery(con, sprintf(
+      "SELECT sa.session_id,
+              COUNT(CASE WHEN sa.status IN ('present','late') THEN 1 END) AS attended,
+              ls.actual_start
+         FROM session_attendance sa
+         JOIN lecture_sessions ls ON ls.id = sa.session_id
+        WHERE sa.session_id IN (%s)
+        GROUP BY sa.session_id, ls.actual_start
+        ORDER BY ls.actual_start", placeholders))
+  })
+  if (nrow(attend_data) > 0) {
+    attend_data$actual_start <- as.POSIXct(attend_data$actual_start)
+    ggplot(attend_data, aes(x = actual_start, y = attended)) +
+      geom_col(fill = "#66BB6A") +
+      labs(x = "Session Date", y = "Students Present",
+           title = "Attendance per Session") +
+      theme_minimal()
+  }
+}
+```

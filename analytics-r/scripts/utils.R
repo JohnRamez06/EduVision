@@ -1,35 +1,75 @@
-# =============================================================================
-# scripts/utils.R
-# =============================================================================
+# ============================================================
+# utils.R — Shared utility functions
+# ============================================================
 
-format_date <- function(dt, fmt = "%d %b %Y") {
-  format(as.POSIXct(dt), fmt)
+#' Log a timestamped message to a log file and stdout.
+log_message <- function(msg, log_file = NULL) {
+  ts  <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  txt <- sprintf("[%s] %s", ts, msg)
+  message(txt)
+  if (!is.null(log_file)) {
+    cat(txt, "\n", file = log_file, append = TRUE)
+  }
 }
 
-format_percentage <- function(x, digits = 1) {
-  sprintf("%.*f%%", digits, as.numeric(x) * 100)
+#' Ensure a directory exists; create it if it does not.
+ensure_dir <- function(path) {
+  if (!dir.exists(path)) dir.create(path, recursive = TRUE)
+  invisible(path)
 }
 
-safe_divide <- function(numerator, denominator, fallback = 0) {
-  ifelse(denominator == 0 | is.na(denominator), fallback, numerator / denominator)
+#' Return the analytics-r root directory.
+analytics_home <- function() {
+  env <- Sys.getenv("ANALYTICS_HOME", "")
+  if (nchar(env) > 0) return(env)
+  # Walk up from this file's location
+  this <- tryCatch(normalizePath(dirname(sys.frame(1)$ofile)), error = function(e) ".")
+  # Keep going up until we find config.R
+  candidate <- this
+  for (i in seq_len(6)) {
+    if (file.exists(file.path(candidate, "config.R"))) return(candidate)
+    candidate <- dirname(candidate)
+  }
+  getwd()
 }
 
-# Create output subfolder if it doesn't exist, return path
-ensure_output_dir <- function(subdir) {
-  BASE_DIR  <- Sys.getenv("R_BASE_DIR", normalizePath(file.path(dirname(sys.frame(1)$ofile), "..")))
-  OUTPUT    <- Sys.getenv("OUTPUT_DIR",  file.path(BASE_DIR, "output"))
-  full_path <- file.path(OUTPUT, subdir)
-  if (!dir.exists(full_path)) dir.create(full_path, recursive = TRUE)
-  full_path
+#' Format a decimal as a percentage string.
+pct <- function(x, digits = 1) sprintf("%.*f%%", digits, x * 100)
+
+#' Compute a rolling mean of a numeric vector.
+rolling_mean <- function(x, k = 5) {
+  n <- length(x)
+  vapply(seq_len(n), function(i) {
+    idx <- max(1, i - k + 1):i
+    mean(x[idx], na.rm = TRUE)
+  }, numeric(1))
 }
 
-# Emotion colour palette consistent across all charts
-emotion_colours <- function() {
-  c(
-    happy     = "#22c55e", engaged   = "#3b82f6",
-    neutral   = "#94a3b8", confused  = "#f59e0b",
-    sad       = "#6366f1", angry     = "#ef4444",
-    fearful   = "#8b5cf6", disgusted = "#84cc16",
-    surprised = "#ec4899"
+#' Safely bind rows — handles NULL entries in list.
+safe_bind_rows <- function(lst) {
+  lst <- Filter(Negate(is.null), lst)
+  if (length(lst) == 0) return(data.frame())
+  dplyr::bind_rows(lst)
+}
+
+#' Convert concentration ENUM string to numeric score (0-100).
+concentration_to_score <- function(level) {
+  dplyr::case_when(
+    level == "high"       ~ 85,
+    level == "medium"     ~ 55,
+    level == "low"        ~ 25,
+    level == "distracted" ~ 10,
+    TRUE                  ~ NA_real_
   )
+}
+
+#' Determine recommendation text from average concentration.
+recommend_from_concentration <- function(avg_conc) {
+  if (is.na(avg_conc) || avg_conc >= 70) {
+    "Student is maintaining good concentration. Continue current study habits."
+  } else if (avg_conc >= 45) {
+    "Moderate concentration detected. Suggest shorter study blocks with breaks."
+  } else {
+    "Low concentration detected. Recommend one-on-one support or schedule review."
+  }
 }

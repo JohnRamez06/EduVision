@@ -1,77 +1,75 @@
-# =============================================================================
-# analysis/weekly_lecturer_analysis.R
-# =============================================================================
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-source(file.path(BASE_DIR, "config.R"))
-source(file.path(BASE_DIR, "scripts", "fetch_data.R"))
-source(file.path(BASE_DIR, "scripts", "fetch_class_snapshots.R"))
-source(file.path(BASE_DIR, "scripts", "fetch_alerts.R"))
-source(file.path(BASE_DIR, "scripts", "calculate_statistics.R"))
-library(dplyr); library(lubridate)
+# ============================================================
+# weekly_lecturer_analysis.R
+# ============================================================
 
+AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+ROOT   <- dirname(AN_DIR)
+source(file.path(ROOT, "config.R"),                          local = TRUE)
+source(file.path(ROOT, "scripts", "utils.R"),                local = TRUE)
+source(file.path(ROOT, "scripts", "fetch_class_snapshots.R"), local = TRUE)
+source(file.path(ROOT, "scripts", "calculate_statistics.R"),  local = TRUE)
+
+#' Weekly analysis for a lecturer.
+#' @param lecturer_id Character.
+#' @param week_id     Integer or character weekly_periods PK.
+#' @return Named list.
 weekly_lecturer_analysis <- function(lecturer_id, week_id) {
-  week <- fetch_week_dates(week_id)
+  wp <- with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT * FROM weekly_periods WHERE id = ?wid", wid = week_id))
+  })
+  if (nrow(wp) == 0) stop("weekly_period not found: ", week_id)
 
-  sessions <- query_df(sprintf(
-    "SELECT ls.id, ls.course_id, c.code, c.title, ls.actual_start, ls.actual_end, ls.status
-     FROM lecture_sessions ls
-     JOIN courses c ON c.id = ls.course_id
-     WHERE ls.lecturer_id = '%s'
-       AND ls.actual_start BETWEEN '%s' AND '%s'
-     ORDER BY ls.actual_start ASC",
-    lecturer_id,
-    format(week$start_date, "%Y-%m-%d %H:%M:%S"),
-    format(week$end_date,   "%Y-%m-%d %H:%M:%S")
-  ))
+  date_from <- paste(wp$start_date[1], "00:00:00")
+  date_to   <- paste(wp$end_date[1],   "23:59:59")
+
+  # Fetch sessions for this lecturer in this week
+  sessions <- with_connection(function(con) {
+    dbGetQuery(con, sqlInterpolate(con,
+      "SELECT ls.id, ls.title, ls.actual_start, ls.actual_end,
+              c.code AS course_code, c.title AS course_title,
+              COUNT(DISTINCT sa.student_id) AS students_present
+         FROM lecture_sessions ls
+         JOIN courses c ON c.id = ls.course_id
+    LEFT JOIN session_attendance sa ON sa.session_id = ls.id
+                                    AND sa.status IN ('present','late')
+        WHERE ls.lecturer_id = ?lid
+          AND ls.actual_start BETWEEN ?df AND ?dt
+        GROUP BY ls.id, ls.title, ls.actual_start, ls.actual_end,
+                 c.code, c.title",
+      lid = lecturer_id, df = date_from, dt = date_to))
+  })
 
   if (nrow(sessions) == 0) {
-    return(list(lecturer_id = lecturer_id, week_id = week_id, no_data = TRUE, n_sessions = 0))
+    return(list(lecturer_id        = lecturer_id,
+                week_id            = week_id,
+                n_sessions         = 0L,
+                avg_engagement     = NA_real_,
+                avg_concentration  = NA_real_,
+                total_students     = 0L,
+                session_details    = data.frame()))
   }
 
+  # For each session, compute avg engagement from class snapshots
   session_stats <- lapply(sessions$id, function(sid) {
     snaps <- fetch_class_snapshots(sid)
-    alerts_df <- fetch_alerts(sid)
-    if (nrow(snaps) == 0) return(NULL)
-    list(
-      session_id       = sid,
-      avg_engagement   = mean(snaps$engagement_score, na.rm = TRUE),
-      avg_concentration = mean(snaps$avg_concentration, na.rm = TRUE),
-      n_alerts         = nrow(alerts_df),
-      critical_alerts  = sum(alerts_df$severity == "critical", na.rm = TRUE)
-    )
+    if (nrow(snaps) == 0) {
+      return(data.frame(session_id = sid, avg_eng = NA_real_,
+                        avg_conc = NA_real_))
+    }
+    data.frame(session_id = sid,
+               avg_eng    = mean(as.numeric(snaps$engagement_score),  na.rm = TRUE),
+               avg_conc   = mean(as.numeric(snaps$avg_concentration), na.rm = TRUE))
   })
-  session_stats <- Filter(Negate(is.null), session_stats)
-
-  all_eng  <- sapply(session_stats, `[[`, "avg_engagement")
-  all_conc <- sapply(session_stats, `[[`, "avg_concentration")
-
-  # At-risk students this week
-  at_risk_df <- query_df(sprintf(
-    "SELECT DISTINCT ses.student_id, CONCAT(u.first_name,' ',u.last_name) AS name
-     FROM student_emotion_snapshots ses
-     JOIN lecture_sessions ls ON ls.id = ses.session_id
-     JOIN users u              ON u.id = ses.student_id
-     WHERE ls.lecturer_id = '%s'
-       AND ses.captured_at BETWEEN '%s' AND '%s'
-       AND ses.concentration = 'distracted'
-     GROUP BY ses.student_id HAVING COUNT(*) > 10",
-    lecturer_id,
-    format(week$start_date, "%Y-%m-%d %H:%M:%S"),
-    format(week$end_date,   "%Y-%m-%d %H:%M:%S")
-  ))
+  ss <- do.call(rbind, session_stats)
 
   list(
-    lecturer_id      = lecturer_id,
-    week_id          = week_id,
-    week_number      = week$week_number,
-    n_sessions       = nrow(sessions),
-    avg_engagement   = round(mean(all_eng,  na.rm = TRUE), 3),
-    avg_concentration = round(mean(all_conc, na.rm = TRUE), 3),
-    best_session_id  = session_stats[[which.max(all_eng)]]$session_id,
-    worst_session_id = session_stats[[which.min(all_eng)]]$session_id,
-    total_alerts     = sum(sapply(session_stats, `[[`, "n_alerts")),
-    at_risk_students = at_risk_df,
-    sessions_summary = sessions,
-    session_stats    = session_stats
+    lecturer_id       = lecturer_id,
+    week_id           = week_id,
+    n_sessions        = nrow(sessions),
+    avg_engagement    = mean(ss$avg_eng,  na.rm = TRUE),
+    avg_concentration = mean(ss$avg_conc, na.rm = TRUE),
+    total_students    = sum(sessions$students_present, na.rm = TRUE),
+    session_details   = merge(sessions, ss, by.x = "id", by.y = "session_id")
   )
 }

@@ -1,46 +1,53 @@
-# =============================================================================
-# EduVision - Extract Face Embeddings from Enrollment Photos
-# face_learning/extract_embeddings.R
-# =============================================================================
+# ============================================================
+# extract_embeddings.R — Extract 128-d embeddings from enrollment photos
+# ============================================================
 
-BASE_DIR <- normalizePath(file.path(dirname(sys.frame(1)$ofile), ".."))
-source(file.path(BASE_DIR, "config.R"))
-source(file.path(BASE_DIR, "reticulate", "init_python.R"))
-source(file.path(BASE_DIR, "reticulate", "embedding_extraction.R"))
-source(file.path(BASE_DIR, "reticulate", "face_detection.R"))
+FL_DIR <- dirname(sys.frame(1)$ofile %||% ".")
+source(file.path(dirname(FL_DIR), "reticulate", "init_python.R"), local = TRUE)
+source(file.path(dirname(FL_DIR), "reticulate", "face_detection.R"), local = TRUE)
+source(file.path(dirname(FL_DIR), "reticulate", "embedding_extraction.R"), local = TRUE)
 
-# -----------------------------------------------------------------------------
-# extract_student_embeddings(student_id)
-# Reads all valid photos from face_enrollment/{student_id}/
-# Returns: list of 128-d numeric vectors (one per valid photo)
-# -----------------------------------------------------------------------------
-extract_student_embeddings <- function(student_id) {
-  photo_dir <- file.path(FACE_DIR, student_id)
-  if (!dir.exists(photo_dir)) stop("Photo directory not found: ", photo_dir)
+#' Extract embeddings for all valid photos of a student.
+#' @param student_id Character.
+#' @param photos_dir Directory containing photos.  Defaults to
+#'                   face_enrollment/{student_id}/ relative to working dir.
+#' @return List of numeric vectors (each 128-d).  Invalid photos are skipped.
+extract_student_embeddings <- function(student_id,
+                                       photos_dir = file.path("face_enrollment",
+                                                              student_id)) {
+  img_files <- list.files(photos_dir,
+                          pattern = "\\.(jpg|jpeg|png|bmp)$",
+                          ignore.case = TRUE,
+                          full.names = TRUE)
 
-  photos <- list.files(photo_dir, pattern = "\\.(jpg|jpeg|png|bmp)$",
-                       full.names = TRUE, ignore.case = TRUE)
-  if (length(photos) == 0) stop("No photos found for student: ", student_id)
+  embeddings <- lapply(img_files, function(f) {
+    tryCatch({
+      faces <- detect_faces(f)
+      if (nrow(faces) == 0) {
+        message("  No face in: ", basename(f), " — skipping.")
+        return(NULL)
+      }
+      emb <- extract_embedding(f)
+      if (is.null(emb)) {
+        message("  Embedding failed for: ", basename(f))
+        return(NULL)
+      }
+      emb
+    }, error = function(e) {
+      message("  Error processing ", basename(f), ": ", e$message)
+      NULL
+    })
+  })
 
-  log_message(sprintf("Extracting embeddings for student %s from %d photos", student_id, length(photos)))
+  # Remove NULLs
+  Filter(Negate(is.null), embeddings)
+}
 
-  embeddings <- list()
-  failed     <- 0
-
-  for (photo_path in photos) {
-    emb <- tryCatch(
-      extract_embedding(photo_path),
-      error = function(e) { warning("Embedding failed for ", basename(photo_path), ": ", e$message); NULL }
-    )
-    if (!is.null(emb) && length(emb) == 128) {
-      embeddings[[length(embeddings) + 1]] <- emb
-    } else {
-      failed <- failed + 1
-    }
-  }
-
-  log_message(sprintf("Extracted %d valid embeddings, %d failed", length(embeddings), failed))
-
-  if (length(embeddings) == 0) stop("No valid embeddings extracted for student: ", student_id)
-  embeddings
+#' Average a list of embedding vectors into one representative vector.
+average_embeddings <- function(emb_list) {
+  if (length(emb_list) == 0) stop("No embeddings to average.")
+  mat <- do.call(rbind, emb_list)
+  avg <- colMeans(mat)
+  # L2-normalise
+  avg / sqrt(sum(avg^2) + 1e-9)
 }
