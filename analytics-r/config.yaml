@@ -1,0 +1,9 @@
+db:
+  host: "127.0.0.1"
+  port: 3306
+  name: "eduvision"
+  user: "root"
+  password: ""
+
+output:
+  reports_dir: "output"

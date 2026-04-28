@@ -1,16 +1,51 @@
 import time
+import json
 import cv2
+from collections import Counter
+from datetime import datetime
 
 from config.settings import settings
 from database.schema import ensure_schema
 from database.repository import ensure_session, insert_detection
 from processors.frame_processor import FrameProcessor
+from api_client.spring_client import send_snapshot
+
+
+def dominant_emotion(people):
+    if not people:
+        return "neutral"
+    c = Counter([p.get("dominant_emotion", "neutral") for p in people])
+    return c.most_common(1)[0][0]
+
+
+def avg_concentration(people):
+    if not people:
+        return 0.0
+    # try common fields (adjust if your processor uses different keys)
+    vals = []
+    for p in people:
+        conc = p.get("concentration", {})
+        score = conc.get("score")
+        if score is None:
+            score = conc.get("value")
+        if score is None and isinstance(conc, (int, float)):
+            score = float(conc)
+        if score is not None:
+            vals.append(float(score))
+    return sum(vals) / max(1, len(vals))
 
 
 def main():
+    # minimal DB tables (sessions/detections) are optional now
     ensure_schema()
-    session_id = time.strftime("webcam-%Y%m%d-%H%M%S")
-    ensure_session(session_id)
+
+    # IMPORTANT: this must be a REAL lecture_sessions.id (UUID)
+    session_id = getattr(settings, "active_session_id", None)
+    if not session_id:
+        session_id = input("Enter ACTIVE lecture_sessions.id (UUID) to store snapshots under: ").strip()
+
+    if getattr(settings, "store_to_minimal_db", False):
+        ensure_session(session_id)
 
     processor = FrameProcessor()
 
@@ -20,6 +55,7 @@ def main():
 
     last_store = 0.0
     store_every_seconds = 2.0
+    seq_index = 0
 
     while True:
         ok, frame = cap.read()
@@ -43,18 +79,48 @@ def main():
                 f'gaze:{gaze.get("direction","?")} '
                 f'yaw:{pose.get("yaw",0.0):.0f}'
             )
-            cv2.rectangle(frame, (x, y), (x+w, y+h), (0, 255, 0), 2)
-            cv2.putText(frame, label, (x, max(0, y-10)),
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            cv2.putText(frame, label, (x, max(0, y - 10)),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
 
         # store periodically
         now = time.time()
         if now - last_store >= store_every_seconds:
-            for det in result["people"]:
-                insert_detection(session_id, det)
+            people = result.get("people", [])
+            seq_index += 1
+
+            # Optional: keep minimal detections table for debugging
+            if getattr(settings, "store_to_minimal_db", False):
+                for det in people:
+                    insert_detection(session_id, det)
+
+            if getattr(settings, "store_to_spring", True):
+                payload = {
+                    # EmotionSnapshotDTO fields (backend expects these names)
+                    "snapshotId": None,
+                    "sessionId": session_id,
+                    "cameraId": None,
+                    "seqIndex": seq_index,
+                    "capturedAt": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S"),
+                    "frameUrl": None,
+                    "studentCount": int(result.get("student_count", len(people))),
+                    "avgConcentration": avg_concentration(people),
+                    "dominantEmotion": dominant_emotion(people),
+                    # For now, use avgConcentration as engagement_score too
+                    "engagementScore": avg_concentration(people),
+                    "rawPayload": json.dumps(result),
+                    "processingMs": None,
+                }
+
+                try:
+                    send_snapshot(session_id, payload)
+                    print(f"[OK] Sent snapshot seq={seq_index} people={len(people)}")
+                except Exception as e:
+                    print(f"[ERR] Failed to send snapshot: {e}")
+
             last_store = now
 
-        cv2.putText(frame, f"Session: {session_id}  Faces: {result['student_count']}",
+        cv2.putText(frame, f"Session: {session_id}  Faces: {result.get('student_count', 0)}",
                     (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (255, 255, 255), 2)
 
         cv2.imshow("EduVision - Webcam (press q to quit)", frame)
