@@ -1,0 +1,5 @@
+# app.R — entry point (sources ui.R and server.R)
+source("global.R", local = FALSE)
+source("ui.R",     local = FALSE)
+source("server.R", local = FALSE)
+shinyApp(ui = ui, server = server)

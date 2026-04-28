@@ -12,6 +12,11 @@ public class ReportRequestDTO {
     private String courseId;
     private String sessionId;
     private String studentId;
+    private String lecturerId;
+    /** Primary key of a weekly_periods row. Used for weekly_student / weekly_lecturer / weekly_dean reports. */
+    private String weekId;
+    /** Comma-separated entity IDs for comparison reports (lecturers or courses). */
+    private String compareIds;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime dateFrom;
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
@@ -72,6 +77,30 @@ public class ReportRequestDTO {
 
     public void setStudentId(String studentId) {
         this.studentId = studentId;
+    }
+
+    public String getLecturerId() {
+        return lecturerId;
+    }
+
+    public void setLecturerId(String lecturerId) {
+        this.lecturerId = lecturerId;
+    }
+
+    public String getWeekId() {
+        return weekId;
+    }
+
+    public void setWeekId(String weekId) {
+        this.weekId = weekId;
+    }
+
+    public String getCompareIds() {
+        return compareIds;
+    }
+
+    public void setCompareIds(String compareIds) {
+        this.compareIds = compareIds;
     }
 
     public LocalDateTime getDateFrom() {

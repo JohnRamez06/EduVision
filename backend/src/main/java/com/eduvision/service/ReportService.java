@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,10 @@ public class ReportService {
     private final UserRepository userRepository;
     private final SessionRepository sessionRepository;
     private final RScriptExecutor rScriptExecutor;
+
+    /** Base directory of the analytics-r folder (configurable via application.properties). */
+    @Value("${eduvision.analytics.base-path:analytics-r}")
+    private String analyticsBasePath;
 
     public ReportService(ReportRepository reportRepository,
                          UserRepository userRepository,
@@ -67,12 +72,10 @@ public class ReportService {
         report = reportRepository.save(report);
 
         try {
-            String scriptPath = request.getScriptPath() != null ? request.getScriptPath() : "reports/generate_report.R";
-            List<String> args = new ArrayList<>();
-            args.add(report.getId());
-            if (request.getSessionId() != null) {
-                args.add(request.getSessionId());
-            }
+            String scriptPath = resolveScriptPath(request);
+            List<String> args = buildScriptArgs(request, report.getId());
+
+            report.setRScriptUsed(scriptPath);
             String output = rScriptExecutor.execute(scriptPath, args);
 
             report.setStatus(ReportStatus.ready);
@@ -91,6 +94,106 @@ public class ReportService {
         }
 
         return toDto(reportRepository.save(report));
+    }
+
+    /**
+     * Determine which R generator script to run based on the report type.
+     * Falls back to any caller-supplied scriptPath, then to a default.
+     */
+    private String resolveScriptPath(ReportRequestDTO request) {
+        if (request.getScriptPath() != null && !request.getScriptPath().isBlank()) {
+            return request.getScriptPath();
+        }
+        if (request.getType() == null) {
+            return analyticsBasePath + "/generators/generate_session_report.R";
+        }
+        return switch (request.getType()) {
+            case weekly_student  -> analyticsBasePath + "/generators/generate_student_weekly.R";
+            case weekly_lecturer -> analyticsBasePath + "/generators/generate_lecturer_weekly.R";
+            case weekly_dean     -> analyticsBasePath + "/generators/generate_dean_weekly.R";
+            case session_summary -> analyticsBasePath + "/generators/generate_session_report.R";
+            case course_analytics -> analyticsBasePath + "/generators/generate_course_report.R";
+            case comparison      -> analyticsBasePath + "/generators/generate_comparison_report.R";
+            default              -> analyticsBasePath + "/generators/generate_session_report.R";
+        };
+    }
+
+    /**
+     * Build the positional argument list that the selected R script expects.
+     * Convention for each generator:
+     *   weekly_student  : <student_id> <week_id> [output_dir]
+     *   weekly_lecturer : <lecturer_id> <week_id> [output_dir]
+     *   weekly_dean     : <dean_id> <week_id> [output_dir]
+     *   session_summary : <session_id> [output_dir]
+     *   course_analytics: <course_id> [output_dir]
+     *   comparison      : <lecturers|courses> <ids_csv> [output_dir]
+     *   custom / other  : <report_id> [session_id]
+     */
+    private List<String> buildScriptArgs(ReportRequestDTO request, String reportId) {
+        String outputDir = analyticsBasePath + "/output";
+        List<String> args = new ArrayList<>();
+
+        if (request.getType() == null) {
+            args.add(reportId);
+            if (request.getSessionId() != null) args.add(request.getSessionId());
+            return args;
+        }
+
+        switch (request.getType()) {
+            case weekly_student -> {
+                requireField(request.getStudentId(), "studentId is required for weekly_student report");
+                requireField(request.getWeekId(), "weekId is required for weekly_student report");
+                args.add(request.getStudentId());
+                args.add(request.getWeekId());
+                args.add(outputDir);
+            }
+            case weekly_lecturer -> {
+                String lid = request.getLecturerId() != null ? request.getLecturerId() : request.getUserId();
+                requireField(lid, "lecturerId is required for weekly_lecturer report");
+                requireField(request.getWeekId(), "weekId is required for weekly_lecturer report");
+                args.add(lid);
+                args.add(request.getWeekId());
+                args.add(outputDir);
+            }
+            case weekly_dean -> {
+                requireField(request.getWeekId(), "weekId is required for weekly_dean report");
+                args.add(request.getUserId());
+                args.add(request.getWeekId());
+                args.add(outputDir);
+            }
+            case session_summary -> {
+                requireField(request.getSessionId(), "sessionId is required for session_summary report");
+                args.add(request.getSessionId());
+                args.add(outputDir);
+            }
+            case course_analytics -> {
+                requireField(request.getCourseId(), "courseId is required for course_analytics report");
+                args.add(request.getCourseId());
+                args.add(outputDir);
+            }
+            case comparison -> {
+                requireField(request.getCompareIds(), "compareIds is required for comparison report");
+                // Determine type: if compareIds looks like lecturer IDs vs course IDs
+                // The caller sets compareIds as "lecturers:<id1,id2>" or "courses:<id1,id2>"
+                String raw = request.getCompareIds();
+                String compareType = raw.startsWith("courses:") ? "courses" : "lecturers";
+                String ids = raw.contains(":") ? raw.substring(raw.indexOf(':') + 1) : raw;
+                args.add(compareType);
+                args.add(ids);
+                args.add(outputDir);
+            }
+            default -> {
+                args.add(reportId);
+                if (request.getSessionId() != null) args.add(request.getSessionId());
+            }
+        }
+        return args;
+    }
+
+    private static void requireField(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
+        }
     }
 
     @Transactional(readOnly = true)

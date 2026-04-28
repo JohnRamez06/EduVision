@@ -1,0 +1,144 @@
+---
+title: "Weekly Lecturer Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
+params:
+  lecturer_id: ""
+  week_id:     ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 7, fig.height = 4)
+library(ggplot2)
+library(dplyr)
+
+ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
+source(file.path(ANALYTICS_HOME, "config.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+source(file.path(ANALYTICS_HOME, "analysis", "weekly_lecturer_analysis.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_data.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "fetch_alerts.R"))
+
+lecturer_id <- params$lecturer_id
+week_id     <- params$week_id
+
+stats    <- weekly_lecturer_analysis(lecturer_id, week_id)
+lecturer <- fetch_lecturer(lecturer_id)
+wp       <- fetch_weekly_period(week_id)
+alerts   <- fetch_open_alerts_for_lecturer(lecturer_id)
+```
+
+---
+
+**Lecturer:** `r lecturer$full_name`  
+**Week:** `r wp$week_number` / `r wp$year` (`r wp$start_date` – `r wp$end_date`)
+
+---
+
+## 1. Class Overview
+
+```{r overview}
+knitr::kable(data.frame(
+  Metric = c("Sessions This Week", "Total Students Present",
+             "Avg Engagement Score", "Avg Concentration"),
+  Value  = c(stats$n_sessions,
+             stats$total_students,
+             ifelse(is.na(stats$avg_engagement), "N/A",
+                    sprintf("%.2f", stats$avg_engagement)),
+             ifelse(is.na(stats$avg_concentration), "N/A",
+                    sprintf("%.3f", stats$avg_concentration)))
+), col.names = c("Metric", "Value"))
+```
+
+## 2. Per-Session Engagement
+
+```{r session-eng}
+if (!is.null(stats$session_details) && nrow(stats$session_details) > 0) {
+  sd <- stats$session_details %>%
+    mutate(label = paste0(course_code, "\n", format(as.POSIXct(actual_start),
+                                                    "%a %d")))
+  ggplot(sd, aes(x = reorder(label, actual_start), y = avg_eng)) +
+    geom_col(fill = "#42A5F5") +
+    geom_hline(yintercept = 0.6, linetype = "dashed", colour = "red") +
+    scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
+    labs(x = "Session", y = "Avg Engagement",
+         title = "Engagement per Session This Week") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+} else {
+  cat("No session data available.")
+}
+```
+
+## 3. Top / Bottom Students
+
+```{r top-bottom}
+student_eng <- with_connection(function(con) {
+  dbGetQuery(con, sqlInterpolate(con,
+    "SELECT ses.student_id,
+            CONCAT(u.first_name,' ',u.last_name) AS name,
+            AVG(CASE WHEN ses.concentration='high'   THEN 85
+                     WHEN ses.concentration='medium' THEN 55
+                     WHEN ses.concentration='low'    THEN 25
+                     ELSE 10 END)                    AS avg_conc,
+            COUNT(*)                                 AS n_snaps
+       FROM student_emotion_snapshots ses
+       JOIN users u ON u.id = ses.student_id
+       JOIN lecture_sessions ls ON ls.id = ses.session_id
+       JOIN weekly_periods wp ON wp.id = ?wid
+      WHERE ls.lecturer_id = ?lid
+        AND ses.captured_at BETWEEN wp.start_date
+            AND DATE_ADD(wp.end_date, INTERVAL 1 DAY)
+      GROUP BY ses.student_id, u.first_name, u.last_name
+      ORDER BY avg_conc DESC",
+    wid = week_id, lid = lecturer_id))
+})
+
+if (nrow(student_eng) > 0) {
+  n_show <- min(5, nrow(student_eng))
+  top <- head(student_eng, n_show)
+  bot <- tail(student_eng, n_show)
+  cat("### Top Students\n")
+  print(knitr::kable(top[, c("name","avg_conc")],
+        col.names = c("Student", "Avg Concentration")))
+  cat("\n### Bottom Students\n")
+  print(knitr::kable(bot[, c("name","avg_conc")],
+        col.names = c("Student", "Avg Concentration")))
+} else {
+  cat("No student data available.")
+}
+```
+
+## 4. Alert Summary
+
+```{r alerts}
+if (nrow(alerts) > 0) {
+  knitr::kable(alerts[, c("student_name","alert_type","severity","triggered_at")],
+               col.names = c("Student","Type","Severity","Triggered At"))
+} else {
+  cat("No open alerts.")
+}
+```
+
+## 5. Teaching Tips
+
+```{r tips}
+avg_eng <- stats$avg_engagement
+if (!is.na(avg_eng)) {
+  if (avg_eng < 0.4) {
+    cat("- Engagement is low this week. Consider more interactive activities.\n")
+    cat("- Introduce brief comprehension checks mid-lecture.\n")
+  } else if (avg_eng < 0.65) {
+    cat("- Engagement is moderate. Try varying lecture pacing.\n")
+  } else {
+    cat("- Great engagement this week! Keep up the current approach.\n")
+  }
+}
+if (nrow(alerts) > 3) {
+  cat("- Several alerts triggered. Review at-risk students individually.\n")
+}
+```

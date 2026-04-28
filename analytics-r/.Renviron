@@ -1,0 +1,21 @@
+# .Renviron — EduVision Analytics environment variables
+# Copy this file to the analytics-r directory (it is loaded automatically by R)
+
+# Path to the Python virtual environment used by reticulate
+RETICULATE_PYTHON=analytics-r/.venv/bin/python
+
+# Absolute path to the analytics-r directory (override auto-detection if needed)
+ANALYTICS_HOME=
+
+# Directory where trained model files are stored
+MODEL_DIR=analytics-r/models
+
+# Directory where generated PDF reports are written
+OUTPUT_DIR=analytics-r/output
+
+# MySQL connection settings (leave blank to use defaults from config.R)
+DB_HOST=localhost
+DB_PORT=3306
+DB_USER=root
+DB_PASS=
+DB_NAME=eduvision
