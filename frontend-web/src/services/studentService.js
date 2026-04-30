@@ -9,6 +9,7 @@ const studentService = {
   getConsentStatus:   (studentId)  => api.get(`/consent/status/${studentId}`).then(r => r.data),
   grantConsent:       (policyId)   => api.post('/consent/grant', { policyId }).then(r => r.data),
   revokeConsent:      (policyId)   => api.post('/consent/revoke', { policyId }).then(r => r.data),
+  getWeeklyReport:    (userId)     => api.get('/reports', { params: { userId } }).then(r => r.data),
 }
 
 export default studentService

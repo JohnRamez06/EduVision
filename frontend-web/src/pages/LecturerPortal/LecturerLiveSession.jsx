@@ -164,23 +164,19 @@ function useDuration(startTime) {
 export default function LecturerLiveSession() {
   const { user } = useContext(AuthContext)
 
-  // ── Setup form state ──────────────────────────────────────────────────────
   const [courses, setCourses]         = useState([])
   const [loadingCourses, setLoadingCourses] = useState(true)
   const [form, setForm]               = useState({ courseId: '', room: '', duration: '2' })
   const [starting, setStarting]       = useState(false)
   const [setupError, setSetupError]   = useState('')
 
-  // ── Session state ─────────────────────────────────────────────────────────
-  const [session, setSession]         = useState(null)   // SessionStatusDTO | null
+  const [session, setSession]         = useState(null)
   const [checkingActive, setCheckingActive] = useState(true)
 
-  // ── Live analytics state ──────────────────────────────────────────────────
-  const [mood, setMood]               = useState(null)   // MoodUpdateDTO
+  const [mood, setMood]               = useState(null)
   const [alerts, setAlerts]           = useState([])
-  const [snapshot, setSnapshot]       = useState(null)   // AggregatedEmotionDTO
+  const [snapshot, setSnapshot]       = useState(null)
 
-  // ── Camera state ──────────────────────────────────────────────────────────
   const [cameraOn, setCameraOn]       = useState(false)
   const [cameraError, setCameraError] = useState('')
   const [wsConnected, setWsConnected] = useState(false)
@@ -193,7 +189,8 @@ export default function LecturerLiveSession() {
 
   const duration = useDuration(session?.startTime)
 
-  // ── On mount: check for existing active session ───────────────────────────
+  // ── On mount ───────────────────────────────────────────────────────────────
+
   useEffect(() => {
     lecturerService.getDashboard()
       .then(d => setCourses(d.courses ?? []))
@@ -208,7 +205,7 @@ export default function LecturerLiveSession() {
     return () => cleanup()
   }, [])
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Helpers ────────────────────────────────────────────────────────────────
 
   const activateSession = useCallback((sess) => {
     setSession(sess)
@@ -227,7 +224,7 @@ export default function LecturerLiveSession() {
     }
   }
 
-  // ── Camera ────────────────────────────────────────────────────────────────
+  // ── Camera ─────────────────────────────────────────────────────────────────
 
   const startCamera = async () => {
     setCameraError('')
@@ -248,7 +245,7 @@ export default function LecturerLiveSession() {
     }
   }
 
-  // ── WebSocket ─────────────────────────────────────────────────────────────
+  // ── WebSocket ──────────────────────────────────────────────────────────────
 
   const connectWebSocket = (sessionId) => {
     const client = createSessionClient({
@@ -262,7 +259,7 @@ export default function LecturerLiveSession() {
     client.activate()
   }
 
-  // ── Frame capture loop ────────────────────────────────────────────────────
+  // ── Frame capture loop ─────────────────────────────────────────────────────
 
   const startFrameCapture = useCallback((sessionId) => {
     clearInterval(frameTimer.current)
@@ -274,12 +271,25 @@ export default function LecturerLiveSession() {
       canvas.height = video.videoHeight
       canvas.getContext('2d').drawImage(video, 0, 0)
       canvas.toBlob(blob => {
-        if (blob) emotionService.analyzeFrame(sessionId, blob).catch(() => {})
-      }, 'image/jpeg', 0.82)
+        if (blob) {
+          const formData = new FormData()
+          formData.append('session_id', sessionId)
+          formData.append('store', 'true')
+          formData.append('file', blob, 'frame.jpg')
+          
+          fetch('http://localhost:8000/analyze/frame', {
+            method: 'POST',
+            body: formData,
+          })
+          .then(r => r.json())
+          .then(data => console.log('Detection:', data))
+          .catch(err => console.error('Frame send error:', err))
+        }
+      }, 'image/jpeg', 0.8)
     }, FRAME_INTERVAL_MS)
   }, [])
 
-  // ── Snapshot poll ─────────────────────────────────────────────────────────
+  // ── Snapshot poll ──────────────────────────────────────────────────────────
 
   const startSnapshotPoll = (sessionId) => {
     clearInterval(pollTimer.current)
@@ -291,13 +301,12 @@ export default function LecturerLiveSession() {
     pollTimer.current = setInterval(poll, SNAPSHOT_POLL_MS)
   }
 
-  // Watch: once session is set + camera is on, start frame capture
   useEffect(() => {
     if (session && cameraOn) startFrameCapture(session.sessionId)
     return () => clearInterval(frameTimer.current)
   }, [session, cameraOn, startFrameCapture])
 
-  // ── Start session ─────────────────────────────────────────────────────────
+  // ── Start session ──────────────────────────────────────────────────────────
 
   const handleStart = async e => {
     e.preventDefault()
@@ -323,7 +332,7 @@ export default function LecturerLiveSession() {
     }
   }
 
-  // ── End session ───────────────────────────────────────────────────────────
+  // ── End session ────────────────────────────────────────────────────────────
 
   const handleEnd = async () => {
     try { await sessionService.end(session.sessionId) } catch {}
@@ -336,7 +345,7 @@ export default function LecturerLiveSession() {
     setSnapshot(null)
   }
 
-  // ── Derived analytics ─────────────────────────────────────────────────────
+  // ── Derived analytics ──────────────────────────────────────────────────────
 
   const engagement     = mood?.engagementScore ?? snapshot?.classSnapshot?.engagementScore ?? 0
   const dominantEmotion = mood?.dominantEmotion ?? snapshot?.classSnapshot?.dominantEmotion ?? 'neutral'
@@ -352,7 +361,7 @@ export default function LecturerLiveSession() {
     }
   })()
 
-  // ── Render: loading ───────────────────────────────────────────────────────
+  // ── Render: loading ────────────────────────────────────────────────────────
 
   if (checkingActive) {
     return (
@@ -364,7 +373,7 @@ export default function LecturerLiveSession() {
     )
   }
 
-  // ── Render: setup form ────────────────────────────────────────────────────
+  // ── Render: setup form ─────────────────────────────────────────────────────
 
   if (!session) {
     return (
@@ -388,7 +397,6 @@ export default function LecturerLiveSession() {
             )}
 
             <form onSubmit={handleStart} className="space-y-4">
-              {/* Course */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1.5">Course</label>
                 {loadingCourses ? (
@@ -414,7 +422,6 @@ export default function LecturerLiveSession() {
                 )}
               </div>
 
-              {/* Room */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1.5">Room / Location</label>
                 <div className="relative">
@@ -429,7 +436,6 @@ export default function LecturerLiveSession() {
                 </div>
               </div>
 
-              {/* Duration */}
               <div>
                 <label className="block text-xs font-medium text-slate-400 mb-1.5">Planned Duration</label>
                 <div className="relative">
@@ -461,7 +467,6 @@ export default function LecturerLiveSession() {
             </form>
           </div>
 
-          {/* Info note */}
           <p className="text-xs text-slate-600 text-center mt-4">
             Your browser camera will be used to detect student emotions in real time.
             Frames are analyzed every {FRAME_INTERVAL_MS / 1000}s.
@@ -471,14 +476,12 @@ export default function LecturerLiveSession() {
     )
   }
 
-  // ── Render: active session ────────────────────────────────────────────────
+  // ── Render: active session ─────────────────────────────────────────────────
 
   return (
     <LecturerLayout>
-      {/* Session topbar */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3 min-w-0">
-          {/* Live indicator */}
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 border border-rose-500/30 shrink-0">
             <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
             <span className="text-xs font-semibold text-rose-400">LIVE</span>
@@ -504,10 +507,7 @@ export default function LecturerLiveSession() {
         </button>
       </div>
 
-      {/* Main grid */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
-
-        {/* ── Camera feed ─────────────────────────────────── */}
         <div className="lg:col-span-2 flex flex-col gap-4">
           <div className="glass rounded-2xl overflow-hidden aspect-video relative bg-slate-900/80">
             {cameraOn ? (
@@ -524,7 +524,6 @@ export default function LecturerLiveSession() {
                 <p className="text-xs">Camera unavailable</p>
               </div>
             )}
-            {/* Overlay: student count badge */}
             {cameraOn && studentCount > 0 && (
               <div className="absolute bottom-2 left-2 flex items-center gap-1.5 px-2 py-1 rounded-lg bg-black/60 backdrop-blur-sm text-xs text-white">
                 <Users size={12} className="text-emerald-400" />
@@ -533,13 +532,10 @@ export default function LecturerLiveSession() {
             )}
           </div>
 
-          {/* Concentration breakdown */}
           <ConcentrationBars {...concCounts} />
         </div>
 
-        {/* ── Analytics panel ─────────────────────────────── */}
         <div className="lg:col-span-3 flex flex-col gap-4">
-          {/* Stat row */}
           <div className="grid grid-cols-3 gap-3">
             <StatCard
               icon={Users}
@@ -548,11 +544,7 @@ export default function LecturerLiveSession() {
               sub="detected"
               color="blue"
             />
-
-            {/* Engagement arc */}
             <EngagementArc value={engagement} />
-
-            {/* Dominant mood */}
             <div className={`glass rounded-2xl p-4 flex flex-col items-center justify-center gap-1 ${emoMeta.bg}`}>
               <p className="text-xs text-slate-500 font-medium">Mood</p>
               <span className="text-3xl leading-none">{emoMeta.emoji}</span>
@@ -560,7 +552,6 @@ export default function LecturerLiveSession() {
             </div>
           </div>
 
-          {/* Emotion distribution from snapshot */}
           {snapshot?.studentSnapshots?.length > 0 && (
             <div className="glass rounded-2xl p-4">
               <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
@@ -589,7 +580,6 @@ export default function LecturerLiveSession() {
             </div>
           )}
 
-          {/* Alert feed */}
           <div className="glass rounded-2xl p-4 flex-1 min-h-0">
             <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
               <AlertTriangle size={12} /> Live Alerts

@@ -1,12 +1,18 @@
                                                                                                  package com.eduvision.controller;
 
+import com.eduvision.exception.ResourceNotFoundException;
+import com.eduvision.model.Course;
+import com.eduvision.model.CourseLecturer;
 import com.eduvision.model.Lecturer;
 import com.eduvision.model.User;
 import com.eduvision.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -15,6 +21,12 @@ public class LecturerController {
 
     @Autowired
     private UserService userService;
+
+    @Autowired
+    private com.eduvision.repository.UserRepository userRepository;
+
+    @Autowired
+    private com.eduvision.repository.CourseLecturerRepository courseLecturerRepository;
 
     @GetMapping
     public List<User> getAllLecturers() {
@@ -27,6 +39,7 @@ public class LecturerController {
     public User getLecturer(@PathVariable String id) {
         return userService.findById(id).orElse(null);
     }
+    
 
     @PostMapping
     public User createLecturer(@RequestBody User user) {
@@ -44,4 +57,25 @@ public class LecturerController {
     public void deleteLecturer(@PathVariable String id) {
         userService.deleteById(id);
     }
+    // In LecturerController.java, ADD this method:
+    @GetMapping("/courses")
+   public ResponseEntity<List<Map<String, String>>> getMyCourses() {
+    String email = SecurityContextHolder.getContext().getAuthentication().getName();
+    User lecturer = userRepository.findByEmail(email)
+            .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+    
+    List<CourseLecturer> assignments = courseLecturerRepository.findByLecturerId(lecturer.getId());
+    
+    List<Map<String, String>> courses = assignments.stream().map(cl -> {
+        Course c = cl.getCourse();
+        return Map.of(
+            "courseId", c.getId(),
+            "code", c.getCode(),
+            "title", c.getTitle(),
+            "department", c.getDepartment()
+        );
+    }).collect(Collectors.toList());
+    
+    return ResponseEntity.ok(courses);
+}
 }

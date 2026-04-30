@@ -103,12 +103,13 @@ public class AuthService {
         assignRole(savedUser, role);
 
         // 5. Create role-specific profile
-        switch (req.getRoleName().toUpperCase()) {
-            case "STUDENT"  -> createStudentProfile(savedUser, req);
-            case "LECTURER" -> createLecturerProfile(savedUser, req);
-            case "ADMIN"    -> createAdminProfile(savedUser, req);
-            default         -> { /* no profile needed for unknown roles */ }
-        }
+    switch (req.getRoleName().toUpperCase()) {
+    case "STUDENT"  -> createStudentProfile(savedUser, req);
+    case "LECTURER" -> createLecturerProfile(savedUser, req);
+    case "ADMIN"    -> createAdminProfile(savedUser, req);
+    case "DEAN"     -> createAdminProfile(savedUser, req);  // ← ADD THIS LINE
+    default         -> { /* no profile needed for unknown roles */ }
+}
 
         // 6. Generate JWT and return (pass role name explicitly; in-memory userRoles set is empty)
         String token = jwtService.generateToken(savedUser.getEmail());
