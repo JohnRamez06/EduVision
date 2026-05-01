@@ -1,9 +1,9 @@
 import api from './api'
 
 const alertService = {
-	getAlertsBySession: (sessionId) => api.get(`/alerts/session/${sessionId}`).then((response) => response.data),
-	acknowledgeAlert: (id, userId) => api.put(`/alerts/${id}/acknowledge`, null, { params: { userId } }).then((response) => response.data),
-	resolveAlert: (id, userId) => api.put(`/alerts/${id}/resolve`, null, { params: { userId } }).then((response) => response.data),
+  getSessionAlerts: (sessionId) => api.get(`/alerts/session/${sessionId}`).then(r => r.data),
+  acknowledge: (alertId) => api.put(`/alerts/${alertId}/acknowledge`).then(r => r.data),
+  resolve: (alertId) => api.put(`/alerts/${alertId}/resolve`).then(r => r.data),
 }
 
 export default alertService

@@ -1,52 +1,71 @@
+// src/main/java/com/eduvision/service/RScriptExecutor.java
 package com.eduvision.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Service;
 
-@Service
+@Component
 public class RScriptExecutor {
 
-    private final String rscriptCommand;
+    private static final Logger log = LoggerFactory.getLogger(RScriptExecutor.class);
 
-    public RScriptExecutor(@Value("${eduvision.rscript.command:Rscript}") String rscriptCommand) {
-        this.rscriptCommand = rscriptCommand;
-    }
-
-    public String execute(String scriptPath, List<String> args) {
+    /**
+     * Execute an R script via ProcessBuilder.
+     *
+     * @param scriptRelativePath  relative path under analytics-r/, e.g. "generators/report.R"
+     * @param args                positional arguments passed to commandArgs(trailingOnly=TRUE)
+     * @return true if exit code == 0
+     */
+    public boolean execute(String scriptRelativePath, String... args) {
         List<String> command = new ArrayList<>();
-        command.add(rscriptCommand);
-        command.add(scriptPath);
-        if (args != null && !args.isEmpty()) {
-            command.addAll(args);
+        command.add("Rscript");
+        command.add("analytics-r/" + scriptRelativePath);
+        for (String arg : args) {
+            command.add(arg);
         }
 
-        ProcessBuilder processBuilder = new ProcessBuilder(command);
-        processBuilder.redirectErrorStream(true);
+        log.info("Executing R script: {}", String.join(" ", command));
 
         try {
-            Process process = processBuilder.start();
-            String output;
-            try (BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
-                output = reader.lines().reduce("", (acc, line) -> acc.isEmpty() ? line : acc + "\n" + line);
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(false);
+            Process process = pb.start();
+
+            // Log stdout
+            try (BufferedReader stdOut = new BufferedReader(
+                    new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = stdOut.readLine()) != null) {
+                    log.info("[R stdout] {}", line);
+                }
+            }
+
+            // Log stderr
+            try (BufferedReader stdErr = new BufferedReader(
+                    new InputStreamReader(process.getErrorStream()))) {
+                String line;
+                while ((line = stdErr.readLine()) != null) {
+                    log.warn("[R stderr] {}", line);
+                }
             }
 
             int exitCode = process.waitFor();
-            if (exitCode != 0) {
-                throw new IllegalStateException("R script failed with exit code " + exitCode + ": " + output);
+            if (exitCode == 0) {
+                log.info("R script completed successfully: {}", scriptRelativePath);
+                return true;
+            } else {
+                log.error("R script exited with code {}: {}", exitCode, scriptRelativePath);
+                return false;
             }
-            return output;
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("R script execution interrupted", ex);
-        } catch (IOException ex) {
-            throw new IllegalStateException("Failed to execute R script", ex);
+        } catch (Exception e) {
+            log.error("Failed to execute R script {}: {}", scriptRelativePath, e.getMessage(), e);
+            return false;
         }
     }
 }

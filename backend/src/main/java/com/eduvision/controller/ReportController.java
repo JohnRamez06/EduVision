@@ -1,21 +1,14 @@
+// src/main/java/com/eduvision/controller/ReportController.java
 package com.eduvision.controller;
 
-import com.eduvision.dto.report.ReportRequestDTO;
-import com.eduvision.dto.report.ReportStatusDTO;
 import com.eduvision.service.ReportService;
-import java.util.List;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/reports")
@@ -27,27 +20,55 @@ public class ReportController {
         this.reportService = reportService;
     }
 
-    @PostMapping("/generate")
-    public ResponseEntity<ReportStatusDTO> generate(@RequestBody ReportRequestDTO request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(reportService.generateReport(request));
+    @PostMapping("/student/{studentId}/weekly/{weekId}")
+    public ResponseEntity<Map<String, String>> generateStudentWeeklyReport(
+            @PathVariable String studentId,
+            @PathVariable String weekId) {
+        String fileUrl = reportService.generateStudentWeeklyReport(studentId, weekId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Student weekly report generated successfully.",
+                "fileUrl", fileUrl,
+                "status",  "ready"));
     }
 
-    @GetMapping
-    public ResponseEntity<List<ReportStatusDTO>> listUserReports(@RequestParam("userId") String userId) {
-        return ResponseEntity.ok(reportService.getUserReports(userId));
+    @PostMapping("/lecturer/{lecturerId}/weekly/{weekId}")
+    public ResponseEntity<Map<String, String>> generateLecturerWeeklyReport(
+            @PathVariable String lecturerId,
+            @PathVariable String weekId) {
+        String fileUrl = reportService.generateLecturerWeeklyReport(lecturerId, weekId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Lecturer weekly report generated successfully.",
+                "fileUrl", fileUrl,
+                "status",  "ready"));
     }
 
-    @GetMapping("/{id}/status")
-    public ResponseEntity<ReportStatusDTO> getStatus(@PathVariable String id) {
-        return ResponseEntity.ok(reportService.getReportStatus(id));
+    @PostMapping("/dean/weekly/{weekId}")
+    public ResponseEntity<Map<String, String>> generateDeanWeeklyReport(
+            @PathVariable String weekId) {
+        String fileUrl = reportService.generateDeanWeeklyReport(weekId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Dean weekly report generated successfully.",
+                "fileUrl", fileUrl,
+                "status",  "ready"));
     }
 
-    @GetMapping("/{id}/download")
-    public ResponseEntity<Resource> download(@PathVariable String id) {
-        Resource report = reportService.downloadReport(id);
+    @PostMapping("/session/{sessionId}")
+    public ResponseEntity<Map<String, String>> generateSessionReport(
+            @PathVariable String sessionId) {
+        String fileUrl = reportService.generateSessionReport(sessionId);
+        return ResponseEntity.ok(Map.of(
+                "message", "Session report generated successfully.",
+                "fileUrl", fileUrl,
+                "status",  "ready"));
+    }
+
+    @GetMapping("/download/{fileName}")
+    public ResponseEntity<Resource> downloadReport(@PathVariable String fileName) {
+        Resource resource = reportService.getReportFile(fileName);
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + report.getFilename() + "\"")
-                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                .body(report);
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        "attachment; filename=\"" + fileName + "\"")
+                .body(resource);
     }
 }

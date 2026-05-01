@@ -1,9 +1,10 @@
 import api from './api'
 
 const notificationService = {
-	getUserNotifications: (userId) => api.get('/notifications', { params: { userId } }).then((response) => response.data),
-	markAsRead: (id) => api.put(`/notifications/${id}/read`).then((response) => response.data),
-	deleteNotification: (id) => api.delete(`/notifications/${id}`).then((response) => response.data),
+  getAll: () => api.get('/notifications').then(r => r.data),
+  getUnread: () => api.get('/notifications/unread').then(r => r.data),
+  markRead: (id) => api.put(`/notifications/${id}/read`).then(r => r.data),
+  delete: (id) => api.delete(`/notifications/${id}`).then(r => r.data),
 }
 
 export default notificationService

@@ -1,99 +1,42 @@
+// src/main/java/com/eduvision/service/AlertService.java
 package com.eduvision.service;
 
-import com.eduvision.dto.alert.AlertDTO;
-import com.eduvision.model.Alert;
-import com.eduvision.model.AlertSeverity;
-import com.eduvision.model.AlertStatus;
-import com.eduvision.model.LectureSession;
-import com.eduvision.model.Course;
-import com.eduvision.repository.AlertRepository;
-import com.eduvision.repository.SessionRepository;
-import com.eduvision.repository.CourseRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.transaction.Transactional;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
-@Transactional
 public class AlertService {
 
-    @Autowired
-    private AlertRepository alertRepository;
+    private final JdbcTemplate jdbc;
 
-    @Autowired
-    private SessionRepository sessionRepository;
-
-    @Autowired
-    private CourseRepository courseRepository;
-
-    public Alert createAlert(String sessionId, String courseId, AlertSeverity severity, String title, String message) {
-        Alert alert = new Alert();
-        alert.setId(java.util.UUID.randomUUID().toString());
-
-        Optional<LectureSession> session = sessionRepository.findById(sessionId);
-        if (session.isPresent()) {
-            alert.setSession(session.get());
-        }
-
-        Optional<Course> course = courseRepository.findById(courseId);
-        if (course.isPresent()) {
-            alert.setCourse(course.get());
-        }
-
-        alert.setSeverity(severity);
-        alert.setStatus(AlertStatus.open);
-        alert.setTitle(title);
-        alert.setMessage(message);
-        alert.setTriggeredAt(LocalDateTime.now());
-
-        return alertRepository.save(alert);
+    public AlertService(JdbcTemplate jdbc) {
+        this.jdbc = jdbc;
     }
 
-    public boolean acknowledgeAlert(String alertId, String userId) {
-        Optional<Alert> alertOpt = alertRepository.findById(alertId);
-        if (alertOpt.isPresent()) {
-            Alert alert = alertOpt.get();
-            alert.setStatus(AlertStatus.acknowledged);
-            alert.setAcknowledgedAt(LocalDateTime.now());
-            // Note: acknowledgedBy would need User repository to set
-            alertRepository.save(alert);
-            return true;
-        }
-        return false;
+    public List<Map<String, Object>> getSessionAlerts(String sessionId) {
+        return jdbc.queryForList(
+                "SELECT alert_id, alert_type, severity, title, message, status, " +
+                "       triggered_at, acknowledged_at, resolved_at " +
+                "FROM alerts WHERE session_id = ? ORDER BY triggered_at DESC",
+                sessionId);
     }
 
-    public boolean resolveAlert(String alertId, String userId) {
-        Optional<Alert> alertOpt = alertRepository.findById(alertId);
-        if (alertOpt.isPresent()) {
-            Alert alert = alertOpt.get();
-            alert.setStatus(AlertStatus.resolved);
-            alert.setResolvedAt(LocalDateTime.now());
-            // Note: resolvedBy would need User repository to set
-            alertRepository.save(alert);
-            return true;
-        }
-        return false;
+    @Transactional
+    public void acknowledgeAlert(String alertId) {
+        jdbc.update(
+                "UPDATE alerts SET status = 'acknowledged', acknowledged_at = ? WHERE alert_id = ?",
+                LocalDateTime.now(), alertId);
     }
 
-    public List<AlertDTO> getAlertsBySession(String sessionId) {
-        List<Alert> alerts = alertRepository.findBySession_Id(sessionId);
-        return alerts.stream().map(this::convertToDTO).collect(Collectors.toList());
-    }
-
-    private AlertDTO convertToDTO(Alert alert) {
-        return new AlertDTO(
-            alert.getId(),
-            alert.getSeverity().toString(), // Using severity as type
-            alert.getSeverity(),
-            alert.getTitle(),
-            alert.getMessage(),
-            alert.getTriggeredAt(),
-            alert.getStatus() != AlertStatus.open
-        );
+    @Transactional
+    public void resolveAlert(String alertId) {
+        jdbc.update(
+                "UPDATE alerts SET status = 'resolved', resolved_at = ? WHERE alert_id = ?",
+                LocalDateTime.now(), alertId);
     }
 }

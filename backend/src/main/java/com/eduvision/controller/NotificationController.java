@@ -1,41 +1,48 @@
+// src/main/java/com/eduvision/controller/NotificationController.java
 package com.eduvision.controller;
 
-import com.eduvision.dto.alert.NotificationDTO;
 import com.eduvision.service.NotificationService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/notifications")
 public class NotificationController {
 
-    @Autowired
-    private NotificationService notificationService;
+    private final NotificationService notificationService;
+
+    public NotificationController(NotificationService notificationService) {
+        this.notificationService = notificationService;
+    }
 
     @GetMapping
-    public ResponseEntity<List<NotificationDTO>> getUserNotifications(@RequestParam String userId) {
-        List<NotificationDTO> notifications = notificationService.getUserNotifications(userId);
-        return ResponseEntity.ok(notifications);
+    public ResponseEntity<List<Map<String, Object>>> getAllNotifications(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                notificationService.getAllNotifications(userDetails.getUsername()));
+    }
+
+    @GetMapping("/unread")
+    public ResponseEntity<List<Map<String, Object>>> getUnreadNotifications(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(
+                notificationService.getUnreadNotifications(userDetails.getUsername()));
     }
 
     @PutMapping("/{id}/read")
     public ResponseEntity<Void> markAsRead(@PathVariable String id) {
-        boolean success = notificationService.markAsRead(id);
-        if (success) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+        notificationService.markAsRead(id);
+        return ResponseEntity.ok().build();
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteNotification(@PathVariable String id) {
-        // Note: This would need a delete method in NotificationService
-        // For now, just return not implemented
-        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED).build();
+        notificationService.deleteNotification(id);
+        return ResponseEntity.ok().build();
     }
 }

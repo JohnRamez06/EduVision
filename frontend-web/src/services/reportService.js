@@ -1,13 +1,16 @@
 import api from './api'
 
 const reportService = {
-	generateReport: (body) => api.post('/reports/generate', body).then((response) => response.data),
-	getUserReports: (userId) => api.get('/reports', { params: { userId } }).then((response) => response.data),
-	getReportStatus: (id) => api.get(`/reports/${id}/status`).then((response) => response.data),
-	downloadReport: async (id) => {
-		const response = await api.get(`/reports/${id}/download`, { responseType: 'blob' })
-		return response.data
-	},
+  generateStudent: (studentId, weekId) =>
+    api.post(`/reports/student/${studentId}/weekly/${weekId}`).then(r => r.data),
+  generateLecturer: (lecturerId, weekId) =>
+    api.post(`/reports/lecturer/${lecturerId}/weekly/${weekId}`).then(r => r.data),
+  generateDean: (weekId) =>
+    api.post(`/reports/dean/weekly/${weekId}`).then(r => r.data),
+  generateSession: (sessionId) =>
+    api.post(`/reports/session/${sessionId}`).then(r => r.data),
+  download: (fileName) =>
+    api.get(`/reports/download/${fileName}`, { responseType: 'blob' }),
 }
 
 export default reportService

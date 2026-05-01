@@ -1,43 +1,38 @@
+// src/main/java/com/eduvision/controller/AlertController.java
 package com.eduvision.controller;
 
-import com.eduvision.dto.alert.AlertDTO;
 import com.eduvision.service.AlertService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/alerts")
 public class AlertController {
 
-    @Autowired
-    private AlertService alertService;
+    private final AlertService alertService;
 
-    @GetMapping("/session/{id}")
-    public ResponseEntity<List<AlertDTO>> getAlertsBySession(@PathVariable String id) {
-        List<AlertDTO> alerts = alertService.getAlertsBySession(id);
-        return ResponseEntity.ok(alerts);
+    public AlertController(AlertService alertService) {
+        this.alertService = alertService;
     }
 
-    @PutMapping("/{id}/acknowledge")
-    public ResponseEntity<Void> acknowledgeAlert(@PathVariable String id, @RequestParam String userId) {
-        boolean success = alertService.acknowledgeAlert(id, userId);
-        if (success) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    @GetMapping("/session/{sessionId}")
+    public ResponseEntity<List<Map<String, Object>>> getSessionAlerts(
+            @PathVariable String sessionId) {
+        return ResponseEntity.ok(alertService.getSessionAlerts(sessionId));
     }
 
-    @PutMapping("/{id}/resolve")
-    public ResponseEntity<Void> resolveAlert(@PathVariable String id, @RequestParam String userId) {
-        boolean success = alertService.resolveAlert(id, userId);
-        if (success) {
-            return ResponseEntity.ok().build();
-        } else {
-            return ResponseEntity.notFound().build();
-        }
+    @PutMapping("/{alertId}/acknowledge")
+    public ResponseEntity<Void> acknowledgeAlert(@PathVariable String alertId) {
+        alertService.acknowledgeAlert(alertId);
+        return ResponseEntity.ok().build();
+    }
+
+    @PutMapping("/{alertId}/resolve")
+    public ResponseEntity<Void> resolveAlert(@PathVariable String alertId) {
+        alertService.resolveAlert(alertId);
+        return ResponseEntity.ok().build();
     }
 }
