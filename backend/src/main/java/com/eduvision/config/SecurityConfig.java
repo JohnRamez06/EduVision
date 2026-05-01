@@ -37,6 +37,9 @@ public class SecurityConfig {
                         "/actuator/health"           // Health check
                 ).permitAll()
 
+                // 🔥 NEW: Allow Python to POST emotion data without auth
+                .requestMatchers(HttpMethod.POST, "/api/v1/emotion-data/**").permitAll()
+
                 // ──────────────────────────────────────────────
                 // DEAN ENDPOINTS (only DEAN role)
                 // ──────────────────────────────────────────────
@@ -67,10 +70,9 @@ public class SecurityConfig {
                 // ──────────────────────────────────────────────
                 // SHARED ENDPOINTS (multiple roles)
                 // ──────────────────────────────────────────────
-                // Reports: STUDENT, LECTURER, DEAN, ADMIN can access
                 .requestMatchers("/api/v1/reports/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 
-                // Emotion data: LECTURER, DEAN, ADMIN can view
+                // Emotion data GET: LECTURER, DEAN, ADMIN can view
                 .requestMatchers(HttpMethod.GET, "/api/v1/emotion-data/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
                 
                 // Sessions (view): LECTURER, DEAN, ADMIN
@@ -82,7 +84,7 @@ public class SecurityConfig {
                 // Notifications: all authenticated users
                 .requestMatchers("/api/v1/notifications/**").authenticated()
                 
-                // Attendance: LECTURER, DEAN, ADMIN, STUDENT (own data only)
+                // Attendance: all authenticated users
                 .requestMatchers("/api/v1/attendance/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 
                 // Camera configs: ADMIN only

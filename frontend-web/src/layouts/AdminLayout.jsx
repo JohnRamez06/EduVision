@@ -1,15 +1,16 @@
 import React, { useContext, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
-  Shield, LayoutDashboard, Users, ShieldCheck, LogOut, Bell, Menu,
+  Shield, LayoutDashboard, Users, ShieldCheck, LogOut, Bell, Menu, Camera,
 } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
 import authService from '../services/authService'
 
 const NAV = [
-  { to: '/admin',       icon: LayoutDashboard, label: 'Dashboard',          end: true },
-  { to: '/admin/users', icon: Users,           label: 'Users',              end: false },
-  { to: '/admin/roles', icon: ShieldCheck,     label: 'Roles & Permissions', end: false },
+  { to: '/admin',                 icon: LayoutDashboard, label: 'Dashboard',          end: true },
+  { to: '/admin/users',           icon: Users,           label: 'Users',              end: false },
+  { to: '/admin/roles',           icon: ShieldCheck,     label: 'Roles & Permissions', end: false },
+  { to: '/admin/face-enrollment', icon: Camera,           label: 'Face Enrollment',    end: false },
 ]
 
 export default function AdminLayout({ children }) {

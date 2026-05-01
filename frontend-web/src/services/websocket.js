@@ -11,16 +11,18 @@ function createClient({ onConnect, onDisconnect, onStompError } = {}) {
     reconnectDelay: 5000,
     heartbeatIncoming: 10000,
     heartbeatOutgoing: 10000,
-    onConnect,
-    onDisconnect,
-    onStompError,
+    onConnect: onConnect || (() => {}),
+    onDisconnect: onDisconnect || (() => {}),
+    onStompError: onStompError || ((frame) => console.error('WebSocket error:', frame.headers?.message || 'Unknown error')),
   })
 }
 
 export function createAlertClient({ onAlert, onConnect, onDisconnect } = {}) {
   const client = createClient({
     onConnect: () => {
-      client.subscribe('/topic/alerts', (frame) => onAlert?.(JSON.parse(frame.body)))
+      client.subscribe('/topic/alerts', (frame) => {
+        try { onAlert?.(JSON.parse(frame.body)) } catch (e) {}
+      })
       onConnect?.()
     },
     onDisconnect,
@@ -41,7 +43,6 @@ export function createSessionClient({ sessionId, onMood, onAlert, onConnect, onD
       onConnect?.()
     },
     onDisconnect,
-    onStompError: (frame) => console.error('WebSocket error:', frame),
   })
   client.activate()
   return client

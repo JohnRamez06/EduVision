@@ -20,6 +20,7 @@ import AdminDashboard from './pages/AdminPortal/AdminDashboard'
 import AdminUsers from './pages/AdminPortal/AdminUsers'
 import AdminRoles from './pages/AdminPortal/AdminRoles'
 import DeanDashboard from './components/DeanDashboard/DeanDashboard'
+import FaceEnrollment from './components/AdminDashboard/FaceEnrollment'
 
 function HomeRedirect() {
   const { token, role } = useContext(AuthContext)
@@ -74,6 +75,7 @@ export default function App() {
       <Route path="/admin/roles" element={<ProtectedRoute role="admin"><AdminRoles /></ProtectedRoute>} />
 
       <Route path="/dean" element={<ProtectedRoute role="dean"><DeanDashboard /></ProtectedRoute>} />
+      <Route path="/admin/face-enrollment" element={<ProtectedRoute role="admin"><FaceEnrollment /></ProtectedRoute>} />
 
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>
