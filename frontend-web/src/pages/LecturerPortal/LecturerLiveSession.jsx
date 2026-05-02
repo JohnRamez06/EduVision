@@ -602,7 +602,7 @@ export default function LecturerLiveSession() {
                 autoPlay
                 muted
                 playsInline
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover scale-x-[-1]"
               />
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-slate-600">
