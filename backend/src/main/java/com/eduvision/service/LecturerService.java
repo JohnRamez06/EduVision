@@ -8,7 +8,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -21,6 +23,7 @@ public class LecturerService {
     private final SessionRepository sessionRepository;
     private final SessionAttendanceRepository attendanceRepository;
     private final AlertRepository alertRepository;
+    private final StudentEmotionSnapshotRepository emotionSnapshotRepository;
 
     public LecturerService(
             UserRepository userRepository,
@@ -28,13 +31,15 @@ public class LecturerService {
             CourseLecturerRepository courseLecturerRepository,
             SessionRepository sessionRepository,
             SessionAttendanceRepository attendanceRepository,
-            AlertRepository alertRepository) {
+            AlertRepository alertRepository,
+            StudentEmotionSnapshotRepository emotionSnapshotRepository) {
         this.userRepository = userRepository;
         this.lecturerRepository = lecturerRepository;
         this.courseLecturerRepository = courseLecturerRepository;
         this.sessionRepository = sessionRepository;
         this.attendanceRepository = attendanceRepository;
         this.alertRepository = alertRepository;
+        this.emotionSnapshotRepository = emotionSnapshotRepository;
     }
 
     /** Resolves the authenticated lecturer from the JWT principal (email). */
@@ -123,6 +128,49 @@ public class LecturerService {
                     dto.setStatus(attendance.getStatus().name());
                     dto.setJoinedAt(attendance.getJoinedAt());
                     dto.setLeftAt(attendance.getLeftAt());
+                    return dto;
+                })
+                .collect(Collectors.toList());
+    }
+
+    public String getActiveSessionId() {
+        User lecturer = getCurrentLecturer();
+        return sessionRepository.findByLecturerIdOrderByScheduledStartDesc(lecturer.getId())
+                .stream()
+                .filter(s -> LectureSessionStatus.active.equals(s.getStatus()))
+                .findFirst()
+                .map(LectureSession::getId)
+                .orElse(null);
+    }
+
+    public List<DetectedStudentDTO> getDetectedStudents(String sessionId) {
+        LectureSession session = sessionRepository.findById(sessionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Session not found: " + sessionId));
+        if (!session.getLecturer().getId().equals(getCurrentLecturer().getId())) {
+            throw new ResourceNotFoundException("Session not found: " + sessionId);
+        }
+
+        List<StudentEmotionSnapshot> snapshots =
+                emotionSnapshotRepository.findBySession_IdOrderByCapturedAtDesc(sessionId);
+
+        // Keep only the most recent snapshot per student
+        Map<String, StudentEmotionSnapshot> latestPerStudent = new LinkedHashMap<>();
+        for (StudentEmotionSnapshot snap : snapshots) {
+            String sid = snap.getStudent().getId();
+            latestPerStudent.putIfAbsent(sid, snap);
+        }
+
+        return latestPerStudent.values().stream()
+                .map(snap -> {
+                    User student = snap.getStudent();
+                    DetectedStudentDTO dto = new DetectedStudentDTO();
+                    dto.setStudentId(student.getId());
+                    dto.setStudentName(student.getFirstName() + " " + student.getLastName());
+                    dto.setProfilePictureUrl(student.getProfilePictureUrl());
+                    dto.setEmotion(snap.getEmotion() != null ? snap.getEmotion().name() : "neutral");
+                    dto.setConcentration(snap.getConcentration() != null ? snap.getConcentration().name() : "medium");
+                    dto.setConfidenceScore(snap.getConfidenceScore() != null ? snap.getConfidenceScore().doubleValue() : 0.0);
+                    dto.setLastSeenAt(snap.getCapturedAt());
                     return dto;
                 })
                 .collect(Collectors.toList());
@@ -219,5 +267,30 @@ public class LecturerService {
         public void setJoinedAt(java.time.LocalDateTime joinedAt) { this.joinedAt = joinedAt; }
         public java.time.LocalDateTime getLeftAt() { return leftAt; }
         public void setLeftAt(java.time.LocalDateTime leftAt) { this.leftAt = leftAt; }
+    }
+
+    public static class DetectedStudentDTO {
+        private String studentId;
+        private String studentName;
+        private String profilePictureUrl;
+        private String emotion;
+        private String concentration;
+        private double confidenceScore;
+        private java.time.LocalDateTime lastSeenAt;
+
+        public String getStudentId() { return studentId; }
+        public void setStudentId(String studentId) { this.studentId = studentId; }
+        public String getStudentName() { return studentName; }
+        public void setStudentName(String studentName) { this.studentName = studentName; }
+        public String getProfilePictureUrl() { return profilePictureUrl; }
+        public void setProfilePictureUrl(String profilePictureUrl) { this.profilePictureUrl = profilePictureUrl; }
+        public String getEmotion() { return emotion; }
+        public void setEmotion(String emotion) { this.emotion = emotion; }
+        public String getConcentration() { return concentration; }
+        public void setConcentration(String concentration) { this.concentration = concentration; }
+        public double getConfidenceScore() { return confidenceScore; }
+        public void setConfidenceScore(double confidenceScore) { this.confidenceScore = confidenceScore; }
+        public java.time.LocalDateTime getLastSeenAt() { return lastSeenAt; }
+        public void setLastSeenAt(java.time.LocalDateTime lastSeenAt) { this.lastSeenAt = lastSeenAt; }
     }
 }

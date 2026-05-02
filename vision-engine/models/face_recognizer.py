@@ -1,145 +1,182 @@
-# models/face_recognizer.py
-import numpy as np
-import mysql.connector
-from typing import Optional
+"""
+face_recognizer.py
+──────────────────
+Loads face_encoding blobs from students table, reconstructs the 128×128
+grayscale face images stored in them, then computes proper Facenet embeddings
+via DeepFace — giving accurate, discriminative face recognition.
+
+On matching: incoming live BGR crops are also embedded with Facenet and
+compared using cosine similarity.
+"""
 import logging
+from typing import Optional
+
+import cv2
+import numpy as np
+
+from database.mysql_connector import get_connection
 
 logger = logging.getLogger(__name__)
 
-DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",
-    "database": "eduvision"
-}
+# ── Config ─────────────────────────────────────────────────────────────────────
 
-# Lower threshold for grayscale flatten embeddings
-SIMILARITY_THRESHOLD = 0.3
+STORED_PIXELS   = 128 * 128          # 16 384 float32 values per enrolled face
+DEEPFACE_MODEL  = "Facenet"          # 128-d embeddings
+THRESHOLD       = 0.40               # cosine similarity cutoff for Facenet
 
 
-def load_embeddings() -> list[dict]:
-    """Load all students with non-null face encodings from MySQL."""
-    embeddings = []
+# ── Facenet via DeepFace ────────────────────────────────────────────────────────
+
+def _embed_bgr(img_bgr: np.ndarray) -> Optional[np.ndarray]:
+    """Compute a Facenet 128-d embedding from a BGR image."""
     try:
-        conn = mysql.connector.connect(**DB_CONFIG)
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT user_id, face_encoding FROM students WHERE face_encoding IS NOT NULL"
+        from deepface import DeepFace
+        result = DeepFace.represent(
+            img_path=img_bgr,
+            model_name=DEEPFACE_MODEL,
+            enforce_detection=False,
+            detector_backend="opencv",
         )
-        rows = cursor.fetchall()
-        for user_id, blob in rows:
-            try:
-                vector = np.frombuffer(blob, dtype=np.float32)
-                if len(vector) > 0:
-                    embeddings.append({"user_id": user_id, "embedding_vector": vector})
-            except Exception as e:
-                logger.warning(f"Failed to decode embedding for user {user_id}: {e}")
-        cursor.close()
+        if result:
+            return np.array(result[0]["embedding"], dtype=np.float32)
+    except Exception as e:
+        logger.warning(f"DeepFace.represent error: {e}")
+    return None
+
+
+def _blob_to_bgr(blob: bytes) -> Optional[np.ndarray]:
+    """
+    Reconstruct a BGR image from a stored face_encoding blob.
+    The blob is a float32 128×128 grayscale pixel array (values 0-1).
+    """
+    try:
+        vec = np.frombuffer(blob, dtype=np.float32)
+        if len(vec) != STORED_PIXELS:
+            return None
+        gray = (vec * 255).astype(np.uint8).reshape(128, 128)
+        return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
+    except Exception as e:
+        logger.warning(f"Blob decode error: {e}")
+        return None
+
+
+# ── DB ─────────────────────────────────────────────────────────────────────────
+
+def _load_students() -> list[dict]:
+    rows = []
+    try:
+        conn = get_connection()
+        cur  = conn.cursor()
+        cur.execute("""
+            SELECT s.user_id,
+                   CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+                   s.face_encoding
+            FROM   students s
+            JOIN   users    u ON u.id = s.user_id
+            WHERE  s.face_encoding IS NOT NULL
+        """)
+        for uid, name, blob in cur.fetchall():
+            rows.append({"user_id": uid, "full_name": name, "blob": blob})
+        cur.close()
         conn.close()
-        logger.info(f"Loaded {len(embeddings)} face embeddings from database.")
-    except mysql.connector.Error as e:
-        logger.error(f"Database error loading embeddings: {e}")
-    return embeddings
+        logger.info(f"Fetched {len(rows)} students with face_encoding from DB")
+    except Exception as e:
+        logger.error(f"DB error: {e}")
+    return rows
 
 
-def _cosine_similarity(vec_a: np.ndarray, vec_b: np.ndarray) -> float:
-    """Calculate cosine similarity between two vectors."""
-    norm_a = np.linalg.norm(vec_a)
-    norm_b = np.linalg.norm(vec_b)
-    if norm_a == 0 or norm_b == 0:
-        return 0.0
-    return float(np.dot(vec_a, vec_b) / (norm_a * norm_b))
+# ── Cosine similarity ───────────────────────────────────────────────────────────
 
+def _cosine(a: np.ndarray, b: np.ndarray) -> float:
+    na, nb = np.linalg.norm(a), np.linalg.norm(b)
+    return float(np.dot(a, b) / (na * nb)) if na > 0 and nb > 0 else 0.0
+
+
+# ── Recognizer ──────────────────────────────────────────────────────────────────
 
 class FaceRecognizer:
-    """Singleton face recognizer that holds loaded embeddings in memory."""
+    """
+    Singleton. On load():
+      1. Fetches all student face_encoding blobs from MySQL.
+      2. Reconstructs each blob into a 128×128 grayscale image.
+      3. Computes a Facenet embedding for each image via DeepFace.
+      4. Keeps those embeddings in memory for cosine-similarity lookup.
+
+    find_best_match(face_bgr) embeds the incoming crop and returns the
+    closest enrolled student above THRESHOLD, or None.
+    """
 
     _instance = None
 
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._embeddings = []
+            cls._instance._db     = []
             cls._instance._loaded = False
         return cls._instance
 
     def load(self):
-        """Load embeddings from database."""
-        self._embeddings = load_embeddings()
+        students = _load_students()
+        db = []
+        for s in students:
+            img = _blob_to_bgr(s["blob"])
+            if img is None:
+                logger.debug(f"Skipping {s['full_name']}: wrong blob size")
+                continue
+            vec = _embed_bgr(img)
+            if vec is None:
+                logger.warning(f"  ✗ {s['full_name']}: embedding failed")
+                continue
+            db.append({
+                "user_id":   s["user_id"],
+                "full_name": s["full_name"],
+                "vector":    vec,
+            })
+            logger.info(f"  ✓ Enrolled: {s['full_name']}")
+
+        self._db     = db
         self._loaded = True
-        logger.info(f"FaceRecognizer loaded with {len(self._embeddings)} embeddings")
+        logger.info(f"FaceRecognizer ready — {len(db)} student(s) enrolled")
 
     def reload(self):
-        """Refresh embeddings from DB (call when new students enroll)."""
+        self._loaded = False
         self.load()
 
-    def identify_face(self, face_embedding: np.ndarray) -> Optional[str]:
-        """Compare face_embedding against stored embeddings. Returns user_id or None."""
+    def find_best_match(self, face_bgr: np.ndarray) -> Optional[dict]:
+        """Match a BGR face crop → {user_id, student_name, similarity} or None."""
         if not self._loaded:
             self.load()
 
-        if len(self._embeddings) == 0:
+        if not self._db:
+            logger.warning("No students enrolled")
             return None
 
-        best_id = None
-        best_score = -1.0
-
-        for entry in self._embeddings:
-            score = _cosine_similarity(face_embedding, entry["embedding_vector"])
-            if score > best_score:
-                best_score = score
-                best_id = entry["user_id"]
-
-        if best_score >= SIMILARITY_THRESHOLD:
-            logger.info(f"Identified student {best_id} with similarity {best_score:.3f}")
-            return best_id
-
-        logger.debug(f"No match found (best score: {best_score:.3f})")
-        return None
-
-    def find_best_match(self, face_embedding: np.ndarray) -> Optional[dict]:
-        """Find the best matching student. Returns dict with user_id, student_name, similarity."""
-        if not self._loaded:
-            self.load()
-
-        if len(self._embeddings) == 0:
+        query = _embed_bgr(face_bgr)
+        if query is None:
             return None
 
-        best_entry = None
-        best_score = -1.0
-
-        for entry in self._embeddings:
-            score = _cosine_similarity(face_embedding, entry["embedding_vector"])
+        best, best_score = None, -1.0
+        for entry in self._db:
+            score = _cosine(query, entry["vector"])
             if score > best_score:
                 best_score = score
-                best_entry = entry
+                best = entry
 
-        if best_score >= SIMILARITY_THRESHOLD:
-            student_name = self._get_student_name(best_entry["user_id"])
+        if best and best_score >= THRESHOLD:
+            logger.info(f"👤 {best['full_name']} (sim={best_score:.3f})")
             return {
-                "user_id": best_entry["user_id"],
-                "student_name": student_name,
-                "similarity": best_score,
+                "user_id":      best["user_id"],
+                "student_name": best["full_name"],
+                "similarity":   best_score,
             }
 
+        logger.debug(f"No match (best={best_score:.3f})")
         return None
 
-    def _get_student_name(self, user_id: str) -> str:
-        """Get student name from database."""
-        try:
-            conn = mysql.connector.connect(**DB_CONFIG)
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT CONCAT(first_name, ' ', last_name) FROM users WHERE id = %s",
-                (user_id,)
-            )
-            row = cursor.fetchone()
-            cursor.close()
-            conn.close()
-            return row[0] if row else "Unknown"
-        except Exception:
-            return "Unknown"
+    def identify_face(self, face_bgr: np.ndarray) -> Optional[str]:
+        m = self.find_best_match(face_bgr)
+        return m["user_id"] if m else None
 
 
-# Module-level singleton instance
+# Module-level singleton
 face_recognizer = FaceRecognizer()

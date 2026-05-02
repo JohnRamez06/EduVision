@@ -29,12 +29,13 @@ public class LecturerPortalFacadeController {
                 .stream().limit(5).toList();
 
         Map<String, Object> dashboard = new HashMap<>();
-        dashboard.put("profile",        lecturerService.getProfile());
+        dashboard.put("profile",         lecturerService.getProfile());
         dashboard.put("courses",         courses);
         dashboard.put("recentSessions",  recentSessions);
         dashboard.put("totalCourses",    courses.size());
         dashboard.put("totalSessions",   courses.stream().mapToInt(LecturerService.LecturerCourseDTO::getTotalSessions).sum());
         dashboard.put("activeSessions",  courses.stream().mapToInt(LecturerService.LecturerCourseDTO::getActiveSessions).sum());
+        dashboard.put("activeSessionId", lecturerService.getActiveSessionId());
 
         return ResponseEntity.ok(dashboard);
     }
@@ -44,5 +45,12 @@ public class LecturerPortalFacadeController {
     public ResponseEntity<List<LecturerService.StudentSessionDTO>> getSessionStudents(
             @PathVariable String sessionId) {
         return ResponseEntity.ok(lecturerService.getSessionStudents(sessionId));
+    }
+
+    /** GET /api/v1/facade/lecturer/sessions/{sessionId}/detected-students */
+    @GetMapping("/sessions/{sessionId}/detected-students")
+    public ResponseEntity<List<LecturerService.DetectedStudentDTO>> getDetectedStudents(
+            @PathVariable String sessionId) {
+        return ResponseEntity.ok(lecturerService.getDetectedStudents(sessionId));
     }
 }

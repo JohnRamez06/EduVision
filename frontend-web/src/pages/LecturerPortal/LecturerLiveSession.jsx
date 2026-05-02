@@ -34,6 +34,13 @@ const SEVERITY_STYLES = {
   info:     'border-blue-500/40 bg-blue-500/10 text-blue-300',
 }
 
+const CONCENTRATION_STYLE = {
+  high:       'bg-emerald-500/20 text-emerald-300',
+  medium:     'bg-amber-500/20   text-amber-300',
+  low:        'bg-rose-500/20    text-rose-300',
+  distracted: 'bg-rose-500/20    text-rose-300',
+}
+
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
 const Skeleton = ({ className = '' }) => (
@@ -142,6 +149,31 @@ function AlertItem({ alert }) {
   )
 }
 
+function StudentRow({ student }) {
+  const meta = EMOTION_META[student.emotion?.toLowerCase()] ?? EMOTION_META.neutral
+  const concStyle = CONCENTRATION_STYLE[student.concentration?.toLowerCase()] ?? 'bg-slate-500/20 text-slate-300'
+  const initials = (student.studentName ?? '?')
+    .split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
+
+  return (
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40">
+      <div className="w-8 h-8 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
+        {initials}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-200 truncate">{student.studentName}</p>
+        <span className={`inline-flex items-center gap-1 text-xs mt-0.5 ${meta.color}`}>
+          <span>{meta.emoji}</span>
+          <span>{meta.label}</span>
+        </span>
+      </div>
+      <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${concStyle}`}>
+        {student.concentration}
+      </span>
+    </div>
+  )
+}
+
 // ─── Duration hook ────────────────────────────────────────────────────────────
 
 function useDuration(startTime) {
@@ -176,6 +208,7 @@ export default function LecturerLiveSession() {
   const [mood, setMood]               = useState(null)
   const [alerts, setAlerts]           = useState([])
   const [snapshot, setSnapshot]       = useState(null)
+  const [detectedStudents, setDetectedStudents] = useState(new Map())
 
   const [cameraOn, setCameraOn]       = useState(false)
   const [cameraError, setCameraError] = useState('')
@@ -293,6 +326,48 @@ export default function LecturerLiveSession() {
               dominantEmotion: dominant,
               concentration:   0.5,
             })
+
+            // Update detected-students map from recognized faces
+            const recognized = (data.people ?? []).filter(p => p.student_id)
+            const physicalCount = data.student_count ?? 0
+
+            if (recognized.length > 0) {
+              setDetectedStudents(prev => {
+                // ── Single-person lock ────────────────────────────────────────
+                // If there is exactly 1 face in the frame and we already have
+                // 1 confirmed student, keep their identity — only refresh
+                // emotion and concentration so the name never flickers.
+                if (physicalCount === 1 && prev.size >= 1) {
+                  const locked = [...prev.values()][0]
+                  const latest = recognized[0]
+                  const next = new Map()
+                  next.set(locked.studentId, {
+                    ...locked,
+                    emotion: latest.dominant_emotion ?? locked.emotion,
+                    concentration: typeof latest.concentration === 'object'
+                      ? (latest.concentration?.level ?? locked.concentration)
+                      : (latest.concentration ?? locked.concentration),
+                    lastSeen: Date.now(),
+                  })
+                  return next
+                }
+
+                // ── Multi-person / first detection ────────────────────────────
+                const next = new Map(prev)
+                recognized.forEach(p => {
+                  next.set(p.student_id, {
+                    studentId:   p.student_id,
+                    studentName: p.student_name ?? p.student_id,
+                    emotion:     p.dominant_emotion ?? 'neutral',
+                    concentration: typeof p.concentration === 'object'
+                      ? (p.concentration?.level ?? 'medium')
+                      : (p.concentration ?? 'medium'),
+                    lastSeen: Date.now(),
+                  })
+                })
+                return next
+              })
+            }
           })
           .catch(err => console.error('Frame send error:', err))
       }, 'image/jpeg', 0.8)
@@ -353,6 +428,7 @@ export default function LecturerLiveSession() {
     setMood(null)
     setAlerts([])
     setSnapshot(null)
+    setDetectedStudents(new Map())
   }
 
   // ── Derived analytics ──────────────────────────────────────────────────────
@@ -560,6 +636,32 @@ export default function LecturerLiveSession() {
               <span className="text-3xl leading-none">{emoMeta.emoji}</span>
               <span className={`text-sm font-semibold ${emoMeta.color}`}>{emoMeta.label}</span>
             </div>
+          </div>
+
+          {/* ── Detected Students ── */}
+          <div className="glass rounded-2xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
+                <Users size={12} /> Detected Students
+              </p>
+              {detectedStudents.size > 0 && (
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-medium">
+                  {detectedStudents.size}
+                </span>
+              )}
+            </div>
+            {detectedStudents.size === 0 ? (
+              <div className="flex flex-col items-center justify-center py-5 text-slate-700">
+                <Users size={20} className="mb-1.5 opacity-30" />
+                <p className="text-xs">No faces recognized yet</p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
+                {[...detectedStudents.values()].map(s => (
+                  <StudentRow key={s.studentId} student={s} />
+                ))}
+              </div>
+            )}
           </div>
 
           {snapshot?.studentSnapshots?.length > 0 && (

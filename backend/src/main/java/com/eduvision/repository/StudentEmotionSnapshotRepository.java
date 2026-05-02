@@ -14,4 +14,6 @@ public interface StudentEmotionSnapshotRepository extends JpaRepository<StudentE
     List<StudentEmotionSnapshot> findBySessionIdAndStudentIdOrderByCapturedAtAsc(String sessionId, String studentId);
 
     List<StudentEmotionSnapshot> findByStudent_IdAndSession_IdOrderByCapturedAtAsc(String studentId, String sessionId);
+
+    List<StudentEmotionSnapshot> findBySession_IdOrderByCapturedAtDesc(String sessionId);
 }

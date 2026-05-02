@@ -14,8 +14,12 @@ const lecturerService = {
     api.get('/facade/lecturer/dashboard').then(r => r.data),
 
   // Get students in a session
-  getSessionStudents: (sessionId) => 
+  getSessionStudents: (sessionId) =>
     api.get(`/facade/lecturer/sessions/${sessionId}/students`).then(r => r.data),
+
+  // Get face-detected students for a live session
+  getDetectedStudents: (sessionId) =>
+    api.get(`/facade/lecturer/sessions/${sessionId}/detected-students`).then(r => r.data),
 
   // Get session history
   getSessionHistory: () => 

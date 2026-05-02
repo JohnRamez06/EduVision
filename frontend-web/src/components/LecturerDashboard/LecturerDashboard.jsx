@@ -5,6 +5,7 @@ import LiveMoodGauge from './LiveMoodGauge'
 import ConcentrationChart from './ConcentrationChart'
 import StudentRiskList from './StudentRiskList'
 import SessionHistoryList from './SessionHistoryList'
+import DetectedStudentsList from './DetectedStudentsList'
 
 export default function LecturerDashboard() {
 	const [data, setData] = useState(null)
@@ -46,6 +47,7 @@ export default function LecturerDashboard() {
 
 			<div className="space-y-5">
 				<LiveMoodGauge mood={mood} />
+				<DetectedStudentsList sessionId={data?.activeSessionId ?? null} />
 				<SessionHistoryList sessions={data?.recentSessions ?? []} />
 				<div className="glass rounded-2xl p-5">
 					<p className="text-sm font-semibold text-white mb-2">Recent Alerts</p>

@@ -51,20 +51,17 @@ class FaceAnalyzer:
             gaze = self.gaze.estimate(face)
             pose = self.pose.estimate(bgr_img, {"x": x, "y": y, "w": w, "h": h})
 
-            # 🔥 FACE RECOGNITION
+            # 🔥 FACE RECOGNITION — grayscale flatten → cosine similarity vs DB
             student_id = None
             student_name = None
             try:
-                gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
-                face_resized = cv2.resize(gray, (128, 128))
-                embedding = face_resized.flatten().astype(np.float32) / 255.0
-                match = face_recognizer.find_best_match(embedding)
+                match = face_recognizer.find_best_match(face)
                 if match:
-                    student_id = match["user_id"]
+                    student_id   = match["user_id"]
                     student_name = match["student_name"]
-                    print(f"👤 RECOGNIZED: {student_name} (ID: {student_id}) - Emotion: {dominant}")
+                    print(f"👤 RECOGNIZED: {student_name} (sim={match.get('similarity',0):.3f}) — {dominant}")
             except Exception as e:
-                pass
+                print(f"⚠️ Recognition error: {e}")
 
             people.append(
                 {

@@ -24,12 +24,30 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 ensure_schema()
 processor = FrameProcessor()
 
+# Pre-load face embeddings at startup so the first frame isn't slow
+from models.face_recognizer import face_recognizer as _fr
+try:
+    _fr.load()
+except Exception as _e:
+    logger.warning(f"Face embeddings pre-load failed: {_e}")
+
 # Store last flush time per session
 last_flush = {}
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    from models.face_recognizer import face_recognizer
+    return {
+        "status": "ok",
+        "enrolled_students": len(face_recognizer._db),
+    }
+
+@app.post("/reload-embeddings")
+async def reload_embeddings():
+    """Re-fetch profile pictures from DB and rebuild face embeddings."""
+    from models.face_recognizer import face_recognizer
+    face_recognizer.reload()
+    return {"enrolled": len(face_recognizer._db)}
 
 def send_to_spring_boot(session_id: str, result: dict):
     """Send detection data to Spring Boot"""
