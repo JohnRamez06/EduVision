@@ -1,9 +1,11 @@
 import numpy as np
+import cv2
 
 from models.face_detector import FaceDetector
 from models.emotion_model import EmotionModel
 from models.concentration_detector import ConcentrationDetector
 from models.drowsiness_detector import DrowsinessDetector
+from models.face_recognizer import face_recognizer
 
 from processors.blink_detector import BlinkDetector
 from processors.gaze_estimator import GazeEstimator
@@ -12,7 +14,7 @@ from processors.head_pose_estimator import HeadPoseEstimator
 
 class FaceAnalyzer:
     """
-    Orchestrates detection + emotion + concentration + additional signals (blink/gaze/head pose)
+    Orchestrates detection + emotion + concentration + additional signals
     for MULTIPLE faces.
     """
 
@@ -49,6 +51,21 @@ class FaceAnalyzer:
             gaze = self.gaze.estimate(face)
             pose = self.pose.estimate(bgr_img, {"x": x, "y": y, "w": w, "h": h})
 
+            # 🔥 FACE RECOGNITION
+            student_id = None
+            student_name = None
+            try:
+                gray = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+                face_resized = cv2.resize(gray, (128, 128))
+                embedding = face_resized.flatten().astype(np.float32) / 255.0
+                match = face_recognizer.find_best_match(embedding)
+                if match:
+                    student_id = match["user_id"]
+                    student_name = match["student_name"]
+                    print(f"👤 RECOGNIZED: {student_name} (ID: {student_id}) - Emotion: {dominant}")
+            except Exception as e:
+                pass
+
             people.append(
                 {
                     "face_index": idx,
@@ -62,6 +79,8 @@ class FaceAnalyzer:
                     "blink": blink,
                     "gaze": gaze,
                     "head_pose": pose,
+                    "student_id": student_id,
+                    "student_name": student_name,
                 }
             )
 

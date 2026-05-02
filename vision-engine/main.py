@@ -5,6 +5,7 @@ import cv2
 import httpx
 import logging
 from datetime import datetime
+import time
 
 from database.schema import ensure_schema
 from database.repository import ensure_session, insert_detection
@@ -23,9 +24,8 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 ensure_schema()
 processor = FrameProcessor()
 
-# Store last flush time and sequence index per session
+# Store last flush time per session
 last_flush = {}
-seq_counters: dict[str, int] = {}
 
 @app.get("/health")
 async def health():
@@ -35,12 +35,11 @@ def send_to_spring_boot(session_id: str, result: dict):
     """Send detection data to Spring Boot"""
 
     emotion_counts = result.get("emotion_counts", {})
-
-    seq_counters[session_id] = seq_counters.get(session_id, 0) + 1
+    people = result.get("people", [])
 
     payload = {
         "sessionId": session_id,
-        "seqIndex": seq_counters[session_id],
+        "seqIndex": int(time.time() * 1000) % 1000000,
         "capturedAt": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "studentCount": result.get("student_count", 0),
         "engagementScore": round(float(result.get("engagement_score", 0.5)), 3),
@@ -54,13 +53,52 @@ def send_to_spring_boot(session_id: str, result: dict):
                 f"{SPRING_BOOT_URL}/class-snapshot",
                 json=payload
             )
-            logger.info(f"Response status: {response.status_code}")
-            logger.info(f"Response body: {response.text}")
             
             if response.status_code in [200, 201]:
-                logger.info(f"✅ Class snapshot sent!")
+                snapshot_data = response.json()
+                snapshot_id = snapshot_data.get("snapshotId")
+                logger.info(f"✅ Class snapshot sent! Students: {result.get('student_count', 0)}")
+                
+                if people and snapshot_id:
+                    student_payload = []
+                    recognized = []
+                    
+                    for person in people:
+                        sid = person.get("student_id")
+                        # Skip unrecognized students
+                        if not sid:
+                            continue
+                        
+                        recognized.append(person.get("student_name", sid))
+                        
+                        student_payload.append({
+                            "id": None,
+                            "snapshotId": snapshot_id,
+                            "sessionId": session_id,
+                            "studentId": sid,
+                            "emotion": person.get("dominant_emotion", "neutral"),
+                            "concentration": person.get("concentration", {}).get("level", "medium") if isinstance(person.get("concentration"), dict) else "medium",
+                            "confidenceScore": float(person.get("emotion_confidence", 0.5)),
+                            "capturedAt": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                            "anonymised": False,
+                        })
+                    
+                    if recognized:
+                        logger.info(f"👤 Recognized: {', '.join(recognized)}")
+                    else:
+                        logger.info("👤 No students recognized this frame")
+                    
+                    if student_payload:
+                        student_response = client.post(
+                            f"{SPRING_BOOT_URL}/student-snapshots?snapshotId={snapshot_id}",
+                            json=student_payload
+                        )
+                        if student_response.status_code in [200, 201]:
+                            logger.info(f"✅ Student snapshots sent ({len(student_payload)} students)")
+                        else:
+                            logger.warning(f"⚠️ Student snapshots: {student_response.status_code}")
             else:
-                logger.error(f"❌ Failed: {response.status_code} - {response.text}")
+                logger.error(f"❌ Failed: {response.status_code}")
     except Exception as e:
         logger.error(f"❌ Error: {e}")
 
@@ -83,8 +121,6 @@ async def analyze_frame(
         for det in result["people"]:
             insert_detection(session_id, det)
         
-        # 🔥 NEW: Send to Spring Boot every 10 seconds
-        import time
         now = time.time()
         if session_id not in last_flush or (now - last_flush[session_id]) > 10:
             last_flush[session_id] = now
