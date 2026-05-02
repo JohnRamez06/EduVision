@@ -23,8 +23,9 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 ensure_schema()
 processor = FrameProcessor()
 
-# Store last flush time per session
+# Store last flush time and sequence index per session
 last_flush = {}
+seq_counters: dict[str, int] = {}
 
 @app.get("/health")
 async def health():
@@ -32,26 +33,19 @@ async def health():
 
 def send_to_spring_boot(session_id: str, result: dict):
     """Send detection data to Spring Boot"""
-    
+
     emotion_counts = result.get("emotion_counts", {})
-    
+
+    seq_counters[session_id] = seq_counters.get(session_id, 0) + 1
+
     payload = {
         "sessionId": session_id,
-        "snapshotId": None,
-        "seqIndex": 0,
-        "capturedAt": datetime.now().isoformat(),
+        "seqIndex": seq_counters[session_id],
+        "capturedAt": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "studentCount": result.get("student_count", 0),
-        "happyCount": emotion_counts.get("happy", 0),
-        "neutralCount": emotion_counts.get("neutral", 0),
-        "confusedCount": emotion_counts.get("confused", 0),
-        "sadCount": emotion_counts.get("sad", 0),
-        "surprisedCount": emotion_counts.get("surprised", 0),
-        "angryCount": emotion_counts.get("angry", 0),
-        "fearfulCount": emotion_counts.get("fearful", 0),
-        "totalFaces": result.get("student_count", 0),
-        "engagementScore": float(result.get("engagement_score", 0.5)),
+        "engagementScore": round(float(result.get("engagement_score", 0.5)), 3),
         "dominantEmotion": max(emotion_counts, key=emotion_counts.get) if emotion_counts else "neutral",
-        "avgConcentration": 0.5
+        "avgConcentration": round(float(result.get("avg_concentration", 0.5)), 3),
     }
     
     try:

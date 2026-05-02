@@ -1,6 +1,13 @@
 import React, { useState } from 'react'
 import { ArrowRight, Eye, EyeOff, GraduationCap, Lock, Mail } from 'lucide-react'
 
+const ROLE_OPTIONS = [
+  { value: 'student',  label: 'Student' },
+  { value: 'lecturer', label: 'Lecturer' },
+  { value: 'dean',     label: 'Dean' },
+  { value: 'admin',    label: 'Admin' },
+]
+
 export default function LoginForm({ onSubmit, loading = false, error = '', initialRole = 'student' }) {
   const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({ email: '', password: '', role: initialRole })
@@ -26,6 +33,19 @@ export default function LoginForm({ onSubmit, loading = false, error = '', initi
           {error}
         </div>
       ) : null}
+
+      <div className="grid grid-cols-4 gap-2 mb-6">
+        {ROLE_OPTIONS.map((role) => (
+          <button
+            key={role.value}
+            type="button"
+            onClick={() => setForm((current) => ({ ...current, role: role.value }))}
+            className={`py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${form.role === role.value ? 'bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300 bg-slate-900/40'}`}
+          >
+            {role.label}
+          </button>
+        ))}
+      </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="relative">
@@ -72,9 +92,6 @@ export default function LoginForm({ onSubmit, loading = false, error = '', initi
         </button>
       </form>
 
-      <div className="mt-6 rounded-xl border border-slate-800/80 bg-slate-950/30 p-3 text-xs text-slate-400">
-        Signing in as {form.role}.
-      </div>
     </div>
   )
 }

@@ -21,8 +21,8 @@ class FaceDetector:
         faces = self.cascade.detectMultiScale(
             gray,
             scaleFactor=1.1,
-            minNeighbors=5,
-            minSize=(50, 50),
+            minNeighbors=3,
+            minSize=(30, 30),
         )
         # returns list[(x,y,w,h)]
         faces = [(int(x), int(y), int(w), int(h)) for (x, y, w, h) in faces]

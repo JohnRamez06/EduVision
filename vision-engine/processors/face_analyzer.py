@@ -31,7 +31,7 @@ class FaceAnalyzer:
 
         people = []
         for idx, (x, y, w, h) in enumerate(faces):
-            if w < 40 or h < 40:
+            if w < 30 or h < 30:
                 continue
 
             face = bgr_img[y:y + h, x:x + w]

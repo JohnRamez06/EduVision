@@ -11,6 +11,7 @@ import com.eduvision.model.EmotionType;
 import com.eduvision.model.LectureSession;
 import com.eduvision.model.StudentEmotionSnapshot;
 import com.eduvision.model.User;
+import com.eduvision.dto.websocket.MoodUpdateDTO;
 import com.eduvision.observer.EmotionProcessingService;
 import com.eduvision.repository.CameraConfigurationRepository;
 import com.eduvision.repository.EmotionSnapshotRepository;
@@ -35,19 +36,22 @@ public class EmotionSnapshotService {
     private final UserRepository userRepository;
     private final CameraConfigurationRepository cameraConfigurationRepository;
     private final EmotionProcessingService emotionProcessingService;
+    private final WebSocketNotificationService webSocketNotificationService;
 
     public EmotionSnapshotService(EmotionSnapshotRepository emotionSnapshotRepository,
                                   StudentEmotionSnapshotRepository studentEmotionSnapshotRepository,
                                   SessionRepository sessionRepository,
                                   UserRepository userRepository,
                                   CameraConfigurationRepository cameraConfigurationRepository,
-                                  EmotionProcessingService emotionProcessingService) {
+                                  EmotionProcessingService emotionProcessingService,
+                                  WebSocketNotificationService webSocketNotificationService) {
         this.emotionSnapshotRepository = emotionSnapshotRepository;
         this.studentEmotionSnapshotRepository = studentEmotionSnapshotRepository;
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
         this.cameraConfigurationRepository = cameraConfigurationRepository;
         this.emotionProcessingService = emotionProcessingService;
+        this.webSocketNotificationService = webSocketNotificationService;
     }
 
     @Transactional
@@ -76,6 +80,16 @@ public class EmotionSnapshotService {
 
         EmotionSnapshot saved = emotionSnapshotRepository.save(snapshot);
         EmotionSnapshotDTO mapped = toDto(saved);
+
+        MoodUpdateDTO moodUpdate = new MoodUpdateDTO(
+                saved.getSession().getId(),
+                saved.getDominantEmotion() != null ? saved.getDominantEmotion().name() : "neutral",
+                saved.getEngagementScore() != null ? saved.getEngagementScore().doubleValue() : 0.0,
+                saved.getAvgConcentration() != null ? saved.getAvgConcentration().doubleValue() : 0.0,
+                (int) saved.getStudentCount()
+        );
+        webSocketNotificationService.sendMoodUpdate(saved.getSession().getId(), moodUpdate);
+
         emotionProcessingService.processClassSnapshot(mapped);
         return mapped;
     }

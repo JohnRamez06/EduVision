@@ -256,7 +256,7 @@ export default function LecturerLiveSession() {
       onDisconnect: ()     => setWsConnected(false),
     })
     wsClientRef.current = client
-    client.activate()
+    // createSessionClient already calls client.activate() internally
   }
 
   // ── Frame capture loop ─────────────────────────────────────────────────────
@@ -271,23 +271,33 @@ export default function LecturerLiveSession() {
       canvas.height = video.videoHeight
       canvas.getContext('2d').drawImage(video, 0, 0)
       canvas.toBlob(blob => {
-        if (blob) {
-          const formData = new FormData()
-          formData.append('session_id', sessionId)
-          formData.append('store', 'true')
-          formData.append('file', blob, 'frame.jpg')
-          
-          fetch('http://localhost:8000/analyze/frame', {
-            method: 'POST',
-            body: formData,
+        if (!blob) return
+        const formData = new FormData()
+        formData.append('session_id', sessionId)
+        formData.append('store', 'true')
+        formData.append('file', blob, 'frame.jpg')
+
+        fetch('http://localhost:8000/analyze/frame', {
+          method: 'POST',
+          body: formData,
+        })
+          .then(r => r.ok ? r.json() : Promise.reject(r.status))
+          .then(data => {
+            const counts = data.emotion_counts ?? {}
+            const dominant = Object.keys(counts).length > 0
+              ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+              : 'neutral'
+            setMood({
+              studentCount:    data.student_count   ?? 0,
+              engagementScore: data.engagement_score ?? 0,
+              dominantEmotion: dominant,
+              concentration:   0.5,
+            })
           })
-          .then(r => r.json())
-          .then(data => console.log('Detection:', data))
           .catch(err => console.error('Frame send error:', err))
-        }
       }, 'image/jpeg', 0.8)
     }, FRAME_INTERVAL_MS)
-  }, [])
+  }, [setMood])
 
   // ── Snapshot poll ──────────────────────────────────────────────────────────
 

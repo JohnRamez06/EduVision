@@ -58,7 +58,7 @@ public class WebSocketNotificationService {
      */
     public void sendMoodUpdate(String sessionId, MoodUpdateDTO moodUpdate) {
         messagingTemplate.convertAndSend(
-                "/topic/session/" + sessionId + "/mood", moodUpdate);
+                "/topic/lecture/" + sessionId + "/mood", moodUpdate);
     }
 
     // ─── PRIVATE / TARGETED MESSAGES ─────────────────────────────────────
