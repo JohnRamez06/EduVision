@@ -1,182 +1,208 @@
 """
-face_recognizer.py
-──────────────────
-Loads face_encoding blobs from students table, reconstructs the 128×128
-grayscale face images stored in them, then computes proper Facenet embeddings
-via DeepFace — giving accurate, discriminative face recognition.
-
-On matching: incoming live BGR crops are also embedded with Facenet and
-compared using cosine similarity.
+face_recognizer.py - FIXED VERSION
+Directly uses stored 128-d Facenet embeddings from database
+No conversion to images - just cosine similarity on embeddings
 """
 import logging
-from typing import Optional
-
-import cv2
 import numpy as np
-
-from database.mysql_connector import get_connection
+import mysql.connector
+from typing import Optional, Dict, List
 
 logger = logging.getLogger(__name__)
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-
-STORED_PIXELS   = 128 * 128          # 16 384 float32 values per enrolled face
-DEEPFACE_MODEL  = "Facenet"          # 128-d embeddings
-THRESHOLD       = 0.40               # cosine similarity cutoff for Facenet
-
-
-# ── Facenet via DeepFace ────────────────────────────────────────────────────────
-
-def _embed_bgr(img_bgr: np.ndarray) -> Optional[np.ndarray]:
-    """Compute a Facenet 128-d embedding from a BGR image."""
-    try:
-        from deepface import DeepFace
-        result = DeepFace.represent(
-            img_path=img_bgr,
-            model_name=DEEPFACE_MODEL,
-            enforce_detection=False,
-            detector_backend="opencv",
-        )
-        if result:
-            return np.array(result[0]["embedding"], dtype=np.float32)
-    except Exception as e:
-        logger.warning(f"DeepFace.represent error: {e}")
-    return None
-
-
-def _blob_to_bgr(blob: bytes) -> Optional[np.ndarray]:
-    """
-    Reconstruct a BGR image from a stored face_encoding blob.
-    The blob is a float32 128×128 grayscale pixel array (values 0-1).
-    """
-    try:
-        vec = np.frombuffer(blob, dtype=np.float32)
-        if len(vec) != STORED_PIXELS:
-            return None
-        gray = (vec * 255).astype(np.uint8).reshape(128, 128)
-        return cv2.cvtColor(gray, cv2.COLOR_GRAY2BGR)
-    except Exception as e:
-        logger.warning(f"Blob decode error: {e}")
-        return None
-
-
-# ── DB ─────────────────────────────────────────────────────────────────────────
-
-def _load_students() -> list[dict]:
-    rows = []
-    try:
-        conn = get_connection()
-        cur  = conn.cursor()
-        cur.execute("""
-            SELECT s.user_id,
-                   CONCAT(u.first_name, ' ', u.last_name) AS full_name,
-                   s.face_encoding
-            FROM   students s
-            JOIN   users    u ON u.id = s.user_id
-            WHERE  s.face_encoding IS NOT NULL
-        """)
-        for uid, name, blob in cur.fetchall():
-            rows.append({"user_id": uid, "full_name": name, "blob": blob})
-        cur.close()
-        conn.close()
-        logger.info(f"Fetched {len(rows)} students with face_encoding from DB")
-    except Exception as e:
-        logger.error(f"DB error: {e}")
-    return rows
-
-
-# ── Cosine similarity ───────────────────────────────────────────────────────────
-
-def _cosine(a: np.ndarray, b: np.ndarray) -> float:
-    na, nb = np.linalg.norm(a), np.linalg.norm(b)
-    return float(np.dot(a, b) / (na * nb)) if na > 0 and nb > 0 else 0.0
-
-
-# ── Recognizer ──────────────────────────────────────────────────────────────────
+# Configuration
+THRESHOLD = 0.40  # Cosine similarity threshold (0.4 = good balance)
 
 class FaceRecognizer:
     """
-    Singleton. On load():
-      1. Fetches all student face_encoding blobs from MySQL.
-      2. Reconstructs each blob into a 128×128 grayscale image.
-      3. Computes a Facenet embedding for each image via DeepFace.
-      4. Keeps those embeddings in memory for cosine-similarity lookup.
-
-    find_best_match(face_bgr) embeds the incoming crop and returns the
-    closest enrolled student above THRESHOLD, or None.
+    Singleton that loads 128-d Facenet embeddings directly from database
+    and uses cosine similarity for fast, accurate face matching.
     """
-
+    
     _instance = None
-
+    
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
-            cls._instance._db     = []
+            cls._instance._db = []
             cls._instance._loaded = False
         return cls._instance
-
+    
+    def _get_db_connection(self):
+        """Get MySQL connection"""
+        try:
+            from database.mysql_connector import get_connection
+            return get_connection()
+        except:
+            import mysql.connector
+            return mysql.connector.connect(
+                host='localhost',
+                user='root',
+                password='',
+                database='eduvision'
+            )
+    
     def load(self):
-        students = _load_students()
-        db = []
-        for s in students:
-            img = _blob_to_bgr(s["blob"])
-            if img is None:
-                logger.debug(f"Skipping {s['full_name']}: wrong blob size")
-                continue
-            vec = _embed_bgr(img)
-            if vec is None:
-                logger.warning(f"  ✗ {s['full_name']}: embedding failed")
-                continue
-            db.append({
-                "user_id":   s["user_id"],
-                "full_name": s["full_name"],
-                "vector":    vec,
-            })
-            logger.info(f"  ✓ Enrolled: {s['full_name']}")
-
-        self._db     = db
-        self._loaded = True
-        logger.info(f"FaceRecognizer ready — {len(db)} student(s) enrolled")
-
+        """Load all face embeddings directly from database"""
+        logger.info("Loading face embeddings from database...")
+        
+        try:
+            conn = self._get_db_connection()
+            cursor = conn.cursor(dictionary=True)
+            
+            # Get all students with valid 512-byte embeddings (128 floats * 4 bytes)
+            cursor.execute("""
+                SELECT s.user_id, 
+                       CONCAT(u.first_name, ' ', u.last_name) AS full_name,
+                       s.face_encoding,
+                       LENGTH(s.face_encoding) as encoding_size
+                FROM students s
+                JOIN users u ON u.id = s.user_id
+                WHERE s.face_encoding IS NOT NULL 
+                  AND LENGTH(s.face_encoding) = 512
+            """)
+            
+            students = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            
+            logger.info(f"Found {len(students)} students with valid embeddings")
+            
+            loaded_count = 0
+            self._db = []
+            
+            for student in students:
+                try:
+                    # Convert bytes to numpy array of float32
+                    embedding = np.frombuffer(student['face_encoding'], dtype=np.float32)
+                    
+                    # Verify it's 128-dimensional
+                    if len(embedding) != 128:
+                        logger.warning(f"  Skipping {student['full_name']}: wrong dimension {len(embedding)}")
+                        continue
+                    
+                    # Check if embedding is normalized (norm should be ~1.0)
+                    norm = np.linalg.norm(embedding)
+                    if abs(norm - 1.0) > 0.1:
+                        # Re-normalize just in case
+                        embedding = embedding / (norm + 1e-9)
+                        logger.debug(f"  Re-normalized {student['full_name']} (norm was {norm:.3f})")
+                    
+                    self._db.append({
+                        "user_id": student['user_id'],
+                        "full_name": student['full_name'],
+                        "vector": embedding
+                    })
+                    loaded_count += 1
+                    logger.info(f"  ✓ Loaded: {student['full_name']}")
+                    
+                except Exception as e:
+                    logger.warning(f"  ✗ Failed to load {student['full_name']}: {e}")
+            
+            self._loaded = True
+            logger.info(f"✅ FaceRecognizer ready — {loaded_count} student(s) enrolled")
+            
+        except Exception as e:
+            logger.error(f"Database error: {e}")
+            self._loaded = False
+    
     def reload(self):
+        """Reload embeddings from database"""
         self._loaded = False
         self.load()
-
-    def find_best_match(self, face_bgr: np.ndarray) -> Optional[dict]:
-        """Match a BGR face crop → {user_id, student_name, similarity} or None."""
+    
+    def _cosine_similarity(self, a: np.ndarray, b: np.ndarray) -> float:
+        """Calculate cosine similarity between two vectors"""
+        dot = np.dot(a, b)
+        norm_a = np.linalg.norm(a)
+        norm_b = np.linalg.norm(b)
+        
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        
+        return float(dot / (norm_a * norm_b))
+    
+    def find_best_match(self, face_bgr: np.ndarray) -> Optional[Dict]:
+        """
+        Match a face crop against enrolled students.
+        
+        Args:
+            face_bgr: BGR image of the face (numpy array)
+            
+        Returns:
+            Dict with user_id, student_name, similarity or None if no match
+        """
         if not self._loaded:
             self.load()
-
+        
         if not self._db:
-            logger.warning("No students enrolled")
+            logger.warning("No students enrolled in recognizer")
             return None
-
-        query = _embed_bgr(face_bgr)
-        if query is None:
+        
+        # Extract embedding from the face crop
+        try:
+            from deepface import DeepFace
+            
+            # DeepFace expects RGB, convert from BGR
+            face_rgb = cv2.cvtColor(face_bgr, cv2.COLOR_BGR2RGB)
+            
+            result = DeepFace.represent(
+                img_path=face_rgb,
+                model_name="Facenet",
+                enforce_detection=False,  # Face already detected
+                detector_backend="skip",   # Skip detection, we already have the face
+                align=True
+            )
+            
+            if not result or len(result) == 0:
+                logger.debug("Failed to extract embedding from face")
+                return None
+            
+            query_embedding = np.array(result[0]["embedding"], dtype=np.float32)
+            # Normalize
+            query_embedding = query_embedding / (np.linalg.norm(query_embedding) + 1e-9)
+            
+        except Exception as e:
+            logger.debug(f"DeepFace error: {e}")
             return None
-
-        best, best_score = None, -1.0
+        
+        # Find best match
+        best_score = -1.0
+        best_match = None
+        
         for entry in self._db:
-            score = _cosine(query, entry["vector"])
+            score = self._cosine_similarity(query_embedding, entry["vector"])
+            
             if score > best_score:
                 best_score = score
-                best = entry
-
-        if best and best_score >= THRESHOLD:
-            logger.info(f"👤 {best['full_name']} (sim={best_score:.3f})")
+                best_match = entry
+        
+        # Check against threshold
+        if best_match and best_score >= THRESHOLD:
+            logger.info(f"👤 {best_match['full_name']} (sim={best_score:.3f})")
             return {
-                "user_id":      best["user_id"],
-                "student_name": best["full_name"],
-                "similarity":   best_score,
+                "user_id": best_match["user_id"],
+                "student_name": best_match["full_name"],
+                "similarity": best_score
             }
-
-        logger.debug(f"No match (best={best_score:.3f})")
+        
+        logger.debug(f"No match (best similarity: {best_score:.3f})")
         return None
-
+    
     def identify_face(self, face_bgr: np.ndarray) -> Optional[str]:
-        m = self.find_best_match(face_bgr)
-        return m["user_id"] if m else None
+        """Return user_id if recognized, else None"""
+        match = self.find_best_match(face_bgr)
+        return match["user_id"] if match else None
+    
+    def get_enrolled_count(self) -> int:
+        """Return number of enrolled students"""
+        if not self._loaded:
+            self.load()
+        return len(self._db)
 
 
 # Module-level singleton
 face_recognizer = FaceRecognizer()
+
+# Import cv2 locally to avoid circular imports
+import cv2
