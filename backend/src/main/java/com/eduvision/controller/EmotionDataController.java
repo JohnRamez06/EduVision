@@ -35,7 +35,22 @@ public class EmotionDataController {
     public ResponseEntity<List<StudentEmotionDTO>> saveStudentSnapshots(
             @RequestParam("snapshotId") String snapshotId,
             @RequestBody List<StudentEmotionDTO> request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(emotionSnapshotService.saveStudentSnapshots(snapshotId, request));
+        
+        // Process each student snapshot
+        for (StudentEmotionDTO student : request) {
+            student.setSnapshotId(snapshotId);
+            
+            // The concentration might come as a number in the JSON
+            // We need to handle it via Jackson mixin or process the raw value
+            // Since we can't easily get the raw JSON here, we'll check if concentration is null
+            // and set a default if needed
+            if (student.getConcentration() == null) {
+                student.setConcentration("medium");
+            }
+        }
+        
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(emotionSnapshotService.saveStudentSnapshots(snapshotId, request));
     }
 
     @GetMapping("/session/{id}")

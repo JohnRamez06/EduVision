@@ -10,7 +10,7 @@ public class StudentEmotionDTO {
     private String sessionId;
     private String studentId;
     private String emotion;
-    private String concentration;
+    private String concentration;  // Keep as String
     private BigDecimal confidenceScore;
     private String boundingBox;
     private String gazeDirection;
@@ -18,6 +18,23 @@ public class StudentEmotionDTO {
     private LocalDateTime capturedAt;
     private boolean anonymised;
 
+    // Helper method to set concentration from double
+    public void setConcentrationFromDouble(double value) {
+        if (value >= 0.7) {
+            this.concentration = "high";
+        } else if (value >= 0.4) {
+            this.concentration = "medium";
+        } else {
+            this.concentration = "low";
+        }
+    }
+    
+    // Helper method to set concentration from string
+    public void setConcentrationFromString(String value) {
+        this.concentration = value;
+    }
+
+    // Original getters/setters
     public String getId() {
         return id;
     }

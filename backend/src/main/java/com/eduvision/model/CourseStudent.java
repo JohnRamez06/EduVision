@@ -33,6 +33,19 @@ public class CourseStudent {
     @Column(name = "dropped_at")
     private LocalDateTime droppedAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "lecturer_id", nullable = false)
+    private Lecturer lecturer;
+
+// Add getter and setter
+public Lecturer getLecturer() {
+    return lecturer;
+}
+
+public void setLecturer(Lecturer lecturer) {
+    this.lecturer = lecturer;
+}
+
     public CourseStudentId getId() {
         return id;
     }

@@ -10,26 +10,92 @@ import com.eduvision.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.TemporalAdjusters;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class AttendanceService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AttendanceService.class);
     private final JdbcTemplate jdbc;
 
     public AttendanceService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
-    // ------------------------------------------------------------------ exits
+    // ============================================================
+    // ATTENDANCE RECORDING (Called from Python)
+    // ============================================================
+
+    @Transactional
+    public void recordAttendance(String sessionId, String studentId, String status) {
+        try {
+            // Check if attendance already exists
+            String checkSql = "SELECT COUNT(*) FROM session_attendance WHERE session_id = ? AND student_id = ?";
+            Integer count = jdbc.queryForObject(checkSql, Integer.class, sessionId, studentId);
+            
+            if (count == 0) {
+                String insertSql = """
+                    INSERT INTO session_attendance (id, session_id, student_id, status, recorded_at)
+                    VALUES (UUID(), ?, ?, ?, NOW())
+                """;
+                jdbc.update(insertSql, sessionId, studentId, status);
+                logger.info("✅ Attendance recorded: student={}, session={}", studentId, sessionId);
+            } else {
+                // Update existing record
+                String updateSql = """
+                    UPDATE session_attendance 
+                    SET status = ?, recorded_at = NOW()
+                    WHERE session_id = ? AND student_id = ?
+                """;
+                jdbc.update(updateSql, status, sessionId, studentId);
+                logger.info("🔄 Attendance updated: student={}, session={}", studentId, sessionId);
+            }
+        } catch (Exception e) {
+            logger.error("Failed to record attendance: {}", e.getMessage());
+            throw new RuntimeException("Failed to record attendance", e);
+        }
+    }
+
+    // ============================================================
+    // SESSION ATTENDANCE SUMMARY
+    // ============================================================
+
+    public Map<String, Object> getSessionAttendanceSummary(String sessionId) {
+        String countSql = "SELECT COUNT(*) FROM session_attendance WHERE session_id = ?";
+        Integer count = jdbc.queryForObject(countSql, Integer.class, sessionId);
+        
+        String detailSql = """
+            SELECT sa.student_id, sa.status, sa.recorded_at
+            FROM session_attendance sa
+            WHERE sa.session_id = ?
+            ORDER BY sa.recorded_at DESC
+            LIMIT 20
+        """;
+        
+        List<Map<String, Object>> records = jdbc.queryForList(detailSql, sessionId);
+        
+        return Map.of(
+            "sessionId", sessionId,
+            "totalRecords", count,
+            "records", records
+        );
+    }
+
+    // ============================================================
+    // EXIT / RETURN LOGS
+    // ============================================================
 
     @Transactional
     public void recordExit(ExitRecordRequest req) {
-        // Verify student and session exist
         Integer studentExists = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM students WHERE student_id = ?",
                 Integer.class, req.getStudentId());
@@ -42,7 +108,7 @@ public class AttendanceService {
         if (sessionExists == null || sessionExists == 0)
             throw new ResourceNotFoundException("Session not found: " + req.getSessionId());
 
-        String id = java.util.UUID.randomUUID().toString();
+        String id = UUID.randomUUID().toString();
         jdbc.update(
                 "INSERT INTO session_exit_logs (exit_log_id, student_id, session_id, exit_time, exit_type) " +
                 "VALUES (?, ?, ?, ?, ?)",
@@ -52,7 +118,6 @@ public class AttendanceService {
 
     @Transactional
     public void recordReturn(ReturnRecordRequest req) {
-        // Find the most recent open exit (no return_time) for this student/session
         List<Map<String, Object>> rows = jdbc.queryForList(
                 "SELECT exit_log_id FROM session_exit_logs " +
                 "WHERE student_id = ? AND session_id = ? AND return_time IS NULL " +
@@ -68,8 +133,6 @@ public class AttendanceService {
                 LocalDateTime.now(), exitLogId);
     }
 
-    // --------------------------------------------------------- session exits
-
     public List<ExitLogDTO> getSessionExits(String sessionId) {
         return jdbc.query(
                 "SELECT el.exit_time, el.return_time, el.exit_type, " +
@@ -80,8 +143,8 @@ public class AttendanceService {
                 "WHERE el.session_id = ? " +
                 "ORDER BY el.exit_time DESC",
                 (rs, row) -> {
-                    LocalDateTime exit   = rs.getObject("exit_time",   LocalDateTime.class);
-                    LocalDateTime ret    = rs.getObject("return_time", LocalDateTime.class);
+                    LocalDateTime exit = rs.getObject("exit_time", LocalDateTime.class);
+                    LocalDateTime ret = rs.getObject("return_time", LocalDateTime.class);
                     long duration = (ret != null) ? ChronoUnit.MINUTES.between(exit, ret) : -1;
                     return new ExitLogDTO(
                             exit, ret,
@@ -92,36 +155,34 @@ public class AttendanceService {
                 sessionId);
     }
 
-    // ------------------------------------------------------- student session
+    // ============================================================
+    // STUDENT SESSION ATTENDANCE
+    // ============================================================
 
-    public StudentSessionAttendanceDTO getStudentSessionAttendance(
-            String studentId, String sessionId) {
-
-        // Attendance record
+    public StudentSessionAttendanceDTO getStudentSessionAttendance(String studentId, String sessionId) {
         List<Map<String, Object>> attRows = jdbc.queryForList(
                 "SELECT status, joined_at, left_at FROM session_attendance " +
                 "WHERE student_id = ? AND session_id = ?",
                 studentId, sessionId);
 
         boolean present = false;
-        String status   = "absent";
+        String status = "absent";
         LocalDateTime joinedAt = null, leftAt = null;
 
         if (!attRows.isEmpty()) {
             Map<String, Object> att = attRows.get(0);
-            status   = (String) att.get("status");
-            present  = !"absent".equalsIgnoreCase(status);
+            status = (String) att.get("status");
+            present = !"absent".equalsIgnoreCase(status);
             joinedAt = (LocalDateTime) att.get("joined_at");
-            leftAt   = (LocalDateTime) att.get("left_at");
+            leftAt = (LocalDateTime) att.get("left_at");
         }
 
-        // Exit logs
         List<ExitLogDTO> exits = jdbc.query(
                 "SELECT exit_time, return_time, exit_type FROM session_exit_logs " +
                 "WHERE student_id = ? AND session_id = ? ORDER BY exit_time",
                 (rs, row) -> {
-                    LocalDateTime exit = rs.getObject("exit_time",   LocalDateTime.class);
-                    LocalDateTime ret  = rs.getObject("return_time", LocalDateTime.class);
+                    LocalDateTime exit = rs.getObject("exit_time", LocalDateTime.class);
+                    LocalDateTime ret = rs.getObject("return_time", LocalDateTime.class);
                     long mins = (ret != null) ? ChronoUnit.MINUTES.between(exit, ret) : -1;
                     return new ExitLogDTO(exit, ret, mins >= 0 ? mins : null,
                             rs.getString("exit_type"), null);
@@ -132,10 +193,11 @@ public class AttendanceService {
                 present, status, joinedAt, leftAt, exits.size(), exits);
     }
 
-    // ---------------------------------------------------- weekly attendance
+    // ============================================================
+    // WEEKLY ATTENDANCE
+    // ============================================================
 
     public List<WeeklyAttendanceDTO> getWeeklyAttendance(String email, String weekId) {
-        // Resolve student_id from email
         String studentId = jdbc.queryForObject(
                 "SELECT s.student_id FROM students s JOIN users u ON u.user_id = s.user_id " +
                 "WHERE u.email = ?",
@@ -167,9 +229,9 @@ public class AttendanceService {
                 "       wca.total_exits, wca.attendance_rate, wca.status, " +
                 "       CONCAT(u.first_name, ' ', u.last_name) AS student_name " +
                 "FROM weekly_course_attendance wca " +
-                "JOIN courses c  ON c.course_id  = wca.course_id " +
+                "JOIN courses c ON c.course_id = wca.course_id " +
                 "JOIN students s ON s.student_id = wca.student_id " +
-                "JOIN users u    ON u.user_id    = s.user_id " +
+                "JOIN users u ON u.user_id = s.user_id " +
                 "WHERE wca.course_id = ? AND wca.week_id = ? " +
                 "ORDER BY u.last_name, u.first_name",
                 (rs, row) -> new WeeklyAttendanceDTO(
@@ -182,5 +244,131 @@ public class AttendanceService {
                         rs.getDouble("attendance_rate"),
                         rs.getString("status")),
                 courseId, weekId);
+    }
+
+    // ============================================================
+    // WEEKLY ATTENDANCE CALCULATION
+    // ============================================================
+
+    public void calculateWeeklyAttendance() {
+        logger.info("Starting weekly attendance calculation...");
+        
+        LocalDate today = LocalDate.now();
+        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+        LocalDate sunday = monday.plusDays(6);
+        
+        int weekNumber = monday.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear());
+        int year = monday.getYear();
+        
+        logger.info("Calculating for week {} of {}", weekNumber, year);
+        
+        String periodId = getOrCreateWeekPeriod(weekNumber, year, monday, sunday);
+        
+        String assignmentsSql = """
+            SELECT cs.student_id, cs.course_id
+            FROM course_students cs
+            WHERE cs.dropped_at IS NULL
+        """;
+        
+        List<Map<String, Object>> assignments = jdbc.queryForList(assignmentsSql);
+        
+        int present = 0, absent = 0;
+        
+        for (Map<String, Object> assignment : assignments) {
+            String studentId = (String) assignment.get("student_id");
+            String courseId = (String) assignment.get("course_id");
+            
+            String attendanceSql = """
+                SELECT COUNT(DISTINCT sa.session_id) as attended_count
+                FROM session_attendance sa
+                JOIN lecture_sessions ls ON ls.id = sa.session_id
+                WHERE sa.student_id = ? 
+                  AND ls.course_id = ?
+                  AND DATE(ls.scheduled_start) BETWEEN ? AND ?
+                  AND sa.status = 'present'
+            """;
+            
+            Integer attendedCount = jdbc.queryForObject(attendanceSql, Integer.class, 
+                studentId, courseId, monday, sunday);
+            
+            String sessionsSql = """
+                SELECT COUNT(*) as session_count
+                FROM lecture_sessions
+                WHERE course_id = ?
+                  AND DATE(scheduled_start) BETWEEN ? AND ?
+                  AND status = 'completed'
+            """;
+            
+            Integer sessionCount = jdbc.queryForObject(sessionsSql, Integer.class, 
+                courseId, monday, sunday);
+            
+            String status;
+            if (sessionCount == null || sessionCount == 0) {
+                status = "regular";
+                present++;
+            } else if (attendedCount != null && attendedCount > 0) {
+                status = "regular";
+                present++;
+            } else {
+                status = "absent";
+                absent++;
+            }
+            
+            updateWeeklyAttendance(periodId, studentId, courseId, 
+                sessionCount != null ? sessionCount : 0,
+                attendedCount != null ? attendedCount : 0, status);
+        }
+        
+        logger.info("Weekly calculation complete: Present={}, Absent={}", present, absent);
+    }
+
+    private String getOrCreateWeekPeriod(int weekNumber, int year, LocalDate startDate, LocalDate endDate) {
+        String selectSql = "SELECT id FROM weekly_periods WHERE week_number = ? AND year = ?";
+        List<String> ids = jdbc.queryForList(selectSql, String.class, weekNumber, year);
+        
+        if (!ids.isEmpty()) {
+            return ids.get(0);
+        }
+        
+        String id = UUID.randomUUID().toString();
+        String insertSql = """
+            INSERT INTO weekly_periods (id, week_number, year, start_date, end_date)
+            VALUES (?, ?, ?, ?, ?)
+        """;
+        jdbc.update(insertSql, id, weekNumber, year, startDate, endDate);
+        return id;
+    }
+
+    private void updateWeeklyAttendance(String periodId, String studentId, String courseId, 
+                                         int sessionsHeld, int sessionsAttended, String status) {
+        String selectSql = """
+            SELECT id FROM weekly_course_attendance 
+            WHERE week_id = ? AND student_id = ? AND course_id = ?
+        """;
+        
+        List<String> ids = jdbc.queryForList(selectSql, String.class, periodId, studentId, courseId);
+        
+        if (!ids.isEmpty()) {
+            String updateSql = """
+                UPDATE weekly_course_attendance 
+                SET sessions_held = ?, sessions_attended = ?, sessions_missed = ?,
+                    attendance_rate = ?, status = ?, last_updated = NOW()
+                WHERE id = ?
+            """;
+            int sessionsMissed = sessionsHeld - sessionsAttended;
+            double attendanceRate = sessionsHeld > 0 ? (sessionsAttended * 100.0 / sessionsHeld) : 0;
+            jdbc.update(updateSql, sessionsHeld, sessionsAttended, sessionsMissed, attendanceRate, status, ids.get(0));
+        } else {
+            String insertSql = """
+                INSERT INTO weekly_course_attendance 
+                (id, week_id, student_id, course_id, sessions_held, sessions_attended, 
+                 sessions_missed, attendance_rate, status, last_updated)
+                VALUES (UUID(), ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+            """;
+            int sessionsMissed = sessionsHeld - sessionsAttended;
+            double attendanceRate = sessionsHeld > 0 ? (sessionsAttended * 100.0 / sessionsHeld) : 0;
+            jdbc.update(insertSql, periodId, studentId, courseId, sessionsHeld, sessionsAttended, 
+                        sessionsMissed, attendanceRate, status);
+        }
     }
 }

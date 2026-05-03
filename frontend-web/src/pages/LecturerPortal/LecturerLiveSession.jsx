@@ -34,6 +34,19 @@ const SEVERITY_STYLES = {
   info:     'border-blue-500/40 bg-blue-500/10 text-blue-300',
 }
 
+// Helper function to convert concentration to level string
+const getConcentrationLevel = (concentration) => {
+  if (typeof concentration === 'number') {
+    if (concentration >= 0.7) return 'high'
+    if (concentration >= 0.4) return 'medium'
+    return 'low'
+  }
+  if (typeof concentration === 'string') {
+    return concentration.toLowerCase()
+  }
+  return 'medium'
+}
+
 const CONCENTRATION_STYLE = {
   high:       'bg-emerald-500/20 text-emerald-300',
   medium:     'bg-amber-500/20   text-amber-300',
@@ -151,7 +164,11 @@ function AlertItem({ alert }) {
 
 function StudentRow({ student }) {
   const meta = EMOTION_META[student.emotion?.toLowerCase()] ?? EMOTION_META.neutral
-  const concStyle = CONCENTRATION_STYLE[student.concentration?.toLowerCase()] ?? 'bg-slate-500/20 text-slate-300'
+  
+  // Handle concentration safely - convert number to string if needed
+  const concentrationLevel = getConcentrationLevel(student.concentration)
+  const concStyle = CONCENTRATION_STYLE[concentrationLevel] ?? 'bg-slate-500/20 text-slate-300'
+  
   const initials = (student.studentName ?? '?')
     .split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
 
@@ -168,7 +185,7 @@ function StudentRow({ student }) {
         </span>
       </div>
       <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${concStyle}`}>
-        {student.concentration}
+        {concentrationLevel}
       </span>
     </div>
   )
@@ -289,7 +306,19 @@ export default function LecturerLiveSession() {
       onDisconnect: ()     => setWsConnected(false),
     })
     wsClientRef.current = client
-    // createSessionClient already calls client.activate() internally
+  }
+
+  // Helper to convert concentration from backend
+  const parseConcentration = (concentration) => {
+    if (typeof concentration === 'number') return concentration
+    if (typeof concentration === 'string') {
+      const map = { low: 0.3, medium: 0.6, high: 0.9 }
+      return map[concentration.toLowerCase()] || 0.6
+    }
+    if (typeof concentration === 'object' && concentration?.level) {
+      return parseConcentration(concentration.level)
+    }
+    return 0.6
   }
 
   // ── Frame capture loop ─────────────────────────────────────────────────────
@@ -333,10 +362,7 @@ export default function LecturerLiveSession() {
 
             if (recognized.length > 0) {
               setDetectedStudents(prev => {
-                // ── Single-person lock ────────────────────────────────────────
-                // If there is exactly 1 face in the frame and we already have
-                // 1 confirmed student, keep their identity — only refresh
-                // emotion and concentration so the name never flickers.
+                // Single-person lock logic
                 if (physicalCount === 1 && prev.size >= 1) {
                   const locked = [...prev.values()][0]
                   const latest = recognized[0]
@@ -344,24 +370,20 @@ export default function LecturerLiveSession() {
                   next.set(locked.studentId, {
                     ...locked,
                     emotion: latest.dominant_emotion ?? locked.emotion,
-                    concentration: typeof latest.concentration === 'object'
-                      ? (latest.concentration?.level ?? locked.concentration)
-                      : (latest.concentration ?? locked.concentration),
+                    concentration: parseConcentration(latest.concentration),
                     lastSeen: Date.now(),
                   })
                   return next
                 }
 
-                // ── Multi-person / first detection ────────────────────────────
+                // Multi-person / first detection
                 const next = new Map(prev)
                 recognized.forEach(p => {
                   next.set(p.student_id, {
                     studentId:   p.student_id,
                     studentName: p.student_name ?? p.student_id,
                     emotion:     p.dominant_emotion ?? 'neutral',
-                    concentration: typeof p.concentration === 'object'
-                      ? (p.concentration?.level ?? 'medium')
-                      : (p.concentration ?? 'medium'),
+                    concentration: parseConcentration(p.concentration),
                     lastSeen: Date.now(),
                   })
                 })
@@ -372,7 +394,7 @@ export default function LecturerLiveSession() {
           .catch(err => console.error('Frame send error:', err))
       }, 'image/jpeg', 0.8)
     }, FRAME_INTERVAL_MS)
-  }, [setMood])
+  }, [])
 
   // ── Snapshot poll ──────────────────────────────────────────────────────────
 
@@ -441,9 +463,9 @@ export default function LecturerLiveSession() {
   const concCounts = (() => {
     const students = snapshot?.studentSnapshots ?? []
     return {
-      high:   students.filter(s => s.concentration?.toLowerCase() === 'high').length,
-      medium: students.filter(s => s.concentration?.toLowerCase() === 'medium').length,
-      low:    students.filter(s => ['low', 'unknown'].includes(s.concentration?.toLowerCase())).length,
+      high:   students.filter(s => getConcentrationLevel(s.concentration) === 'high').length,
+      medium: students.filter(s => getConcentrationLevel(s.concentration) === 'medium').length,
+      low:    students.filter(s => getConcentrationLevel(s.concentration) === 'low').length,
     }
   })()
 
@@ -638,7 +660,7 @@ export default function LecturerLiveSession() {
             </div>
           </div>
 
-          {/* ── Detected Students ── */}
+          {/* Detected Students */}
           <div className="glass rounded-2xl p-4">
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">

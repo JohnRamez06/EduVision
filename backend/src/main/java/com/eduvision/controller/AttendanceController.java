@@ -7,17 +7,21 @@ import com.eduvision.dto.attendance.ExitLogDTO;
 import com.eduvision.dto.attendance.StudentSessionAttendanceDTO;
 import com.eduvision.dto.attendance.WeeklyAttendanceDTO;
 import com.eduvision.service.AttendanceService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/v1/attendance")
 public class AttendanceController {
 
+    private static final Logger logger = LoggerFactory.getLogger(AttendanceController.class);
     private final AttendanceService attendanceService;
 
     public AttendanceController(AttendanceService attendanceService) {
@@ -69,5 +73,39 @@ public class AttendanceController {
             @PathVariable String weekId) {
         return ResponseEntity.ok(
                 attendanceService.getCourseWeeklyAttendance(courseId, weekId));
+    }
+
+    /** Trigger weekly attendance calculation (Admin/Scheduler only) */
+    @PostMapping("/weekly/calculate")
+    public ResponseEntity<?> triggerWeeklyAttendance() {
+        attendanceService.calculateWeeklyAttendance();
+        return ResponseEntity.ok(Map.of("message", "Weekly attendance calculated successfully"));
+    }
+
+    /** Record student attendance (called from Python) */
+    @PostMapping("/record")
+    public ResponseEntity<?> recordAttendance(@RequestBody Map<String, String> request) {
+        String sessionId = request.get("sessionId");
+        String studentId = request.get("studentId");
+        String status = request.getOrDefault("status", "present");
+        
+        if (sessionId == null || studentId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "sessionId and studentId are required"));
+        }
+        
+        try {
+            attendanceService.recordAttendance(sessionId, studentId, status);
+            return ResponseEntity.ok(Map.of("message", "Attendance recorded successfully"));
+        } catch (Exception e) {
+            logger.error("Error recording attendance: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    /** Check attendance for a session */
+    @GetMapping("/check/{sessionId}")
+    public ResponseEntity<?> checkAttendance(@PathVariable String sessionId) {
+        Map<String, Object> result = attendanceService.getSessionAttendanceSummary(sessionId);
+        return ResponseEntity.ok(result);
     }
 }
