@@ -10,7 +10,8 @@ from datetime import datetime
 import time
 import asyncio
 import threading
-
+from collections import defaultdict
+from datetime import datetime, timedelta
 from database.schema import ensure_schema
 from database.repository import ensure_session, insert_detection
 from processors.frame_processor import FrameProcessor
@@ -24,6 +25,13 @@ SPRING_BOOT_URL = "http://localhost:8080/api/v1/emotion-data"
 ATTENDANCE_URL = "http://localhost:8080/api/v1/attendance"
 
 app = FastAPI(title="EduVision Vision Engine", version="1.0.0")
+student_appearances = defaultdict(lambda: defaultdict(int))
+student_confidence = defaultdict(lambda: defaultdict(list))
+ATTENDANCE_THRESHOLD = 3  # Minimum appearances required
+SIMILARITY_THRESHOLD = 0.6  # Minimum similarity score (0.6 = 60%)
+ATTENDANCE_WINDOW_SECONDS = 30  # Time window to count multiple detections
+enrollment_cache = {}
+ENROLLMENT_CACHE_TTL = 300  # 5 minutes
 
 # CORS Configuration - Allow all for development
 app.add_middleware(
@@ -54,6 +62,83 @@ except Exception as _e:
 # Store last flush time per session
 last_flush = {}
 current_session_id = None
+
+def should_mark_attendance(session_id: str, student_id: str, similarity: float) -> bool:
+    """
+    Determine if a student should be marked as present based on:
+    1. Similarity score above threshold
+    2. Multiple appearances within time window
+    """
+    global student_appearances, student_confidence
+    
+    # Check similarity threshold
+    if similarity < SIMILARITY_THRESHOLD:
+        logger.debug(f"⏭️ Skipping {student_id[:8]}... similarity too low: {similarity:.3f}")
+        return False
+    
+    # Track appearance
+    now = datetime.now()
+    student_appearances[session_id][student_id] += 1
+    student_confidence[session_id][student_id].append(similarity)
+    
+    appearances = student_appearances[session_id][student_id]
+    
+    # Log progress
+    logger.debug(f"📊 {student_id[:8]}... appearances: {appearances}/{ATTENDANCE_THRESHOLD} (sim: {similarity:.3f})")
+    
+    # Check if reached threshold
+    if appearances >= ATTENDANCE_THRESHOLD:
+        # Calculate average confidence
+        avg_confidence = sum(student_confidence[session_id][student_id]) / len(student_confidence[session_id][student_id])
+        logger.info(f"✅ QUALIFIED: {student_id[:8]}... with {appearances} appearances (avg sim: {avg_confidence:.3f})")
+        
+        # Reset counter for this student to avoid duplicate attendance records
+        student_appearances[session_id][student_id] = 0
+        return True
+    
+    return False
+
+# Add this function to cleanup old session data
+def cleanup_session_data(session_id: str):
+    """Clean up tracking data when session ends"""
+    if session_id in student_appearances:
+        del student_appearances[session_id]
+    if session_id in student_confidence:
+        del student_confidence[session_id]
+    logger.info(f"🧹 Cleaned up tracking data for session {session_id[:8]}...")
+
+async def is_student_enrolled(session_id: str, student_id: str) -> bool:
+    """Check if student is enrolled in the course for this session"""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(
+                f"{SPRING_BOOT_URL}/session/{session_id}/check-student/{student_id}"
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("enrolled", False)
+    except Exception as e:
+        logger.debug(f"Enrollment check failed: {e}")
+    return False
+
+async def check_enrollment_with_cache(session_id: str, student_id: str) -> bool:
+    """Check enrollment with caching"""
+    cache_key = f"{session_id}:{student_id}"
+    
+    # Check cache
+    if cache_key in enrollment_cache:
+        cached_time, enrolled = enrollment_cache[cache_key]
+        if time.time() - cached_time < ENROLLMENT_CACHE_TTL:
+            return enrolled
+    
+    # Check enrollment
+    enrolled = await is_student_enrolled(session_id, student_id)
+    enrollment_cache[cache_key] = (time.time(), enrolled)
+    
+    if not enrolled:
+        logger.info(f"🚫 Student not enrolled in this course - skipping attendance")
+    
+    return enrolled
 
 # Concentration mapping helper
 def convert_concentration_to_float(concentration):
@@ -122,9 +207,12 @@ async def send_attendance_to_spring(session_id: str, student_id: str, student_na
         logger.debug(f"Attendance endpoint not available: {e}")
 
 def send_to_spring_boot(session_id: str, result):
-    """Send detection data to Spring Boot"""
+    """Send detection data to Spring Boot with enrollment check and smart attendance"""
+    global student_appearances, student_confidence, enrollment_cache
+    
     # Handle both dict and list formats
     if isinstance(result, list):
+        # If result is a list, convert to dict format
         people = result
         emotion_counts = {}
         student_count = len(people)
@@ -151,11 +239,13 @@ def send_to_spring_boot(session_id: str, result):
             "dominant_emotion": dominant_emotion
         }
     else:
+        # Result is already a dict
         result_dict = result
         people = result_dict.get("people", [])
         emotion_counts = result_dict.get("emotion_counts", {})
         student_count = result_dict.get("student_count", len(people))
     
+    # Get dominant emotion
     dominant_emotion = result_dict.get("dominant_emotion", "neutral")
     if not dominant_emotion and emotion_counts:
         dominant_emotion = max(emotion_counts, key=emotion_counts.get)
@@ -185,37 +275,71 @@ def send_to_spring_boot(session_id: str, result):
                 
                 if people and snapshot_id:
                     student_payload = []
-                    recognized = []
+                    recognized_names = []
                     
                     for person in people:
                         student_id = person.get("student_id")
                         student_name = person.get("student_name", "Unknown")
+                        similarity = person.get("similarity", 0.5)
                         
                         if not student_id:
                             continue
                         
-                        recognized.append(student_name)
+                        # 🔥 Check if student is enrolled in this course using cache
+                        cache_key = f"{session_id}:{student_id}"
+                        is_enrolled = False
                         
-                        # 🔥 FIX: Send attendance to Spring Boot
-                        try:
-                            attendance_payload = {
-                                "sessionId": session_id,
-                                "studentId": student_id,
-                                "status": "present"
-                            }
-                            att_response = client.post(
-                                f"{ATTENDANCE_URL}/record",
-                                json=attendance_payload
-                            )
-                            if att_response.status_code in [200, 201]:
-                                logger.info(f"📝 Attendance recorded: {student_name}")
-                            else:
-                                logger.warning(f"⚠️ Attendance failed: {att_response.status_code}")
-                        except Exception as e:
-                            logger.error(f"❌ Attendance error: {e}")
+                        # Check cache first
+                        if cache_key in enrollment_cache:
+                            cached_time, enrolled = enrollment_cache[cache_key]
+                            if time.time() - cached_time < ENROLLMENT_CACHE_TTL:
+                                is_enrolled = enrolled
                         
+                        # If not in cache, check with Spring Boot
+                        if not is_enrolled:
+                            try:
+                                # Use a simple GET request to check enrollment
+                                enrollment_response = client.get(
+                                    f"{ATTENDANCE_URL}/session/{session_id}/check-student/{student_id}"
+                                )
+                                if enrollment_response.status_code == 200:
+                                    enrollment_data = enrollment_response.json()
+                                    is_enrolled = enrollment_data.get("enrolled", False)
+                                    # Cache the result
+                                    enrollment_cache[cache_key] = (time.time(), is_enrolled)
+                            except Exception as e:
+                                logger.debug(f"Enrollment check error: {e}")
+                                continue  # Skip this student if can't verify enrollment
+                        
+                        if not is_enrolled:
+                            logger.debug(f"⏭️ Skipping {student_name} - not enrolled in this course")
+                            continue  # Skip this student entirely
+                        
+                        recognized_names.append(student_name)
+                        
+                        # Smart attendance - check threshold
+                        if should_mark_attendance(session_id, student_id, similarity):
+                            try:
+                                attendance_payload = {
+                                    "sessionId": session_id,
+                                    "studentId": student_id,
+                                    "status": "present"
+                                }
+                                att_response = client.post(
+                                    f"{ATTENDANCE_URL}/record",
+                                    json=attendance_payload
+                                )
+                                if att_response.status_code in [200, 201]:
+                                    logger.info(f"📝 MARKED PRESENT: {student_name} (threshold met)")
+                                else:
+                                    logger.warning(f"⚠️ Attendance API error: {att_response.status_code}")
+                            except Exception as e:
+                                logger.error(f"❌ Attendance API error: {e}")
+                        
+                        # Get concentration as STRING (for Java DTO)
                         concentration_str = convert_concentration_to_string(person.get("concentration", 0.5))
                         
+                        # Get confidence score
                         confidence = person.get("emotion_confidence", person.get("confidence", 0.5))
                         if isinstance(confidence, str):
                             try:
@@ -234,8 +358,10 @@ def send_to_spring_boot(session_id: str, result):
                             "anonymised": False,
                         })
                     
-                    if recognized:
-                        logger.info(f"👤 Recognized: {', '.join(recognized)}")
+                    if recognized_names:
+                        # Show unique recognized students
+                        unique = list(set(recognized_names))
+                        logger.info(f"👤 Recognized: {', '.join(unique[:5])}" + (f" (+{len(unique)-5})" if len(unique) > 5 else ""))
                     
                     if student_payload:
                         student_response = client.post(
@@ -250,6 +376,7 @@ def send_to_spring_boot(session_id: str, result):
                 logger.error(f"❌ Failed to send class snapshot: {response.status_code}")
     except Exception as e:
         logger.error(f"❌ Error sending to Spring Boot: {e}")
+        
 @app.post("/analyze/frame")
 async def analyze_frame(
     session_id: str = Form(...),
@@ -315,7 +442,30 @@ async def end_session(session_id: str = Form(...)):
     if session_id in last_flush:
         del last_flush[session_id]
     
+    # Cleanup attendance tracking data
+    cleanup_session_data(session_id)
+    
+    # 🔥 Clean up enrollment cache for this session
+    keys_to_delete = [k for k in enrollment_cache.keys() if k.startswith(f"{session_id}:")]
+    for key in keys_to_delete:
+        del enrollment_cache[key]
+    
     return {"success": True, "message": f"Session {session_id} ended"}
+
+# Add this function to check if student is enrolled in the course
+async def is_student_enrolled(session_id: str, student_id: str) -> bool:
+    """Check if student is enrolled in the course for this session"""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(
+                f"{SPRING_BOOT_URL}/session/{session_id}/check-student/{student_id}"
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("enrolled", False)
+    except Exception as e:
+        logger.debug(f"Enrollment check failed: {e}")
+    return False
 
 @app.on_event("startup")
 async def startup_event():

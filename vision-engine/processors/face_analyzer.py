@@ -51,15 +51,18 @@ class FaceAnalyzer:
             gaze = self.gaze.estimate(face)
             pose = self.pose.estimate(bgr_img, {"x": x, "y": y, "w": w, "h": h})
 
-            # 🔥 FACE RECOGNITION — grayscale flatten → cosine similarity vs DB
+            # 🔥 FACE RECOGNITION — Get both student_id and similarity score
             student_id = None
             student_name = None
+            similarity = 0.0  # Default similarity
+            
             try:
                 match = face_recognizer.find_best_match(face)
                 if match:
-                    student_id   = match["user_id"]
-                    student_name = match["student_name"]
-                    print(f"👤 RECOGNIZED: {student_name} (sim={match.get('similarity',0):.3f}) — {dominant}")
+                    student_id = match.get("user_id")
+                    student_name = match.get("student_name")
+                    similarity = match.get("similarity", 0.0)  # Get similarity score
+                    print(f"👤 RECOGNIZED: {student_name} (sim={similarity:.3f}) — {dominant}")
             except Exception as e:
                 print(f"⚠️ Recognition error: {e}")
 
@@ -78,6 +81,7 @@ class FaceAnalyzer:
                     "head_pose": pose,
                     "student_id": student_id,
                     "student_name": student_name,
+                    "similarity": similarity,  # 🔥 ADD THIS - similarity score for attendance filtering
                 }
             )
 

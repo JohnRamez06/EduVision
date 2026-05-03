@@ -30,41 +30,6 @@ public class AttendanceService {
     public AttendanceService(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
-
-    // ============================================================
-    // ATTENDANCE RECORDING (Called from Python)
-    // ============================================================
-
-    @Transactional
-    public void recordAttendance(String sessionId, String studentId, String status) {
-        try {
-            // Check if attendance already exists
-            String checkSql = "SELECT COUNT(*) FROM session_attendance WHERE session_id = ? AND student_id = ?";
-            Integer count = jdbc.queryForObject(checkSql, Integer.class, sessionId, studentId);
-            
-            if (count == 0) {
-                String insertSql = """
-                    INSERT INTO session_attendance (id, session_id, student_id, status, recorded_at)
-                    VALUES (UUID(), ?, ?, ?, NOW())
-                """;
-                jdbc.update(insertSql, sessionId, studentId, status);
-                logger.info("✅ Attendance recorded: student={}, session={}", studentId, sessionId);
-            } else {
-                // Update existing record
-                String updateSql = """
-                    UPDATE session_attendance 
-                    SET status = ?, recorded_at = NOW()
-                    WHERE session_id = ? AND student_id = ?
-                """;
-                jdbc.update(updateSql, status, sessionId, studentId);
-                logger.info("🔄 Attendance updated: student={}, session={}", studentId, sessionId);
-            }
-        } catch (Exception e) {
-            logger.error("Failed to record attendance: {}", e.getMessage());
-            throw new RuntimeException("Failed to record attendance", e);
-        }
-    }
-
     // ============================================================
     // SESSION ATTENDANCE SUMMARY
     // ============================================================
@@ -371,4 +336,68 @@ public class AttendanceService {
                         sessionsMissed, attendanceRate, status);
         }
     }
+
+// Update your recordAttendance method in AttendanceService.java
+
+@Transactional
+public void recordAttendance(String sessionId, String studentId, String status) {
+    try {
+        // First, verify student is enrolled in the course for this session
+        boolean isEnrolled = isStudentEnrolledInSession(sessionId, studentId);
+        
+        if (!isEnrolled) {
+            logger.warn("⚠️ Student {} not enrolled in session {} - skipping attendance", studentId, sessionId);
+            return; // Skip - student not enrolled
+        }
+        
+        // Check if attendance already exists
+        String checkSql = "SELECT COUNT(*) FROM session_attendance WHERE session_id = ? AND student_id = ?";
+        Integer count = jdbc.queryForObject(checkSql, Integer.class, sessionId, studentId);
+        
+        if (count == 0) {
+            String insertSql = """
+                INSERT INTO session_attendance (id, session_id, student_id, status, recorded_at)
+                VALUES (UUID(), ?, ?, ?, NOW())
+            """;
+            jdbc.update(insertSql, sessionId, studentId, status);
+            logger.info("✅ Attendance recorded: student={}, session={}", studentId, sessionId);
+        } else {
+            // Update existing record
+            String updateSql = """
+                UPDATE session_attendance 
+                SET status = ?, recorded_at = NOW()
+                WHERE session_id = ? AND student_id = ?
+            """;
+            jdbc.update(updateSql, status, sessionId, studentId);
+            logger.info("🔄 Attendance updated: student={}, session={}", studentId, sessionId);
+        }
+    } catch (Exception e) {
+        logger.error("Failed to record attendance: {}", e.getMessage());
+        throw new RuntimeException("Failed to record attendance", e);
+    }
+}
+// Add this method to AttendanceService.java
+
+// src/main/java/com/eduvision/service/AttendanceService.java
+
+// Add this method to AttendanceService class
+
+public boolean isStudentEnrolledInSession(String sessionId, String studentId) {
+    try {
+        String sql = """
+            SELECT COUNT(*) FROM lecture_sessions ls
+            JOIN course_students cs ON cs.course_id = ls.course_id
+            WHERE ls.id = ? AND cs.student_id = ? AND cs.dropped_at IS NULL
+        """;
+        
+        Integer count = jdbc.queryForObject(sql, Integer.class, sessionId, studentId);
+        boolean enrolled = count != null && count > 0;
+        
+        logger.debug("Student {} enrollment in session {}: {}", studentId, sessionId, enrolled);
+        return enrolled;
+    } catch (Exception e) {
+        logger.error("Error checking enrollment: {}", e.getMessage());
+        return false;
+    }
+}
 }

@@ -108,4 +108,14 @@ public class AttendanceController {
         Map<String, Object> result = attendanceService.getSessionAttendanceSummary(sessionId);
         return ResponseEntity.ok(result);
     }
+
+/** Check if student is enrolled in the session's course */
+@GetMapping("/session/{sessionId}/check-student/{studentId}")
+public ResponseEntity<?> checkStudentEnrollment(
+        @PathVariable String sessionId,
+        @PathVariable String studentId) {
+    
+    boolean enrolled = attendanceService.isStudentEnrolledInSession(sessionId, studentId);
+    return ResponseEntity.ok(Map.of("enrolled", enrolled));
+}
 }
