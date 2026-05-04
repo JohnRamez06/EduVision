@@ -1,108 +1,153 @@
-# analytics-r/generators/generate_student_weekly.R
-args <- commandArgs(trailingOnly = TRUE)
-if (length(args) < 2) stop("Usage: Rscript generate_student_weekly.R <student_id> <week_id>")
+# C:\Users\john\Desktop\eduvision\analytics-r\generators\generate_student_weekly.R
 
-student_id <- args[1]
-week_id    <- args[2]
+source("config.R")
 
-suppressPackageStartupMessages({
-  library(DBI)
-  library(RMySQL)
-  library(dplyr)
-  library(ggplot2)
+generate_student_weekly_report <- function(student_id, week_id = NULL, output_dir = NULL) {
+  
+  # Use absolute path for output directory
+  if (is.null(output_dir)) {
+    output_dir <- OUTPUT_DIRS$student
+  }
+  
+  conn <- get_connection()
+  on.exit(dbDisconnect(conn))
+  
+  # Get student info
+  student_info <- dbGetQuery(conn, sprintf("
+        SELECT 
+            s.user_id as student_id,
+            s.student_number,
+            CONCAT(u.first_name, ' ', u.last_name) as student_name,
+            COALESCE(s.program, 'Not Specified') as program,
+            COALESCE(s.year_of_study, 1) as year_of_study,
+            u.email
+        FROM students s
+        JOIN users u ON u.id = s.user_id
+        WHERE s.user_id = '%s'
+    ", student_id))
+  
+  if (nrow(student_info) == 0) {
+    stop(paste("Student not found with ID:", student_id))
+  }
+  
+  message(sprintf("✅ Found student: %s", student_info$student_name[1]))
+  
+  # Get most recent week period
+  week_info <- dbGetQuery(conn, "
+        SELECT id, week_number, year, start_date, end_date 
+        FROM weekly_periods 
+        ORDER BY year DESC, week_number DESC 
+        LIMIT 1
+    ")
+  
+  if (nrow(week_info) == 0) {
+    stop("No week periods found in database.")
+  }
+  
+  week_period_id <- week_info$id[1]
+  week_display <- sprintf("Week %d, %d", week_info$week_number[1], week_info$year[1])
+  message(sprintf("📅 Using week: %s", week_display))
+  
+  # Get weekly attendance summary
+  weekly_attendance <- dbGetQuery(conn, sprintf("
+        SELECT 
+            wp.week_number,
+            wp.year,
+            wp.start_date,
+            wp.end_date,
+            wca.course_id,
+            c.code as course_name,
+            wca.sessions_held,
+            wca.sessions_attended,
+            wca.sessions_missed,
+            wca.attendance_rate,
+            wca.status
+        FROM weekly_course_attendance wca
+        JOIN courses c ON c.id = wca.course_id
+        JOIN weekly_periods wp ON wp.id = wca.week_id
+        WHERE wca.student_id = '%s'
+        ORDER BY wp.year DESC, wp.week_number DESC
+        LIMIT 10
+    ", student_id))
+  
+  message(sprintf("📊 Found %d weekly attendance records", nrow(weekly_attendance)))
+  
+  # Get emotion trends
+  emotion_trends <- dbGetQuery(conn, sprintf("
+        SELECT 
+            DATE(ses.captured_at) as date,
+            ses.emotion,
+            COUNT(*) as count
+        FROM student_emotion_snapshots ses
+        WHERE ses.student_id = '%s'
+        GROUP BY DATE(ses.captured_at), ses.emotion
+        ORDER BY date DESC
+        LIMIT 30
+    ", student_id))
+  
+  message(sprintf("😊 Found %d emotion records", nrow(emotion_trends)))
+  
+  # Get concentration trends
+  concentration_trends <- dbGetQuery(conn, sprintf("
+        SELECT 
+            DATE(ses.captured_at) as date,
+            AVG(CASE 
+                WHEN ses.concentration = 'high' THEN 0.9
+                WHEN ses.concentration = 'medium' THEN 0.6
+                WHEN ses.concentration = 'low' THEN 0.3
+                ELSE 0.5
+            END) as avg_concentration
+        FROM student_emotion_snapshots ses
+        WHERE ses.student_id = '%s'
+        GROUP BY DATE(ses.captured_at)
+        ORDER BY date DESC
+        LIMIT 30
+    ", student_id))
+  
+  message(sprintf("📈 Found %d concentration records", nrow(concentration_trends)))
+  
+  # Check if output directory exists
+  if (!dir.exists(output_dir)) {
+    dir.create(output_dir, recursive = TRUE)
+    message(sprintf("Created output directory: %s", output_dir))
+  }
+  
+  # Check if template exists
+  template_path <- file.path(BASE_DIR, "reports/student_weekly_template.Rmd")
+  if (!file.exists(template_path)) {
+    stop(paste("Template not found:", template_path))
+  }
+  
+  # Load required libraries
   library(rmarkdown)
-})
-
-# ── Database connection ────────────────────────────────────────────────────────
-con <- dbConnect(RMySQL::MySQL(),
-                 host     = "localhost",
-                 user     = "root",
-                 password = "",
-                 dbname   = "eduvision")
-on.exit(dbDisconnect(con), add = TRUE)
-
-# ── Emotion snapshots ──────────────────────────────────────────────────────────
-emotion_data <- dbGetQuery(con, sprintf("
-  SELECT ses.dominant_emotion, ses.concentration, ses.is_attentive,
-         es.snapshot_time, ls.session_id
-  FROM   student_emotion_snapshots ses
-  JOIN   emotion_snapshots es  ON es.snapshot_id  = ses.snapshot_id
-  JOIN   lecture_sessions  ls  ON ls.session_id   = es.session_id
-  JOIN   weekly_periods    wp  ON wp.week_id       = '%s'
-  WHERE  ses.student_id = '%s'
-    AND  es.snapshot_time BETWEEN wp.start_date AND wp.end_date
-", week_id, student_id))
-
-avg_concentration <- if (nrow(emotion_data) > 0) mean(emotion_data$concentration, na.rm=TRUE) else 0
-dominant_emotion  <- if (nrow(emotion_data) > 0) {
-                       names(sort(table(emotion_data$dominant_emotion), decreasing=TRUE))[1]
-                     } else {
-                       "N/A"
-                     }
-attentive_pct     <- if (nrow(emotion_data) > 0) {
-                       round(mean(emotion_data$is_attentive, na.rm=TRUE) * 100, 1)
-                     } else {
-                       0
-                     }
-
-# ── Attendance ─────────────────────────────────────────────────────────────────
-attendance <- dbGetQuery(con, sprintf("
-  SELECT sa.status, sa.joined_at, sa.left_at
-  FROM   session_attendance sa
-  JOIN   lecture_sessions   ls ON ls.session_id = sa.session_id
-  JOIN   weekly_periods     wp ON wp.week_id     = '%s'
-  WHERE  sa.student_id = '%s'
-    AND  ls.start_time BETWEEN wp.start_date AND wp.end_date
-", week_id, student_id))
-
-attendance_rate <- if (nrow(attendance) > 0) {
-  round(mean(attendance$status != "absent") * 100, 1)
-} else {
-  0
+  library(knitr)
+  library(ggplot2)
+  library(dplyr)
+  
+  # Render report
+  output_file <- file.path(output_dir, sprintf("student_report_%s_week%d.pdf", 
+                                               student_info$student_number[1],
+                                               week_info$week_number[1]))
+  
+  message(sprintf("📄 Generating report at: %s", output_file))
+  
+  rmarkdown::render(
+    input = template_path,
+    output_file = output_file,
+    params = list(
+      student_name = student_info$student_name[1],
+      student_number = student_info$student_number[1],
+      program = student_info$program[1],
+      year_of_study = student_info$year_of_study[1],
+      week_display = week_display,
+      week_start = as.character(week_info$start_date[1]),
+      week_end = as.character(week_info$end_date[1]),
+      weekly_attendance = weekly_attendance,
+      emotion_trends = emotion_trends,
+      concentration_trends = concentration_trends
+    )
+  )
+  
+  message(sprintf("✅ Report generated: %s", output_file))
+  return(output_file)
 }
-
-# ── Exit summary ───────────────────────────────────────────────────────────────
-exits <- dbGetQuery(con, sprintf("
-  SELECT COUNT(*) AS total_exits,
-         AVG(TIMESTAMPDIFF(MINUTE, exit_time, return_time)) AS avg_exit_mins
-  FROM   session_exit_logs el
-  JOIN   lecture_sessions  ls ON ls.session_id = el.session_id
-  JOIN   weekly_periods    wp ON wp.week_id     = '%s'
-  WHERE  el.student_id = '%s'
-    AND  ls.start_time BETWEEN wp.start_date AND wp.end_date
-", week_id, student_id))
-
-# ── Student info ───────────────────────────────────────────────────────────────
-student_info <- dbGetQuery(con, sprintf("
-  SELECT CONCAT(u.first_name, ' ', u.last_name) AS full_name, u.email
-  FROM   students s JOIN users u ON u.user_id = s.user_id
-  WHERE  s.student_id = '%s'
-", student_id))
-
-# ── Output paths ───────────────────────────────────────────────────────────────
-output_dir  <- "analytics-r/output/student"
-dir.create(output_dir, showWarnings = FALSE, recursive = TRUE)
-output_file <- file.path(output_dir, paste0("student_", student_id, "_week_", week_id, ".pdf"))
-
-# ── Render ─────────────────────────────────────────────────────────────────────
-rmarkdown::render(
-  input       = "analytics-r/templates/student_weekly_template.Rmd",
-  output_file = normalizePath(output_file, mustWork = FALSE),
-  params = list(
-    student_id        = student_id,
-    week_id           = week_id,
-    full_name         = if (nrow(student_info) > 0) student_info$full_name[1] else "Unknown",
-    avg_concentration = round(avg_concentration, 3),
-    dominant_emotion  = dominant_emotion,
-    attentive_pct     = attentive_pct,
-    attendance_rate   = attendance_rate,
-    total_exits       = exits$total_exits[1],
-    avg_exit_mins     = round(exits$avg_exit_mins[1], 1),
-    emotion_data      = emotion_data,
-    attendance        = attendance
-  ),
-  quiet = TRUE
-)
-
-cat(normalizePath(output_file, mustWork = FALSE), "\n")
-message("Student weekly report saved: ", output_file)

@@ -1,0 +1,19 @@
+---
+title: "Test Student Report"
+output: html_document
+params:
+  weekly_attendance: data.frame()
+  emotion_trends: data.frame()
+  concentration_trends: data.frame()
+---
+
+```{r}
+# This will show if data is being passed
+print("=== Weekly Attendance ===")
+print(params$weekly_attendance)
+
+print("=== Emotion Trends ===")
+print(params$emotion_trends)
+
+print("=== Concentration Trends ===")
+print(params$concentration_trends)

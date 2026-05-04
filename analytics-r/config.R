@@ -1,52 +1,49 @@
-# ============================================================
-# config.R — EduVision Analytics: database connection helpers
-# ============================================================
+# C:/Users/john/Desktop/eduvision/analytics-r/config.R
 
-suppressPackageStartupMessages(library(DBI))
-suppressPackageStartupMessages(library(RMySQL))
+# Load required libraries
+library(DBI)
+library(RMariaDB)
 
-DB_HOST   <- Sys.getenv("DB_HOST",   "localhost")
-DB_PORT   <- as.integer(Sys.getenv("DB_PORT", "3306"))
-DB_USER   <- Sys.getenv("DB_USER",   "root")
-DB_PASS   <- Sys.getenv("DB_PASS",   "")
-DB_NAME   <- Sys.getenv("DB_NAME",   "eduvision")
+# Set base directory (absolute path)
+BASE_DIR <- "C:/Users/john/Desktop/eduvision/analytics-r"
 
-# Returns a fresh DBI connection to the eduvision MySQL database.
-# Caller is responsible for calling dbDisconnect() when done.
+# Database configuration
+DB_CONFIG <- list(
+  host = "localhost",
+  port = 3306,
+  user = "root",
+  password = "",
+  database = "eduvision"
+)
+
+# Output directories (using absolute paths)
+OUTPUT_DIRS <- list(
+  dean = file.path(BASE_DIR, "output/dean"),
+  lecturer = file.path(BASE_DIR, "output/lecturer"),
+  student = file.path(BASE_DIR, "output/student"),
+  session = file.path(BASE_DIR, "output/session")
+)
+
+# Create directories if they don't exist
+for (dir_name in OUTPUT_DIRS) {
+  if (!dir.exists(dir_name)) {
+    dir.create(dir_name, recursive = TRUE)
+    message(sprintf("Created directory: %s", dir_name))
+  }
+}
+
+# Connect to database
 get_connection <- function() {
-  dbConnect(
-    RMySQL::MySQL(),
-    host     = DB_HOST,
-    port     = DB_PORT,
-    user     = DB_USER,
-    password = DB_PASS,
-    dbname   = DB_NAME,
-    client.flag = CLIENT_MULTI_STATEMENTS
+  dbConnect(RMariaDB::MariaDB(),
+            host = DB_CONFIG$host,
+            port = DB_CONFIG$port,
+            user = DB_CONFIG$user,
+            password = DB_CONFIG$password,
+            dbname = DB_CONFIG$database
   )
 }
 
-# Convenience wrapper: run a function with a connection, then disconnect.
-with_connection <- function(fn) {
-  con <- get_connection()
-  on.exit(dbDisconnect(con), add = TRUE)
-  fn(con)
-}
-
-# Resolve the analytics-r base directory regardless of working directory.
-ANALYTICS_HOME <- normalizePath(
-  file.path(dirname(sys.frame(1)$ofile %||% getwd())),
-  mustWork = FALSE
-)
-
-# Fallback: allow env override
-if (nchar(Sys.getenv("ANALYTICS_HOME")) > 0) {
-  ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME")
-}
-
-MODEL_DIR  <- file.path(ANALYTICS_HOME, "models")
-OUTPUT_DIR <- file.path(ANALYTICS_HOME, "output")
-DATA_DIR   <- file.path(ANALYTICS_HOME, "data")
-LOGS_DIR   <- file.path(ANALYTICS_HOME, "logs")
-
-# Null-coalescing operator
-`%||%` <- function(a, b) if (!is.null(a) && length(a) > 0 && !is.na(a[1])) a else b
+# Print confirmation
+message(sprintf("Base directory: %s", BASE_DIR))
+message(sprintf("Student output directory: %s", OUTPUT_DIRS$student))
+message(sprintf("Directory exists: %s", dir.exists(OUTPUT_DIRS$student)))
