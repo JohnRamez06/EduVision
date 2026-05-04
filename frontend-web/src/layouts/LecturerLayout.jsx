@@ -1,5 +1,7 @@
 import React, { useContext, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
+import AlertBell from '../components/common/AlertBell';
+
 import {
   GraduationCap, LayoutDashboard, BookOpen, Clock,
   User, LogOut, Bell, Menu, Video,
@@ -113,6 +115,7 @@ export default function LecturerLayout({ children, unread = 0 }) {
           </button>
           <div className="hidden md:block" />
           <div className="flex items-center gap-3">
+            <AlertBell />
             <button className="relative w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition-all">
               <Bell size={17} />
               {unread > 0 && (

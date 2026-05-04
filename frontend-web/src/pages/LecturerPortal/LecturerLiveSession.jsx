@@ -10,6 +10,7 @@ import lecturerService from '../../services/lecturerService'
 import sessionService   from '../../services/sessionService'
 import emotionService   from '../../services/emotionService'
 import { createSessionClient } from '../../services/websocket'
+import alertService from '../../services/alertService'
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -224,6 +225,7 @@ export default function LecturerLiveSession() {
 
   const [mood, setMood]               = useState(null)
   const [alerts, setAlerts]           = useState([])
+  const [httpAlerts, setHttpAlerts]   = useState([])   // ← HTTP-polled alerts
   const [snapshot, setSnapshot]       = useState(null)
   const [detectedStudents, setDetectedStudents] = useState(new Map())
 
@@ -254,6 +256,52 @@ export default function LecturerLiveSession() {
 
     return () => cleanup()
   }, [])
+
+  // ── HTTP alert polling ─────────────────────────────────────────────────────
+
+  // Defined with useCallback so it can safely be listed as a dependency
+  const fetchAlerts = useCallback(async () => {
+    if (!session) return
+    try {
+      const pendingAlerts = await alertService.getPendingAlerts()
+
+      // Keep only alerts that belong to the current session
+      const sessionAlerts = pendingAlerts.filter(
+        alert => alert.sessionId === session.sessionId
+      )
+
+      // Normalise shape to match what <AlertItem> expects
+      const formattedAlerts = sessionAlerts.map(alert => ({
+        title:     alert.title,
+        message:   alert.message,
+        severity:  alert.severity,
+        timestamp: alert.triggeredAt,
+      }))
+
+      setHttpAlerts(formattedAlerts)
+
+      // Merge with WebSocket alerts, deduplicate by title+message
+      setAlerts(prev => {
+        const merged = [...formattedAlerts, ...prev]
+        const unique = merged.filter((alert, index, self) =>
+          index === self.findIndex(
+            a => a.title === alert.title && a.message === alert.message
+          )
+        )
+        return unique.slice(0, 20)
+      })
+    } catch (error) {
+      console.error('Failed to fetch alerts:', error)
+    }
+  }, [session])
+
+  // Run once immediately when a session becomes active, then every 10 s
+  useEffect(() => {
+    if (!session) return
+    fetchAlerts()
+    const alertInterval = setInterval(fetchAlerts, SNAPSHOT_POLL_MS)
+    return () => clearInterval(alertInterval)
+  }, [session, fetchAlerts])
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -449,6 +497,7 @@ export default function LecturerLiveSession() {
     setWsConnected(false)
     setMood(null)
     setAlerts([])
+    setHttpAlerts([])
     setSnapshot(null)
     setDetectedStudents(new Map())
   }

@@ -47,6 +47,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST, "/api/v1/attendance/weekly/calculate").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/attendance/**").permitAll()
 
+                // 🔥 ADD THIS - Allow Python to POST alerts (no authentication required)
+                .requestMatchers(HttpMethod.POST, "/api/v1/alerts/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/alerts/**").permitAll()
+
                 // DEAN ENDPOINTS
                 .requestMatchers("/api/v1/dean/**").hasRole("DEAN")
                 .requestMatchers("/api/v1/facade/dean/**").hasRole("DEAN")
@@ -70,11 +74,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/reports/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/emotion-data/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/sessions/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
-                .requestMatchers("/api/v1/alerts/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
-                .requestMatchers("/api/v1/notifications/**").authenticated()
                 .requestMatchers("/api/v1/attendance/**").permitAll()
                 .requestMatchers("/api/v1/camera/**").hasRole("ADMIN")
-                .requestMatchers("/api/v1/attendance/weekly/calculate").permitAll()
 
                 // Everything else requires authentication
                 .anyRequest().authenticated()

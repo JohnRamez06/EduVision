@@ -1,48 +1,52 @@
+// src/main/java/com/eduvision/dto/alert/AlertContext.java
 package com.eduvision.dto.alert;
 
 public class AlertContext {
     private String sessionId;
-    private String studentId;
+    private String courseId;
+    private String courseName;
+    private int studentCount;
+    private double confusionRatio;
     private double engagementScore;
-    private double concentrationLevel;
-    private String emotionType;
-    private long timestamp;
-    private double previousEngagementScore; // for trend
-    private double trendSlope; // negative for downward trend
+    private double avgConcentration;
+    private String dominantEmotion;
+    private java.time.LocalDateTime timestamp;
 
-    // Constructors, getters, setters
     public AlertContext() {}
 
-    public AlertContext(String sessionId, String studentId, double engagementScore, double concentrationLevel, String emotionType, long timestamp) {
+    public AlertContext(String sessionId, String courseId, String courseName, 
+                        int studentCount, double confusionRatio, double engagementScore,
+                        double avgConcentration, String dominantEmotion) {
         this.sessionId = sessionId;
-        this.studentId = studentId;
+        this.courseId = courseId;
+        this.courseName = courseName;
+        this.studentCount = studentCount;
+        this.confusionRatio = confusionRatio;
         this.engagementScore = engagementScore;
-        this.concentrationLevel = concentrationLevel;
-        this.emotionType = emotionType;
-        this.timestamp = timestamp;
+        this.avgConcentration = avgConcentration;
+        this.dominantEmotion = dominantEmotion;
+        this.timestamp = java.time.LocalDateTime.now();
     }
 
+    // Getters
     public String getSessionId() { return sessionId; }
-    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
-
-    public String getStudentId() { return studentId; }
-    public void setStudentId(String studentId) { this.studentId = studentId; }
-
+    public String getCourseId() { return courseId; }
+    public String getCourseName() { return courseName; }
+    public int getStudentCount() { return studentCount; }
+    public double getConfusionRatio() { return confusionRatio; }
     public double getEngagementScore() { return engagementScore; }
+    public double getAvgConcentration() { return avgConcentration; }
+    public String getDominantEmotion() { return dominantEmotion; }
+    public java.time.LocalDateTime getTimestamp() { return timestamp; }
+
+    // Setters
+    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+    public void setCourseId(String courseId) { this.courseId = courseId; }
+    public void setCourseName(String courseName) { this.courseName = courseName; }
+    public void setStudentCount(int studentCount) { this.studentCount = studentCount; }
+    public void setConfusionRatio(double confusionRatio) { this.confusionRatio = confusionRatio; }
     public void setEngagementScore(double engagementScore) { this.engagementScore = engagementScore; }
-
-    public double getConcentrationLevel() { return concentrationLevel; }
-    public void setConcentrationLevel(double concentrationLevel) { this.concentrationLevel = concentrationLevel; }
-
-    public String getEmotionType() { return emotionType; }
-    public void setEmotionType(String emotionType) { this.emotionType = emotionType; }
-
-    public long getTimestamp() { return timestamp; }
-    public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
-
-    public double getPreviousEngagementScore() { return previousEngagementScore; }
-    public void setPreviousEngagementScore(double previousEngagementScore) { this.previousEngagementScore = previousEngagementScore; }
-
-    public double getTrendSlope() { return trendSlope; }
-    public void setTrendSlope(double trendSlope) { this.trendSlope = trendSlope; }
+    public void setAvgConcentration(double avgConcentration) { this.avgConcentration = avgConcentration; }
+    public void setDominantEmotion(String dominantEmotion) { this.dominantEmotion = dominantEmotion; }
+    public void setTimestamp(java.time.LocalDateTime timestamp) { this.timestamp = timestamp; }
 }

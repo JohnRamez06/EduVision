@@ -1,83 +1,46 @@
+// src/main/java/com/eduvision/dto/alert/AlertDTO.java
 package com.eduvision.dto.alert;
 
-import com.eduvision.model.AlertSeverity;
 import java.time.LocalDateTime;
 
 public class AlertDTO {
     private String id;
-    private String type;
-    private AlertSeverity severity;
+    private String sessionId;
+    private String courseId;
     private String title;
     private String message;
-    private LocalDateTime timestamp;
-    private boolean acknowledged;
+    private String severity;
+    private String status;
+    private String alertType;
+    private LocalDateTime triggeredAt;
+    private LocalDateTime acknowledgedAt;
+    private String acknowledgedBy;
 
     public AlertDTO() {}
 
-    public AlertDTO(String id, String type, AlertSeverity severity, String title, String message, LocalDateTime timestamp, boolean acknowledged) {
-        this.id = id;
-        this.type = type;
-        this.severity = severity;
-        this.title = title;
-        this.message = message;
-        this.timestamp = timestamp;
-        this.acknowledged = acknowledged;
-    }
+    // Getters
+    public String getId() { return id; }
+    public String getSessionId() { return sessionId; }
+    public String getCourseId() { return courseId; }
+    public String getTitle() { return title; }
+    public String getMessage() { return message; }
+    public String getSeverity() { return severity; }
+    public String getStatus() { return status; }
+    public String getAlertType() { return alertType; }
+    public LocalDateTime getTriggeredAt() { return triggeredAt; }
+    public LocalDateTime getAcknowledgedAt() { return acknowledgedAt; }
+    public String getAcknowledgedBy() { return acknowledgedBy; }
 
-    // Getters and setters
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    public AlertSeverity getSeverity() {
-        return severity;
-    }
-
-    public void setSeverity(AlertSeverity severity) {
-        this.severity = severity;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public LocalDateTime getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(LocalDateTime timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public boolean isAcknowledged() {
-        return acknowledged;
-    }
-
-    public void setAcknowledged(boolean acknowledged) {
-        this.acknowledged = acknowledged;
-    }
+    // Setters
+    public void setId(String id) { this.id = id; }
+    public void setSessionId(String sessionId) { this.sessionId = sessionId; }
+    public void setCourseId(String courseId) { this.courseId = courseId; }
+    public void setTitle(String title) { this.title = title; }
+    public void setMessage(String message) { this.message = message; }
+    public void setSeverity(String severity) { this.severity = severity; }
+    public void setStatus(String status) { this.status = status; }
+    public void setAlertType(String alertType) { this.alertType = alertType; }
+    public void setTriggeredAt(LocalDateTime triggeredAt) { this.triggeredAt = triggeredAt; }
+    public void setAcknowledgedAt(LocalDateTime acknowledgedAt) { this.acknowledgedAt = acknowledgedAt; }
+    public void setAcknowledgedBy(String acknowledgedBy) { this.acknowledgedBy = acknowledgedBy; }
 }

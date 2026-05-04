@@ -1,41 +1,40 @@
+// src/main/java/com/eduvision/strategy/alert/CompositeAlertStrategy.java
 package com.eduvision.strategy.alert;
 
 import com.eduvision.dto.alert.AlertContext;
-import com.eduvision.model.Alert;
-import org.springframework.stereotype.Component;
-
+import java.util.ArrayList;
 import java.util.List;
 
-@Component
 public class CompositeAlertStrategy implements AlertStrategy {
-
-    private final List<AlertStrategy> strategies;
-
-    public CompositeAlertStrategy(List<AlertStrategy> strategies) {
-        this.strategies = strategies;
+    
+    private List<AlertStrategy> strategies = new ArrayList<>();
+    
+    public void addStrategy(AlertStrategy strategy) {
+        strategies.add(strategy);
     }
-
-    @Override
-    public boolean shouldAlert(double engagementScore, double concentration) {
-        return strategies.stream()
-                .filter(strategy -> !(strategy instanceof CompositeAlertStrategy))
-                .anyMatch(strategy -> strategy.shouldAlert(engagementScore, concentration));
-    }
-
+    
     @Override
     public boolean shouldTrigger(AlertContext context) {
-        return strategies.stream()
-                .filter(strategy -> !(strategy instanceof CompositeAlertStrategy))
-                .anyMatch(strategy -> strategy.shouldTrigger(context));
+        return strategies.stream().anyMatch(s -> s.shouldTrigger(context));
     }
-
+    
     @Override
-    public Alert createAlert(AlertContext context) {
-        return strategies.stream()
-                .filter(strategy -> !(strategy instanceof CompositeAlertStrategy))
-                .filter(strategy -> strategy.shouldTrigger(context))
-                .findFirst()
-                .map(strategy -> strategy.createAlert(context))
-                .orElse(null);
+    public String getAlertMessage(AlertContext context) {
+        for (AlertStrategy strategy : strategies) {
+            if (strategy.shouldTrigger(context)) {
+                return strategy.getAlertMessage(context);
+            }
+        }
+        return "Alert triggered";
+    }
+    
+    @Override
+    public String getAlertSeverity(AlertContext context) {
+        for (AlertStrategy strategy : strategies) {
+            if (strategy.shouldTrigger(context)) {
+                return strategy.getAlertSeverity(context);
+            }
+        }
+        return "info";
     }
 }

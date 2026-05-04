@@ -1,37 +1,36 @@
+// src/main/java/com/eduvision/strategy/alert/ThresholdAlertStrategy.java
 package com.eduvision.strategy.alert;
 
 import com.eduvision.dto.alert.AlertContext;
-import com.eduvision.model.Alert;
-import com.eduvision.model.AlertSeverity;
-import com.eduvision.model.AlertStatus;
-import org.springframework.stereotype.Component;
 
-@Component("ThresholdAlertStrategy")
 public class ThresholdAlertStrategy implements AlertStrategy {
-
-    private static final double ENGAGEMENT_THRESHOLD = 0.3;
-    private static final double CONCENTRATION_THRESHOLD = 0.4;
-
+    
+    private double confusionThreshold = 0.3;  // 30%
+    private double engagementThreshold = 0.4; // 40%
+    
     @Override
     public boolean shouldTrigger(AlertContext context) {
-        return context.getEngagementScore() < ENGAGEMENT_THRESHOLD ||
-               context.getConcentrationLevel() < CONCENTRATION_THRESHOLD;
+        return context.getConfusionRatio() > confusionThreshold ||
+               context.getEngagementScore() < engagementThreshold;
     }
-
+    
     @Override
-    public boolean shouldAlert(double engagementScore, double concentration) {
-        return engagementScore < ENGAGEMENT_THRESHOLD ||
-               concentration < CONCENTRATION_THRESHOLD;
+    public String getAlertMessage(AlertContext context) {
+        if (context.getConfusionRatio() > confusionThreshold) {
+            return String.format("⚠️ High confusion detected: %.0f%% of students appear confused",
+                context.getConfusionRatio() * 100);
+        } else {
+            return String.format("⚠️ Low engagement detected: %.0f%% engagement rate",
+                context.getEngagementScore() * 100);
+        }
     }
-
+    
     @Override
-    public Alert createAlert(AlertContext context) {
-        Alert alert = new Alert();
-        alert.setSeverity(AlertSeverity.MEDIUM);
-        alert.setStatus(AlertStatus.ACTIVE);
-        alert.setTitle("Low Engagement Alert");
-        alert.setMessage("Student engagement or concentration below threshold");
-
-        return alert;
+    public String getAlertSeverity(AlertContext context) {
+        if (context.getConfusionRatio() > confusionThreshold) {
+            return "critical";
+        } else {
+            return "warning";
+        }
     }
 }
