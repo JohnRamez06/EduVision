@@ -1,13 +1,16 @@
-# python version and virtual environment configuration consumed by init_python.R
-python_version: "3.10"
-virtualenv_name: ".venv"
-# Absolute or relative path to the virtual environment directory
-virtualenv_path: "analytics-r/.venv"
-# Packages that must be present in the virtualenv
-required_python_packages:
-  - opencv-python
+# C:/Users/john/Desktop/eduvision/analytics-r/reticulate/python_config.yml
+
+python:
+  version: "3.11"
+  path: "C:/Users/john/Desktop/eduvision/vision-engine/.venv/Scripts/python.exe"
+
+packages:
   - numpy
-  - tensorflow
-  - scikit-learn
-  - mtcnn
+  - opencv-python
   - deepface
+  - tensorflow
+  - requests
+  - httpx
+
+environment:
+  TF_CPP_MIN_LOG_LEVEL: "2"
