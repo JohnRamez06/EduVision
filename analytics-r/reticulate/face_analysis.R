@@ -1,58 +1,107 @@
-# C:/Users/john/Desktop/eduvision/analytics-r/reticulate/face_analysis.R
+# analytics-r/reticulate/face_analysis.R
+# ============================================================
+# face_analysis.R — Face detection + optional DeepFace embeddings
+#
+# Usage:
+#   source("reticulate/face_analysis.R")
+#   res <- recognize_face("path/to/image.jpg")
+# ============================================================
 
-source("reticulate/init_python.R")
+# %||% helper for base R
+`%||%` <- function(a, b) if (!is.null(a) && length(a) > 0 && !is.na(a)) a else b
 
-# Function to recognize face from image path
+# Source Python initialization (forces the venv + imports)
+source(file.path(dirname(sys.frame(1)$ofile %||% "."), "init_python.R"), local = TRUE)
+
+#' recognize_face()
+#' 1) Reads image with OpenCV
+#' 2) Detects faces with Haar Cascade
+#' 3) Returns list(success, face_count, embeddings if DeepFace available)
+#'
+#' @param image_path Path to an image file.
+#' @return list(success, face_count, embeddings, deepface_available, error?)
 recognize_face <- function(image_path) {
-  tryCatch({
-    # Read image with OpenCV
-    img <- cv2$imread(image_path)
-    
-    # Use DeepFace to find face
-    result <- deepface$represent(
-      img_path = img,
-      model_name = "Facenet",
-      enforce_detection = FALSE,
-      detector_backend = "opencv"
-    )
-    
-    if (length(result) > 0) {
-      embedding <- result[[1]]$embedding
-      return(list(
-        success = TRUE,
-        embedding = embedding,
-        message = "Face recognized successfully"
-      ))
-    } else {
-      return(list(success = FALSE, message = "No face detected"))
-    }
-  }, error = function(e) {
-    return(list(success = FALSE, message = paste("Error:", e$message)))
-  })
-}
+  if (!file.exists(image_path)) {
+    return(list(success = FALSE, face_count = 0L, embeddings = list(),
+                deepface_available = FALSE, error = "Image not found"))
+  }
 
-# Function to compare two faces
-compare_faces <- function(image_path1, image_path2) {
-  result1 <- recognize_face(image_path1)
-  result2 <- recognize_face(image_path2)
-  
-  if (!result1$success || !result2$success) {
-    return(list(success = FALSE, message = "Could not extract faces"))
+  if (!exists("cv2", inherits = TRUE)) {
+    return(list(success = FALSE, face_count = 0L, embeddings = list(),
+                deepface_available = FALSE, error = "cv2 not initialized (did init_python.R run?)"))
   }
-  
-  # Calculate cosine similarity
-  cosine_sim <- function(a, b) {
-    sum(a * b) / (sqrt(sum(a^2)) * sqrt(sum(b^2)))
+
+  # 1) Read image using OpenCV
+  img <- tryCatch(
+    cv2$imread(normalizePath(image_path, winslash = "/")),
+    error = function(e) NULL
+  )
+  if (is.null(img) || reticulate::py_is_null_xptr(img)) {
+    return(list(success = FALSE, face_count = 0L, embeddings = list(),
+                deepface_available = FALSE, error = "OpenCV could not read image"))
   }
-  
-  similarity <- cosine_sim(result1$embedding, result2$embedding)
-  
-  return(list(
+
+  gray <- cv2$cvtColor(img, cv2$COLOR_BGR2GRAY)
+
+  # 2) Haar cascade path (try OpenCV’s built-in data path first)
+  cascade_path <- tryCatch({
+    p <- cv2$data$haarcascades
+    if (!is.null(p)) file.path(p, "haarcascade_frontalface_default.xml") else NULL
+  }, error = function(e) NULL)
+
+  if (is.null(cascade_path) || !file.exists(cascade_path)) {
+    return(list(
+      success = FALSE, face_count = 0L, embeddings = list(),
+      deepface_available = exists("deepface", inherits = TRUE),
+      error = paste0(
+        "Could not locate haarcascade_frontalface_default.xml. ",
+        "OpenCV's data path (cv2$data$haarcascades) was not available. ",
+        "Install opencv-python properly in the venv."
+      )
+    ))
+  }
+
+  face_cascade <- cv2$CascadeClassifier(cascade_path)
+  faces <- face_cascade$detectMultiScale(gray, scaleFactor = 1.1, minNeighbors = 5L)
+
+  face_count <- 0L
+  if (!is.null(faces)) {
+    face_count <- as.integer(dim(faces)[1] %||% 0L)
+  }
+
+  # 3) Optional DeepFace embeddings
+  deepface_available <- exists("deepface", inherits = TRUE)
+  embeddings <- list()
+
+  if (deepface_available && face_count > 0L) {
+    embeddings <- tryCatch({
+      res <- deepface$DeepFace$represent(
+        img_path = normalizePath(image_path, winslash = "/"),
+        model_name = "Facenet",
+        enforce_detection = FALSE
+      )
+
+      rr <- reticulate::py_to_r(res)
+
+      # DeepFace often returns list-of-dicts, each with $embedding
+      if (is.list(rr)) {
+        out <- lapply(rr, function(x) {
+          if (is.list(x) && !is.null(x$embedding)) as.numeric(x$embedding) else NULL
+        })
+        Filter(Negate(is.null), out)
+      } else {
+        list()
+      }
+    }, error = function(e) {
+      # DeepFace is optional; don't fail the whole function
+      list()
+    })
+  }
+
+  list(
     success = TRUE,
-    similarity = similarity,
-    match = similarity > 0.6,
-    message = ifelse(similarity > 0.6, "Same person", "Different person")
-  ))
+    face_count = face_count,
+    embeddings = embeddings,
+    deepface_available = deepface_available
+  )
 }
-
-cat("✅ Face analysis module loaded\n")
