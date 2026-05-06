@@ -1,0 +1,79 @@
+/* ─────────────────────────────────────────────────────────────
+   THEME TOKENS
+───────────────────────────────────────────────────────────── */
+:root {
+  /* Colors */
+  --primary: #3B82F6;
+  --primary-dark: #1E40AF;
+  --secondary: #6366F1;
+  --success: #10B981;
+  --warning: #F59E0B;
+  --danger: #EF4444;
+  --info: #0EA5E9;
+
+  /* Depth */
+  --elev-1: rgba(15, 23, 42, 0.55);
+  --elev-2: rgba(15, 23, 42, 0.72);
+  --elev-3: rgba(15, 23, 42, 0.90);
+
+  /* Background */
+  --bg-app: #060A13;
+  --bg-sidebar: #0B1220;
+  --bg-sidebar-border: rgba(255,255,255,0.05);
+  --bg-header: rgba(15, 23, 42, 0.90);
+
+  /* Glass */
+  --glass-border: rgba(148, 163, 184, 0.18);
+  --glass-border-hover: rgba(148, 163, 184, 0.30);
+
+  /* Surface */
+  --surface-bg: rgba(15, 23, 42, 0.68);
+  --row-border: rgba(148, 163, 184, 0.16);
+  --row-hover: rgba(71, 85, 105, 0.18);
+
+  /* Text */
+  --text-body: #F1F5F9;
+  --text-muted: #94A3B8;
+
+  /* Inputs */
+  --input-bg: rgba(15, 23, 42, 0.72);
+  --input-border: rgba(148, 163, 184, 0.25);
+  --input-focus-border: rgba(96, 165, 250, 0.72);
+  --input-focus-ring: rgba(59, 130, 246, 0.18);
+
+  /* Scroll */
+  --scrollbar-track: #0F172A;
+  --scrollbar-thumb: #64748B;
+  --scrollbar-thumb-h: #94A3B8;
+}
+
+/* LIGHT MODE */
+html.light {
+  --bg-app: #F8FAFC;
+  --bg-sidebar: #F1F5FB;
+  --bg-sidebar-border: rgba(15,23,42,0.12);
+  --bg-header: rgba(255, 255, 255, 0.95);
+
+  --elev-1: rgba(255, 255, 255, 0.95);
+  --elev-2: #FFFFFF;
+  --elev-3: #FFFFFF;
+
+  --glass-border: rgba(15, 23, 42, 0.16);
+  --glass-border-hover: rgba(15, 23, 42, 0.28);
+
+  --text-body: #0F172A;
+  --text-muted: #64748B;
+
+  --input-bg: #FFFFFF;
+  --input-border: rgba(15,23,42,0.18);
+  --input-focus-border: rgba(37, 99, 235, 0.8);
+  --input-focus-ring: rgba(37, 99, 235, 0.12);
+
+  --surface-bg: #FFFFFF;
+  --row-hover: rgba(37, 99, 235, 0.08);
+  --row-border: rgba(15, 23, 42, 0.12);
+
+  --scrollbar-track: #E2E8F0;
+  --scrollbar-thumb: #CBD5E1;
+  --scrollbar-thumb-h: #94A3B8;
+}
