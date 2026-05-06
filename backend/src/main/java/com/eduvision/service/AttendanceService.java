@@ -382,18 +382,23 @@ public void recordAttendance(String sessionId, String studentId, String status) 
 
 // Add this method to AttendanceService class
 
+// Use 'jdbc' instead of 'jdbcTemplate'
 public boolean isStudentEnrolledInSession(String sessionId, String studentId) {
     try {
         String sql = """
             SELECT COUNT(*) FROM lecture_sessions ls
             JOIN course_students cs ON cs.course_id = ls.course_id
-            WHERE ls.id = ? AND cs.student_id = ? AND cs.dropped_at IS NULL
+            WHERE ls.id = ? 
+              AND cs.student_id = ? 
+              AND cs.dropped_at IS NULL
+              AND cs.lecturer_id = ls.lecturer_id
         """;
         
+        // 🔥 Use 'jdbc' (not jdbcTemplate)
         Integer count = jdbc.queryForObject(sql, Integer.class, sessionId, studentId);
         boolean enrolled = count != null && count > 0;
         
-        logger.debug("Student {} enrollment in session {}: {}", studentId, sessionId, enrolled);
+        logger.info("Enrollment check: session={}, student={}, result={}", sessionId, studentId, enrolled);
         return enrolled;
     } catch (Exception e) {
         logger.error("Error checking enrollment: {}", e.getMessage());

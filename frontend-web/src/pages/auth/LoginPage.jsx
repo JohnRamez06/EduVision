@@ -17,6 +17,31 @@ const ROLE_REDIRECT = {
   dean:     '/dean',
   admin:    '/admin',
 }
+const handleLogin = async (email, password) => {
+    try {
+        const response = await authService.login(email, password);
+        const { token, role } = response.data;
+        
+        // Store token and role
+        localStorage.setItem('token', token);
+        localStorage.setItem('role', role);
+        
+        // Redirect based on role
+        if (role === 'lecturer') {
+            navigate('/lecturer');
+        } else if (role === 'student') {
+            navigate('/student');
+        } else if (role === 'dean') {
+            navigate('/dean');
+        } else if (role === 'admin') {
+            navigate('/admin');
+        } else {
+            navigate('/');
+        }
+    } catch (error) {
+        console.error('Login failed:', error);
+    }
+};
 
 export default function LoginPage() {
   const navigate = useNavigate()

@@ -240,9 +240,22 @@ def send_to_spring_boot(session_id: str, result):
                         if not student_id:
                             continue
                         
+                        # 🔥🔥🔥 ENROLLMENT CHECK - ADDED HERE 🔥🔥🔥
+                        import asyncio
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        is_enrolled = loop.run_until_complete(check_enrollment_with_cache(session_id, student_id))
+                        loop.close()
+                        
+                        if not is_enrolled:
+                            logger.warning(f"🚫 UNWANTED STUDENT: {student_name} NOT enrolled with this lecturer - SKIPPING attendance")
+                            # Still add to recognized for display (optional)
+                            recognized_names.append(student_name)
+                            continue  # Skip attendance marking
+                        
                         recognized_names.append(student_name)
                         
-                        # Smart attendance
+                        # Smart attendance (only for enrolled students)
                         if should_mark_attendance(session_id, student_id, similarity):
                             try:
                                 attendance_payload = {
@@ -375,6 +388,45 @@ async def end_session(session_id: str = Form(...)):
         del enrollment_cache[key]
     
     return {"success": True, "message": f"Session {session_id} ended"}
+
+async def check_enrollment_with_cache(session_id: str, student_id: str) -> bool:
+    """Check enrollment with caching"""
+    cache_key = f"{session_id}:{student_id}"
+    
+    # 🔥 DEBUG: Log what we're checking
+    logger.info(f"🔍 ENROLLMENT CHECK: student={student_id}, session={session_id}")
+    
+    # Check cache
+    if cache_key in enrollment_cache:
+        cached_time, enrolled = enrollment_cache[cache_key]
+        if time.time() - cached_time < ENROLLMENT_CACHE_TTL:
+            logger.info(f"📦 CACHE HIT: enrolled={enrolled}")
+            return enrolled
+    
+    # Check enrollment via Spring Boot
+    enrolled = await is_student_enrolled(session_id, student_id)
+    enrollment_cache[cache_key] = (time.time(), enrolled)
+    
+    logger.info(f"📊 ENROLLMENT RESULT: {enrolled} for student {student_id}")
+    
+    if not enrolled:
+        logger.warning(f"🚫 UNWANTED STUDENT: Student {student_id} NOT enrolled with this lecturer!")
+    
+    return enrolled
+
+async def is_student_enrolled(session_id: str, student_id: str) -> bool:
+    """Check if student is enrolled in the course for this session"""
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            response = await client.get(
+                f"{ATTENDANCE_URL}/session/{session_id}/check-student/{student_id}"
+            )
+            if response.status_code == 200:
+                data = response.json()
+                return data.get("enrolled", False)
+    except Exception as e:
+        logger.debug(f"Enrollment check failed: {e}")
+    return False
 
 
 @app.on_event("startup")

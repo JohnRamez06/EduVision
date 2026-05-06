@@ -1,38 +1,38 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   Video, VideoOff, StopCircle, Users, Zap, Brain, AlertTriangle,
   CheckCircle, ChevronDown, Wifi, WifiOff, MapPin, BookOpen, Clock,
-  Activity,
+  Activity, Camera,
 } from 'lucide-react'
 import LecturerLayout from '../../layouts/LecturerLayout'
 import { AuthContext } from '../../context/AuthContext'
 import lecturerService from '../../services/lecturerService'
-import sessionService   from '../../services/sessionService'
-import emotionService   from '../../services/emotionService'
+import sessionService from '../../services/sessionService'
+import emotionService from '../../services/emotionService'
 import { createSessionClient } from '../../services/websocket'
 import alertService from '../../services/alertService'
 
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-const FRAME_INTERVAL_MS  = 3000
-const SNAPSHOT_POLL_MS   = 10000
+// Constants
+const FRAME_INTERVAL_MS = 3000
+const SNAPSHOT_POLL_MS = 10000
 
 const EMOTION_META = {
-  happy:     { label: 'Happy',     color: 'text-emerald-400', bg: 'bg-emerald-500/15', emoji: '😊' },
-  engaged:   { label: 'Engaged',   color: 'text-violet-400',  bg: 'bg-violet-500/15',  emoji: '🎯' },
-  neutral:   { label: 'Neutral',   color: 'text-slate-300',   bg: 'bg-slate-700/40',   emoji: '😐' },
-  confused:  { label: 'Confused',  color: 'text-amber-400',   bg: 'bg-amber-500/15',   emoji: '🤔' },
-  surprised: { label: 'Surprised', color: 'text-teal-400',    bg: 'bg-teal-500/15',    emoji: '😮' },
-  sad:       { label: 'Sad',       color: 'text-blue-400',    bg: 'bg-blue-500/15',    emoji: '😔' },
-  angry:     { label: 'Angry',     color: 'text-rose-400',    bg: 'bg-rose-500/15',    emoji: '😠' },
-  fearful:   { label: 'Fearful',   color: 'text-orange-400',  bg: 'bg-orange-500/15',  emoji: '😨' },
-  disgusted: { label: 'Disgusted', color: 'text-pink-400',    bg: 'bg-pink-500/15',    emoji: '🤢' },
+  happy: { label: 'Happy', color: 'text-emerald-400', bg: 'bg-emerald-500/15', emoji: '😊' },
+  engaged: { label: 'Engaged', color: 'text-violet-400', bg: 'bg-violet-500/15', emoji: '🎯' },
+  neutral: { label: 'Neutral', color: 'text-slate-300', bg: 'bg-slate-700/40', emoji: '😐' },
+  confused: { label: 'Confused', color: 'text-amber-400', bg: 'bg-amber-500/15', emoji: '🤔' },
+  surprised: { label: 'Surprised', color: 'text-teal-400', bg: 'bg-teal-500/15', emoji: '😮' },
+  sad: { label: 'Sad', color: 'text-blue-400', bg: 'bg-blue-500/15', emoji: '😔' },
+  angry: { label: 'Angry', color: 'text-rose-400', bg: 'bg-rose-500/15', emoji: '😠' },
+  fearful: { label: 'Fearful', color: 'text-orange-400', bg: 'bg-orange-500/15', emoji: '😨' },
+  disgusted: { label: 'Disgusted', color: 'text-pink-400', bg: 'bg-pink-500/15', emoji: '🤢' },
 }
 
 const SEVERITY_STYLES = {
   critical: 'border-rose-500/40 bg-rose-500/10 text-rose-300',
-  warning:  'border-amber-500/40 bg-amber-500/10 text-amber-300',
-  info:     'border-blue-500/40 bg-blue-500/10 text-blue-300',
+  warning: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
+  info: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
 }
 
 // Helper function to convert concentration to level string
@@ -49,14 +49,13 @@ const getConcentrationLevel = (concentration) => {
 }
 
 const CONCENTRATION_STYLE = {
-  high:       'bg-emerald-500/20 text-emerald-300',
-  medium:     'bg-amber-500/20   text-amber-300',
-  low:        'bg-rose-500/20    text-rose-300',
-  distracted: 'bg-rose-500/20    text-rose-300',
+  high: 'bg-emerald-500/20 text-emerald-300',
+  medium: 'bg-amber-500/20 text-amber-300',
+  low: 'bg-rose-500/20 text-rose-300',
+  distracted: 'bg-rose-500/20 text-rose-300',
 }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
-
+// Sub-components
 const Skeleton = ({ className = '' }) => (
   <div className={`animate-pulse rounded-xl bg-slate-800/60 ${className}`} />
 )
@@ -64,10 +63,10 @@ const Skeleton = ({ className = '' }) => (
 function StatCard({ icon: Icon, label, value, sub, color = 'emerald', large = false }) {
   const colors = {
     emerald: 'bg-emerald-500/15 text-emerald-400',
-    violet:  'bg-violet-500/15  text-violet-400',
-    blue:    'bg-blue-500/15    text-blue-400',
-    amber:   'bg-amber-500/15   text-amber-400',
-    rose:    'bg-rose-500/15    text-rose-400',
+    violet: 'bg-violet-500/15 text-violet-400',
+    blue: 'bg-blue-500/15 text-blue-400',
+    amber: 'bg-amber-500/15 text-amber-400',
+    rose: 'bg-rose-500/15 text-rose-400',
   }
   return (
     <div className="glass rounded-2xl p-4 flex items-center gap-3">
@@ -84,11 +83,11 @@ function StatCard({ icon: Icon, label, value, sub, color = 'emerald', large = fa
 }
 
 function EngagementArc({ value = 0 }) {
-  const pct   = Math.min(100, Math.max(0, Math.round(value * 100)))
+  const pct = Math.min(100, Math.max(0, Math.round(value * 100)))
   const color = pct >= 70 ? '#10b981' : pct >= 45 ? '#f59e0b' : '#f43f5e'
-  const r     = 44
-  const circ  = 2 * Math.PI * r
-  const dash  = (pct / 100) * circ
+  const r = 44
+  const circ = 2 * Math.PI * r
+  const dash = (pct / 100) * circ
 
   return (
     <div className="glass rounded-2xl p-5 flex flex-col items-center justify-center gap-2">
@@ -114,10 +113,10 @@ function EngagementArc({ value = 0 }) {
 
 function ConcentrationBars({ high = 0, medium = 0, low = 0 }) {
   const total = high + medium + low || 1
-  const bars  = [
-    { label: 'High',   value: high,   pct: Math.round((high   / total) * 100), color: 'bg-emerald-500' },
-    { label: 'Medium', value: medium, pct: Math.round((medium / total) * 100), color: 'bg-amber-500'   },
-    { label: 'Low',    value: low,    pct: Math.round((low    / total) * 100), color: 'bg-rose-500'    },
+  const bars = [
+    { label: 'High', value: high, pct: Math.round((high / total) * 100), color: 'bg-emerald-500' },
+    { label: 'Medium', value: medium, pct: Math.round((medium / total) * 100), color: 'bg-amber-500' },
+    { label: 'Low', value: low, pct: Math.round((low / total) * 100), color: 'bg-rose-500' },
   ]
   return (
     <div className="glass rounded-2xl p-4">
@@ -146,9 +145,9 @@ function ConcentrationBars({ high = 0, medium = 0, low = 0 }) {
 
 function AlertItem({ alert }) {
   const style = SEVERITY_STYLES[alert.severity] ?? SEVERITY_STYLES.info
-  const Icon  = alert.severity === 'critical' ? AlertTriangle
-              : alert.severity === 'warning'  ? AlertTriangle
-              : CheckCircle
+  const Icon = alert.severity === 'critical' ? AlertTriangle
+    : alert.severity === 'warning' ? AlertTriangle
+      : CheckCircle
   return (
     <div className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-sm ${style}`}>
       <Icon size={14} className="shrink-0 mt-0.5" />
@@ -165,11 +164,8 @@ function AlertItem({ alert }) {
 
 function StudentRow({ student }) {
   const meta = EMOTION_META[student.emotion?.toLowerCase()] ?? EMOTION_META.neutral
-  
-  // Handle concentration safely - convert number to string if needed
   const concentrationLevel = getConcentrationLevel(student.concentration)
   const concStyle = CONCENTRATION_STYLE[concentrationLevel] ?? 'bg-slate-500/20 text-slate-300'
-  
   const initials = (student.studentName ?? '?')
     .split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
 
@@ -192,8 +188,7 @@ function StudentRow({ student }) {
   )
 }
 
-// ─── Duration hook ────────────────────────────────────────────────────────────
-
+// Duration hook
 function useDuration(startTime) {
   const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
@@ -209,108 +204,123 @@ function useDuration(startTime) {
   return `${h}:${m}:${s}`
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
+// Main component
 export default function LecturerLiveSession() {
+  const location = useLocation()
   const { user } = useContext(AuthContext)
+  const cameraConfig = location.state?.camera
 
-  const [courses, setCourses]         = useState([])
+  const [courses, setCourses] = useState([])
   const [loadingCourses, setLoadingCourses] = useState(true)
-  const [form, setForm]               = useState({ courseId: '', room: '', duration: '2' })
-  const [starting, setStarting]       = useState(false)
-  const [setupError, setSetupError]   = useState('')
+  const [form, setForm] = useState({ courseId: '', room: '', duration: '2' })
+  const [starting, setStarting] = useState(false)
+  const [setupError, setSetupError] = useState('')
 
-  const [session, setSession]         = useState(null)
+  const [session, setSession] = useState(null)
   const [checkingActive, setCheckingActive] = useState(true)
 
-  const [mood, setMood]               = useState(null)
-  const [alerts, setAlerts]           = useState([])
-  const [httpAlerts, setHttpAlerts]   = useState([])   // ← HTTP-polled alerts
-  const [snapshot, setSnapshot]       = useState(null)
+  const [mood, setMood] = useState(null)
+  const [alerts, setAlerts] = useState([])
+  const [snapshot, setSnapshot] = useState(null)
   const [detectedStudents, setDetectedStudents] = useState(new Map())
 
-  const [cameraOn, setCameraOn]       = useState(false)
+  const [cameraOn, setCameraOn] = useState(false)
   const [cameraError, setCameraError] = useState('')
   const [wsConnected, setWsConnected] = useState(false)
+  const [availableCameras, setAvailableCameras] = useState([])
+  const [showCameraSelector, setShowCameraSelector] = useState(false)
 
-  const videoRef    = useRef(null)
-  const streamRef   = useRef(null)
+  const videoRef = useRef(null)
+  const streamRef = useRef(null)
   const wsClientRef = useRef(null)
-  const frameTimer  = useRef(null)
-  const pollTimer   = useRef(null)
+  const frameTimer = useRef(null)
+  const pollTimer = useRef(null)
 
   const duration = useDuration(session?.startTime)
 
-  // ── On mount ───────────────────────────────────────────────────────────────
+  // Load available cameras
+  useEffect(() => {
+    const loadCameras = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const videoDevices = devices.filter(device => device.kind === 'videoinput')
+        setAvailableCameras(videoDevices)
+      } catch (err) {
+        console.error('Error loading cameras:', err)
+      }
+    }
+    loadCameras()
+  }, [])
 
+  // Start camera with selected config
+  const startCamera = useCallback(async (deviceId = null) => {
+    setCameraError('')
+    try {
+      let constraints = {
+        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+        audio: false,
+      }
+
+      if (cameraConfig && cameraConfig.deviceId) {
+        constraints = {
+          video: {
+            deviceId: { exact: cameraConfig.deviceId },
+            width: { ideal: parseInt(cameraConfig.resolution?.split('x')[0]) || 1280 },
+            height: { ideal: parseInt(cameraConfig.resolution?.split('x')[1]) || 720 },
+            frameRate: { ideal: cameraConfig.fps || 30 }
+          },
+          audio: false,
+        }
+      } else if (deviceId) {
+        constraints = {
+          video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
+          audio: false,
+        }
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play().catch(() => { })
+      }
+      setCameraOn(true)
+      setShowCameraSelector(false)
+    } catch (e) {
+      setCameraError('Camera access denied — frame capture disabled.')
+      setCameraOn(false)
+    }
+  }, [cameraConfig])
+
+  // Switch camera
+  const switchCamera = async (deviceId) => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop())
+    }
+    await startCamera(deviceId)
+  }
+
+  // On mount
   useEffect(() => {
     lecturerService.getDashboard()
       .then(d => setCourses(d.courses ?? []))
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoadingCourses(false))
 
     sessionService.getActive()
       .then(list => { if (list?.length > 0) activateSession(list[0]) })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setCheckingActive(false))
 
     return () => cleanup()
   }, [])
-
-  // ── HTTP alert polling ─────────────────────────────────────────────────────
-
-  // Defined with useCallback so it can safely be listed as a dependency
-  const fetchAlerts = useCallback(async () => {
-    if (!session) return
-    try {
-      const pendingAlerts = await alertService.getPendingAlerts()
-
-      // Keep only alerts that belong to the current session
-      const sessionAlerts = pendingAlerts.filter(
-        alert => alert.sessionId === session.sessionId
-      )
-
-      // Normalise shape to match what <AlertItem> expects
-      const formattedAlerts = sessionAlerts.map(alert => ({
-        title:     alert.title,
-        message:   alert.message,
-        severity:  alert.severity,
-        timestamp: alert.triggeredAt,
-      }))
-
-      setHttpAlerts(formattedAlerts)
-
-      // Merge with WebSocket alerts, deduplicate by title+message
-      setAlerts(prev => {
-        const merged = [...formattedAlerts, ...prev]
-        const unique = merged.filter((alert, index, self) =>
-          index === self.findIndex(
-            a => a.title === alert.title && a.message === alert.message
-          )
-        )
-        return unique.slice(0, 20)
-      })
-    } catch (error) {
-      console.error('Failed to fetch alerts:', error)
-    }
-  }, [session])
-
-  // Run once immediately when a session becomes active, then every 10 s
-  useEffect(() => {
-    if (!session) return
-    fetchAlerts()
-    const alertInterval = setInterval(fetchAlerts, SNAPSHOT_POLL_MS)
-    return () => clearInterval(alertInterval)
-  }, [session, fetchAlerts])
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
 
   const activateSession = useCallback((sess) => {
     setSession(sess)
     startCamera()
     connectWebSocket(sess.sessionId)
     startSnapshotPoll(sess.sessionId)
-  }, [])
+  }, [startCamera])
 
   const cleanup = () => {
     clearInterval(frameTimer.current)
@@ -322,41 +332,17 @@ export default function LecturerLiveSession() {
     }
   }
 
-  // ── Camera ─────────────────────────────────────────────────────────────────
-
-  const startCamera = async () => {
-    setCameraError('')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-        audio: false,
-      })
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.play().catch(() => {})
-      }
-      setCameraOn(true)
-    } catch (e) {
-      setCameraError('Camera access denied — frame capture disabled.')
-      setCameraOn(false)
-    }
-  }
-
-  // ── WebSocket ──────────────────────────────────────────────────────────────
-
   const connectWebSocket = (sessionId) => {
     const client = createSessionClient({
       sessionId,
-      onMood:       (data) => setMood(data),
-      onAlert:      (data) => setAlerts(prev => [data, ...prev].slice(0, 20)),
-      onConnect:    ()     => setWsConnected(true),
-      onDisconnect: ()     => setWsConnected(false),
+      onMood: (data) => setMood(data),
+      onAlert: (data) => setAlerts(prev => [data, ...prev].slice(0, 20)),
+      onConnect: () => setWsConnected(true),
+      onDisconnect: () => setWsConnected(false),
     })
     wsClientRef.current = client
   }
 
-  // Helper to convert concentration from backend
   const parseConcentration = (concentration) => {
     if (typeof concentration === 'number') return concentration
     if (typeof concentration === 'string') {
@@ -369,15 +355,14 @@ export default function LecturerLiveSession() {
     return 0.6
   }
 
-  // ── Frame capture loop ─────────────────────────────────────────────────────
-
+  // Frame capture loop
   const startFrameCapture = useCallback((sessionId) => {
     clearInterval(frameTimer.current)
     frameTimer.current = setInterval(() => {
       const video = videoRef.current
       if (!video || !video.videoWidth) return
       const canvas = document.createElement('canvas')
-      canvas.width  = video.videoWidth
+      canvas.width = video.videoWidth
       canvas.height = video.videoHeight
       canvas.getContext('2d').drawImage(video, 0, 0)
       canvas.toBlob(blob => {
@@ -398,19 +383,17 @@ export default function LecturerLiveSession() {
               ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
               : 'neutral'
             setMood({
-              studentCount:    data.student_count   ?? 0,
+              studentCount: data.student_count ?? 0,
               engagementScore: data.engagement_score ?? 0,
               dominantEmotion: dominant,
-              concentration:   0.5,
+              concentration: 0.5,
             })
 
-            // Update detected-students map from recognized faces
             const recognized = (data.people ?? []).filter(p => p.student_id)
             const physicalCount = data.student_count ?? 0
 
             if (recognized.length > 0) {
               setDetectedStudents(prev => {
-                // Single-person lock logic
                 if (physicalCount === 1 && prev.size >= 1) {
                   const locked = [...prev.values()][0]
                   const latest = recognized[0]
@@ -424,13 +407,12 @@ export default function LecturerLiveSession() {
                   return next
                 }
 
-                // Multi-person / first detection
                 const next = new Map(prev)
                 recognized.forEach(p => {
                   next.set(p.student_id, {
-                    studentId:   p.student_id,
+                    studentId: p.student_id,
                     studentName: p.student_name ?? p.student_id,
-                    emotion:     p.dominant_emotion ?? 'neutral',
+                    emotion: p.dominant_emotion ?? 'neutral',
                     concentration: parseConcentration(p.concentration),
                     lastSeen: Date.now(),
                   })
@@ -444,14 +426,12 @@ export default function LecturerLiveSession() {
     }, FRAME_INTERVAL_MS)
   }, [])
 
-  // ── Snapshot poll ──────────────────────────────────────────────────────────
-
   const startSnapshotPoll = (sessionId) => {
     clearInterval(pollTimer.current)
     const poll = () =>
       emotionService.getLatest(sessionId)
         .then(setSnapshot)
-        .catch(() => {})
+        .catch(() => { })
     poll()
     pollTimer.current = setInterval(poll, SNAPSHOT_POLL_MS)
   }
@@ -461,23 +441,21 @@ export default function LecturerLiveSession() {
     return () => clearInterval(frameTimer.current)
   }, [session, cameraOn, startFrameCapture])
 
-  // ── Start session ──────────────────────────────────────────────────────────
-
   const handleStart = async e => {
     e.preventDefault()
     if (!form.courseId) { setSetupError('Please select a course.'); return }
-    if (!form.room)     { setSetupError('Please enter a room location.'); return }
+    if (!form.room) { setSetupError('Please enter a room location.'); return }
     setStarting(true)
     setSetupError('')
     const now = new Date()
     const end = new Date(now.getTime() + Number(form.duration) * 60 * 60 * 1000)
     try {
       const sess = await sessionService.start({
-        courseId:       form.courseId,
-        roomLocation:   form.room,
-        cameraType:     'webcam',
+        courseId: form.courseId,
+        roomLocation: form.room,
+        cameraType: 'webcam',
         scheduledStart: now.toISOString().slice(0, 19),
-        scheduledEnd:   end.toISOString().slice(0, 19),
+        scheduledEnd: end.toISOString().slice(0, 19),
       })
       activateSession(sess)
     } catch (e) {
@@ -487,38 +465,31 @@ export default function LecturerLiveSession() {
     }
   }
 
-  // ── End session ────────────────────────────────────────────────────────────
-
   const handleEnd = async () => {
-    try { await sessionService.end(session.sessionId) } catch {}
+    try { await sessionService.end(session.sessionId) } catch { }
     cleanup()
     setSession(null)
     setCameraOn(false)
     setWsConnected(false)
     setMood(null)
     setAlerts([])
-    setHttpAlerts([])
     setSnapshot(null)
     setDetectedStudents(new Map())
   }
 
-  // ── Derived analytics ──────────────────────────────────────────────────────
-
-  const engagement     = mood?.engagementScore ?? snapshot?.classSnapshot?.engagementScore ?? 0
+  const engagement = mood?.engagementScore ?? snapshot?.classSnapshot?.engagementScore ?? 0
   const dominantEmotion = mood?.dominantEmotion ?? snapshot?.classSnapshot?.dominantEmotion ?? 'neutral'
-  const studentCount   = mood?.studentCount ?? session?.studentCount ?? 0
-  const emoMeta        = EMOTION_META[dominantEmotion?.toLowerCase()] ?? EMOTION_META.neutral
+  const studentCount = mood?.studentCount ?? session?.studentCount ?? 0
+  const emoMeta = EMOTION_META[dominantEmotion?.toLowerCase()] ?? EMOTION_META.neutral
 
   const concCounts = (() => {
     const students = snapshot?.studentSnapshots ?? []
     return {
-      high:   students.filter(s => getConcentrationLevel(s.concentration) === 'high').length,
+      high: students.filter(s => getConcentrationLevel(s.concentration) === 'high').length,
       medium: students.filter(s => getConcentrationLevel(s.concentration) === 'medium').length,
-      low:    students.filter(s => getConcentrationLevel(s.concentration) === 'low').length,
+      low: students.filter(s => getConcentrationLevel(s.concentration) === 'low').length,
     }
   })()
-
-  // ── Render: loading ────────────────────────────────────────────────────────
 
   if (checkingActive) {
     return (
@@ -529,8 +500,6 @@ export default function LecturerLiveSession() {
       </LecturerLayout>
     )
   }
-
-  // ── Render: setup form ─────────────────────────────────────────────────────
 
   if (!session) {
     return (
@@ -615,11 +584,7 @@ export default function LecturerLiveSession() {
                 disabled={starting || loadingCourses}
                 className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-2"
               >
-                {starting ? (
-                  'Starting…'
-                ) : (
-                  <><Video size={15} /> Start Live Session</>
-                )}
+                {starting ? 'Starting…' : <><Video size={15} /> Start Live Session</>}
               </button>
             </form>
           </div>
@@ -632,8 +597,6 @@ export default function LecturerLiveSession() {
       </LecturerLayout>
     )
   }
-
-  // ── Render: active session ─────────────────────────────────────────────────
 
   return (
     <LecturerLayout>
@@ -656,13 +619,49 @@ export default function LecturerLiveSession() {
           </div>
         </div>
 
-        <button
-          onClick={handleEnd}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-400 text-sm font-medium transition-all shrink-0"
-        >
-          <StopCircle size={15} /> End Session
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowCameraSelector(!showCameraSelector)}
+            className="flex items-center gap-2 px-3 py-2 rounded-xl bg-slate-700/50 hover:bg-slate-700 text-slate-300 text-sm font-medium transition-all"
+          >
+            <Camera size={14} /> Switch Camera
+          </button>
+          <button
+            onClick={handleEnd}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600/20 hover:bg-rose-600/40 border border-rose-500/30 text-rose-400 text-sm font-medium transition-all shrink-0"
+          >
+            <StopCircle size={15} /> End Session
+          </button>
+        </div>
       </div>
+
+      {/* Camera Selector Modal */}
+      {showCameraSelector && availableCameras.length > 0 && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4">
+            <h3 className="text-white font-bold mb-4">Select Camera</h3>
+            <div className="space-y-2 mb-6">
+              {availableCameras.map((camera, idx) => (
+                <button
+                  key={camera.deviceId}
+                  onClick={() => {
+                    switchCamera(camera.deviceId)
+                  }}
+                  className="w-full p-3 text-left bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition"
+                >
+                  {camera.label || `Camera ${idx + 1}`}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => setShowCameraSelector(false)}
+              className="w-full py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-white transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
         <div className="lg:col-span-2 flex flex-col gap-4">

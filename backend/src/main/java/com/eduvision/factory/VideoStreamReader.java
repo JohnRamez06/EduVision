@@ -1,6 +1,8 @@
 package com.eduvision.factory;
+
 public interface VideoStreamReader {
-    void connect();
+    boolean connect();
     byte[] readFrame();
     void disconnect();
+    String getStreamUrl();
 }

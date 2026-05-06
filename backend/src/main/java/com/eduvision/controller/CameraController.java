@@ -1,55 +1,77 @@
 package com.eduvision.controller;
 
-import com.eduvision.dto.camera.CameraConfigDTO;
-import com.eduvision.dto.camera.CameraTestRequest;
 import com.eduvision.service.CameraConfigurationService;
-import java.util.List;
-import java.util.Map;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.*;
 
 @RestController
 @RequestMapping("/api/v1/camera")
 public class CameraController {
 
-    private final CameraConfigurationService cameraConfigurationService;
+    private final CameraConfigurationService cameraService;
 
-    public CameraController(CameraConfigurationService cameraConfigurationService) {
-        this.cameraConfigurationService = cameraConfigurationService;
+    public CameraController(CameraConfigurationService cameraService) {
+        this.cameraService = cameraService;
     }
-
-    @GetMapping("/configs")
-    public ResponseEntity<List<CameraConfigDTO>> getConfigs(@RequestParam(value = "userId", required = false) String userId) {
-        return ResponseEntity.ok(cameraConfigurationService.getConfigs(userId));
+    
+    @PostMapping("/select")
+    public ResponseEntity<Map<String, Object>> selectCamera(
+            @RequestParam String cameraType,
+            @RequestParam(defaultValue = "0") int deviceId,
+            @RequestParam(defaultValue = "1280x720") String resolution,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        String lecturerId = getLecturerIdFromEmail(userDetails.getUsername());
+        
+        cameraService.saveCameraConfiguration(lecturerId, cameraType, deviceId, resolution);
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("status", "saved");
+        response.put("cameraType", cameraType);
+        response.put("deviceId", deviceId);
+        response.put("resolution", resolution);
+        
+        return ResponseEntity.ok(response);
     }
-
-    @PostMapping("/configs")
-    public ResponseEntity<CameraConfigDTO> createConfig(@RequestBody CameraConfigDTO request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(cameraConfigurationService.createConfig(request));
+    
+    @GetMapping("/current")
+    public ResponseEntity<Map<String, Object>> getCurrentCamera(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        String lecturerId = getLecturerIdFromEmail(userDetails.getUsername());
+        Map<String, Object> config = cameraService.getCameraConfiguration(lecturerId);
+        
+        return ResponseEntity.ok(config);
     }
-
-    @PutMapping("/{id}")
-    public ResponseEntity<CameraConfigDTO> updateConfig(@PathVariable String id, @RequestBody CameraConfigDTO request) {
-        return ResponseEntity.ok(cameraConfigurationService.updateConfig(id, request));
+    
+    @GetMapping("/list")
+    public ResponseEntity<List<Map<String, Object>>> listCameras() {
+        List<Map<String, Object>> cameras = cameraService.getAvailableCameras();
+        return ResponseEntity.ok(cameras);
     }
-
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteConfig(@PathVariable String id) {
-        cameraConfigurationService.deleteConfig(id);
-        return ResponseEntity.noContent().build();
+    
+    @PostMapping("/test")
+    public ResponseEntity<Map<String, Object>> testCamera(
+            @RequestParam String cameraType,
+            @RequestParam(defaultValue = "0") int deviceId) {
+        
+        boolean available = cameraService.testCamera(cameraType, deviceId);
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("cameraType", cameraType);
+        response.put("deviceId", deviceId);
+        response.put("available", available);
+        
+        return ResponseEntity.ok(response);
     }
-
-    @PostMapping("/{id}/test")
-    public ResponseEntity<Map<String, Object>> testConnection(@PathVariable String id, @RequestBody(required = false) CameraTestRequest request) {
-        return ResponseEntity.ok(cameraConfigurationService.testConnection(id, request));
+    
+    private String getLecturerIdFromEmail(String email) {
+        // Implement this based on your user lookup
+        // This is a placeholder - you should query your database
+        return "lecturer-id-placeholder";
     }
 }
