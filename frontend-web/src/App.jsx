@@ -23,6 +23,7 @@ import AdminRoles from './pages/AdminPortal/AdminRoles'
 import DeanDashboard from './components/DeanDashboard/DeanDashboard'
 import FaceEnrollment from './components/AdminDashboard/FaceEnrollment'
 import StartLiveSessionPage from './pages/StartLiveSessionPage'
+import ManualAttendance from './components/LecturerDashboard/ManualAttendance'
 
 function HomeRedirect() {
   const { token, role } = useContext(AuthContext)
@@ -80,6 +81,11 @@ export default function App() {
       <Route path="/dean" element={<ProtectedRoute role="dean"><DeanDashboard /></ProtectedRoute>} />
       <Route path="/admin/face-enrollment" element={<ProtectedRoute role="admin"><FaceEnrollment /></ProtectedRoute>} />
       <Route path="/start-live-session" element={<ProtectedRoute role="lecturer"><StartLiveSessionPage /></ProtectedRoute>} />
+      <Route path="/lecturer/courses/:courseId/manual-attendance" element={
+  <ProtectedRoute role="lecturer">
+    <ManualAttendance />
+  </ProtectedRoute>
+} />
 
       <Route path="*" element={<Navigate to="/home" replace />} />
     </Routes>

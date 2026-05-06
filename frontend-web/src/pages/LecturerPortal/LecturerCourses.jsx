@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { BookOpen, AlertTriangle, ChevronRight, Clock, Activity } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { BookOpen, AlertTriangle, ChevronRight, Clock, Activity, Calendar } from 'lucide-react'
 import LecturerLayout from '../../layouts/LecturerLayout'
 import lecturerService from '../../services/lecturerService'
 
@@ -8,9 +9,10 @@ const Skeleton = ({ className = '' }) => (
 )
 
 export default function LecturerCourses() {
+  const navigate = useNavigate()
   const [courses, setCourses] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState('')
+  const [error, setError] = useState('')
 
   useEffect(() => {
     lecturerService.getDashboard()
@@ -18,6 +20,11 @@ export default function LecturerCourses() {
       .catch(e => setError(e.response?.data?.message ?? 'Failed to load courses.'))
       .finally(() => setLoading(false))
   }, [])
+
+  const handleManualAttendance = (courseId, courseName) => {
+    console.log('Navigating to manual attendance for course:', courseId, courseName)
+    navigate(`/lecturer/courses/${courseId}/manual-attendance`, { state: { courseName } })
+  }
 
   return (
     <LecturerLayout>
@@ -36,7 +43,7 @@ export default function LecturerCourses() {
 
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-48" />)}
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-56" />)}
         </div>
       ) : courses.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-slate-600">
@@ -73,14 +80,27 @@ export default function LecturerCourses() {
                 {c.academicYear && <span>{c.academicYear}</span>}
               </div>
 
-              <div className="flex items-center justify-between pt-1 border-t border-slate-200 dark:border-slate-800/60">
-                <div className="flex items-center gap-1.5">
-                  <Activity size={12} className="text-slate-500 dark:text-slate-500" />
-                  <span className="text-xs text-slate-600 dark:text-slate-500">
-                    {c.activeSessions > 0 ? `${c.activeSessions} active` : 'No active session'}
-                  </span>
+              <div className="flex flex-col gap-2 pt-1 border-t border-slate-200 dark:border-slate-800/60">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Activity size={12} className="text-slate-500 dark:text-slate-500" />
+                    <span className="text-xs text-slate-600 dark:text-slate-500">
+                      {c.activeSessions > 0 ? `${c.activeSessions} active` : 'No active session'}
+                    </span>
+                  </div>
+                  <ChevronRight size={14} className="text-slate-500 group-hover:text-violet-400 transition-colors" />
                 </div>
-                <ChevronRight size={14} className="text-slate-500 group-hover:text-violet-400 transition-colors" />
+                
+                {/* Action Buttons */}
+                <div className="flex gap-2 mt-1">
+                  <button
+                    onClick={() => handleManualAttendance(c.courseId, c.title)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-xs font-medium transition-all w-full"
+                  >
+                    <Calendar size={12} />
+                    Manual Attendance
+                  </button>
+                </div>
               </div>
             </div>
           ))}

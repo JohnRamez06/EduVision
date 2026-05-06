@@ -240,16 +240,12 @@ def send_to_spring_boot(session_id: str, result):
                         if not student_id:
                             continue
                         
-                        # 🔥🔥🔥 ENROLLMENT CHECK - ADDED HERE 🔥🔥🔥
-                        import asyncio
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
-                        is_enrolled = loop.run_until_complete(check_enrollment_with_cache(session_id, student_id))
-                        loop.close()
+                        # 🔥 SYNCHRONOUS ENROLLMENT CHECK - FIXED
+                        is_enrolled = check_enrollment_sync(session_id, student_id)
                         
                         if not is_enrolled:
                             logger.warning(f"🚫 UNWANTED STUDENT: {student_name} NOT enrolled with this lecturer - SKIPPING attendance")
-                            # Still add to recognized for display (optional)
+                            # Still add to recognized for display
                             recognized_names.append(student_name)
                             continue  # Skip attendance marking
                         
@@ -305,6 +301,43 @@ def send_to_spring_boot(session_id: str, result):
     except Exception as e:
         logger.error(f"❌ Error sending to Spring Boot: {e}")
 
+def check_enrollment_sync(session_id: str, student_id: str) -> bool:
+    """Synchronous version of enrollment check (for use in threads)"""
+    cache_key = f"{session_id}:{student_id}"
+    
+    logger.info(f"🔍 ENROLLMENT CHECK (sync): student={student_id}, session={session_id}")
+    
+    # Check cache
+    if cache_key in enrollment_cache:
+        cached_time, enrolled = enrollment_cache[cache_key]
+        if time.time() - cached_time < ENROLLMENT_CACHE_TTL:
+            logger.info(f"📦 CACHE HIT: enrolled={enrolled}")
+            return enrolled
+    
+    # Check enrollment via Spring Boot (synchronous)
+    try:
+        with httpx.Client(timeout=3.0) as client:
+            response = client.get(
+                f"{ATTENDANCE_URL}/session/{session_id}/check-student/{student_id}"
+            )
+            if response.status_code == 200:
+                data = response.json()
+                enrolled = data.get("enrolled", False)
+            else:
+                logger.warning(f"Enrollment API returned {response.status_code}")
+                enrolled = False
+    except Exception as e:
+        logger.error(f"Enrollment check error: {e}")
+        enrolled = False
+    
+    enrollment_cache[cache_key] = (time.time(), enrolled)
+    
+    logger.info(f"📊 ENROLLMENT RESULT: {enrolled}")
+    
+    if not enrolled:
+        logger.warning(f"🚫 UNWANTED STUDENT: Student {student_id} NOT enrolled with this lecturer!")
+    
+    return enrolled
 
 @app.get("/health")
 async def health():

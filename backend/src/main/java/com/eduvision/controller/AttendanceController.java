@@ -13,6 +13,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;
 import java.util.Map;
@@ -23,9 +24,11 @@ public class AttendanceController {
 
     private static final Logger logger = LoggerFactory.getLogger(AttendanceController.class);
     private final AttendanceService attendanceService;
+    private final JdbcTemplate jdbc;
 
-    public AttendanceController(AttendanceService attendanceService) {
+    public AttendanceController(AttendanceService attendanceService, JdbcTemplate jdbc) {
         this.attendanceService = attendanceService;
+        this.jdbc = jdbc;
     }
 
     /** Record a student exit from the session room. */
@@ -109,17 +112,70 @@ public class AttendanceController {
         return ResponseEntity.ok(result);
     }
 
-@GetMapping("/session/{sessionId}/check-student/{studentId}")
-public ResponseEntity<?> checkStudentEnrollment(
-        @PathVariable String sessionId,
-        @PathVariable String studentId) {
+    /** Check if student is enrolled in session (for Python) */
+    @GetMapping("/session/{sessionId}/check-student/{studentId}")
+    public ResponseEntity<?> checkStudentEnrollment(
+            @PathVariable String sessionId,
+            @PathVariable String studentId) {
+        
+        logger.info("🔍 Enrollment check: session={}, student={}", sessionId, studentId);
+        
+        boolean enrolled = attendanceService.isStudentEnrolledInSession(sessionId, studentId);
+        
+        logger.info("📊 Enrollment result: {}", enrolled);
+        
+        return ResponseEntity.ok(Map.of("enrolled", enrolled));
+    }
+
+    /** Get available weeks for manual attendance */
+    @GetMapping("/manual/weeks")
+    public ResponseEntity<List<Map<String, Object>>> getAvailableWeeks(@RequestParam String courseId) {
+        List<Map<String, Object>> weeks = attendanceService.getAvailableWeeksForCourse(courseId);
+        return ResponseEntity.ok(weeks);
+    }
+
+    /** Get students for manual attendance */
+    @GetMapping("/manual/students")
+    public ResponseEntity<List<Map<String, Object>>> getStudentsForManualAttendance(
+            @RequestParam String courseId,
+            @RequestParam String weekId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        
+        String lecturerId = getLecturerIdFromEmail(userDetails.getUsername());
+        List<Map<String, Object>> students = attendanceService.getStudentsForManualAttendance(courseId, weekId, lecturerId);
+        return ResponseEntity.ok(students);
+    }
+
+    /** Save manual attendance */
+    @PostMapping("/manual/save")
+public ResponseEntity<?> saveManualAttendance(
+        @RequestBody Map<String, Object> request,
+        @AuthenticationPrincipal UserDetails userDetails) {
     
-    logger.info("🔍 Enrollment check: session={}, student={}", sessionId, studentId);
+    logger.info("Received manual attendance request: {}", request);
     
-    boolean enrolled = attendanceService.isStudentEnrolledInSession(sessionId, studentId);
+    String courseId = (String) request.get("courseId");
+    String weekId = (String) request.get("weekId");
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> students = (List<Map<String, Object>>) request.get("students");
     
-    logger.info("📊 Enrollment result: {}", enrolled);
+    logger.info("Course ID: {}, Week ID: {}, Students count: {}", courseId, weekId, students.size());
     
-    return ResponseEntity.ok(Map.of("enrolled", enrolled));
+    String lecturerId = getLecturerIdFromEmail(userDetails.getUsername());
+    
+    attendanceService.saveManualAttendance(courseId, weekId, students, lecturerId);
+    return ResponseEntity.ok(Map.of("message", "Manual attendance saved successfully"));
 }
+
+    // Helper method to get lecturer ID from email
+    private String getLecturerIdFromEmail(String email) {
+        try {
+            return jdbc.queryForObject(
+                "SELECT l.user_id FROM lecturers l JOIN users u ON u.id = l.user_id WHERE u.email = ?",
+                String.class, email);
+        } catch (Exception e) {
+            logger.error("Error getting lecturer ID from email {}: {}", email, e.getMessage());
+            return null;
+        }
+    }
 }

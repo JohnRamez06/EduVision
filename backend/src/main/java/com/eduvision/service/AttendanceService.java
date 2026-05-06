@@ -2,10 +2,12 @@
 package com.eduvision.service;
 
 import com.eduvision.dto.attendance.ExitRecordRequest;
+import com.eduvision.dto.attendance.ManualAttendanceRequestDTO;
 import com.eduvision.dto.attendance.ExitLogDTO;
 import com.eduvision.dto.attendance.ReturnRecordRequest;
 import com.eduvision.dto.attendance.StudentSessionAttendanceDTO;
 import com.eduvision.dto.attendance.WeeklyAttendanceDTO;
+import com.eduvision.dto.attendance.WeeklyStudentAttendanceDTO;
 import com.eduvision.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -404,5 +406,131 @@ public boolean isStudentEnrolledInSession(String sessionId, String studentId) {
         logger.error("Error checking enrollment: {}", e.getMessage());
         return false;
     }
+}
+
+
+// Add to AttendanceService.java
+public String getLecturerIdByEmail(String email) {
+    try {
+        String sql = """
+            SELECT l.user_id FROM lecturers l 
+            JOIN users u ON u.id = l.user_id 
+            WHERE u.email = ?
+        """;
+        return jdbc.queryForObject(sql, String.class, email);
+    } catch (Exception e) {
+        logger.error("Error getting lecturer ID: {}", e.getMessage());
+        return null;
+    }
+}
+
+// Add these methods to AttendanceService.java
+
+public List<Map<String, Object>> getAvailableWeeksForCourse(String courseId) {
+    String sql = """
+        SELECT 
+            wp.id as week_id,
+            wp.week_number,
+            wp.year,
+            wp.start_date,
+            wp.end_date,
+            CASE 
+                WHEN wp.end_date < CURDATE() THEN 'past'
+                WHEN wp.start_date > CURDATE() THEN 'future'
+                ELSE 'current'
+            END as period_status
+        FROM weekly_periods wp
+        ORDER BY wp.year DESC, wp.week_number DESC
+    """;
+    
+    return jdbc.queryForList(sql);
+}
+
+public List<Map<String, Object>> getStudentsForManualAttendance(String courseId, String weekId, String lecturerId) {
+    String sql = """
+        SELECT 
+            s.user_id as studentId,
+            s.student_number as studentNumber,
+            CONCAT(u.first_name, ' ', u.last_name) as studentName,
+            COALESCE(wca.sessions_attended, 0) as sessionsAttended,
+            COALESCE(wca.sessions_held, 0) as totalSessions,
+            COALESCE(wca.attendance_rate, 0) as attendanceRate,
+            wca.status as autoStatus,
+            ma.status as manualStatus,
+            ma.notes,
+            c.title as courseName,
+            CASE 
+                WHEN ma.status IS NOT NULL THEN ma.status
+                ELSE COALESCE(wca.status, 'absent')
+            END as finalStatus,
+            CASE WHEN ma.status IS NOT NULL THEN TRUE ELSE FALSE END as isManuallyModified
+        FROM course_students cs
+        JOIN students s ON s.user_id = cs.student_id
+        JOIN users u ON u.id = s.user_id
+        JOIN courses c ON c.id = cs.course_id
+        LEFT JOIN weekly_course_attendance wca ON wca.student_id = cs.student_id 
+            AND wca.course_id = cs.course_id 
+            AND wca.week_id = ?
+        LEFT JOIN manual_attendance ma ON ma.student_id = cs.student_id 
+            AND ma.course_id = cs.course_id 
+            AND ma.week_id = ?
+        WHERE cs.course_id = ? 
+            AND cs.lecturer_id = ?
+            AND cs.dropped_at IS NULL
+        ORDER BY u.last_name, u.first_name
+    """;
+    
+    return jdbc.queryForList(sql, weekId, weekId, courseId, lecturerId);
+}
+
+// In AttendanceService.java - Replace your saveManualAttendance method with this:
+
+@Transactional
+public void saveManualAttendance(String courseId, String weekId, List<Map<String, Object>> students, String lecturerId) {
+    for (Map<String, Object> student : students) {
+        String studentId = (String) student.get("studentId");
+        String status = (String) student.get("status");
+        String notes = (String) student.get("notes");
+        
+        logger.info("Saving manual attendance: student={}, course={}, week={}, status={}", 
+                    studentId, courseId, weekId, status);
+        
+        // Check if manual record exists
+        String checkSql = """
+            SELECT id FROM manual_attendance 
+            WHERE student_id = ? AND course_id = ? AND week_id = ?
+        """;
+        
+        List<String> existing = jdbc.queryForList(checkSql, String.class, studentId, courseId, weekId);
+        
+        if (existing.isEmpty()) {
+            // Insert new manual record
+            String insertSql = """
+                INSERT INTO manual_attendance (id, student_id, course_id, week_id, status, modified_by, notes)
+                VALUES (UUID(), ?, ?, ?, ?, ?, ?)
+            """;
+            jdbc.update(insertSql, studentId, courseId, weekId, status, lecturerId, notes);
+            logger.info("Inserted new manual attendance record for student {}", studentId);
+        } else {
+            // Update existing
+            String updateSql = """
+                UPDATE manual_attendance 
+                SET status = ?, modified_by = ?, notes = ?, updated_at = NOW()
+                WHERE student_id = ? AND course_id = ? AND week_id = ?
+            """;
+            jdbc.update(updateSql, status, lecturerId, notes, studentId, courseId, weekId);
+            logger.info("Updated manual attendance record for student {}", studentId);
+        }
+        
+        // Also update weekly_course_attendance to reflect manual override
+        String updateWeeklySql = """
+            UPDATE weekly_course_attendance 
+            SET status = ?, last_updated = NOW()
+            WHERE student_id = ? AND course_id = ? AND week_id = ?
+        """;
+        jdbc.update(updateWeeklySql, status, studentId, courseId, weekId);
+    }
+    
+    logger.info("Manual attendance saved for course {} week {}", courseId, weekId);
 }
 }

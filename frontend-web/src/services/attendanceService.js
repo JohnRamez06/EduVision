@@ -1,14 +1,25 @@
-import api from './api'
+// frontend-web/src/services/attendanceService.js
+import api from './api';
 
 const attendanceService = {
-  recordExit: (data) => api.post('/attendance/exit', data).then(r => r.data),
-  recordReturn: (data) => api.post('/attendance/return', data).then(r => r.data),
-  getSessionExits: (sessionId) => api.get(`/attendance/session/${sessionId}/exits`).then(r => r.data),
-  getStudentSessionAttendance: (studentId, sessionId) =>
-    api.get(`/attendance/student/${studentId}/session/${sessionId}`).then(r => r.data),
-  getWeeklyAttendance: (weekId) => api.get(`/attendance/weekly/${weekId}`).then(r => r.data),
-  getCourseWeeklyAttendance: (courseId, weekId) =>
-    api.get(`/attendance/course/${courseId}/weekly/${weekId}`).then(r => r.data),
-}
+  // Get available weeks for a course
+  getAvailableWeeks: async (courseId) => {
+    const response = await api.get(`/attendance/manual/weeks?courseId=${courseId}`);
+    return response.data;
+  },
 
-export default attendanceService
+  // Get students for manual attendance
+  getStudentsForManualAttendance: async (courseId, weekId) => {
+    const response = await api.get(`/attendance/manual/students?courseId=${courseId}&weekId=${weekId}`);
+    return response.data;
+  },
+
+  // Save manual attendance
+  saveManualAttendance: async (payload) => {
+    const response = await api.post('/attendance/manual/save', payload);
+    return response.data;
+  }
+  
+};
+
+export default attendanceService;
