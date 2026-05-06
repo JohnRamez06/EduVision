@@ -21,7 +21,7 @@ export default function IndividualStudentSearch({
 	return (
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
-				<h2 className="font-semibold text-white flex items-center gap-2">
+				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
 					<Search size={16} className="text-sky-400" /> Student Lookup
 				</h2>
 				<span className="text-xs text-slate-500">Backend-assisted search</span>
@@ -48,10 +48,10 @@ export default function IndividualStudentSearch({
 					<div className="animate-pulse rounded-xl bg-slate-800/60 h-28" />
 				)}
 				{!loading && result && (
-					<div className="rounded-2xl border border-slate-800 bg-slate-950/50 p-4">
+					<div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/50 p-4">
 						<div className="flex items-start justify-between gap-4 mb-4">
 							<div>
-								<p className="text-lg font-semibold text-white">{studentProfile?.fullName ?? studentProfile?.name ?? 'Student record'}</p>
+								<p className="text-lg font-semibold text-slate-800 dark:text-white">{studentProfile?.fullName ?? studentProfile?.name ?? 'Student record'}</p>
 								<p className="text-sm text-slate-500">{studentProfile?.program ?? studentProfile?.department ?? 'Program not specified'}</p>
 							</div>
 							<div className="flex items-center gap-2 text-xs text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full">
@@ -59,21 +59,21 @@ export default function IndividualStudentSearch({
 							</div>
 						</div>
 						<div className="grid grid-cols-2 gap-3 text-sm">
-							<div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
+							<div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-3">
 								<p className="text-xs text-slate-500 mb-1">Concentration</p>
-								<p className="text-lg font-semibold text-white">{formatPct(studentStats?.avgConcentration)}</p>
+								<p className="text-lg font-semibold text-slate-800 dark:text-white">{formatPct(studentStats?.avgConcentration)}</p>
 							</div>
-							<div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
+							<div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-3">
 								<p className="text-xs text-slate-500 mb-1">Attentiveness</p>
-								<p className="text-lg font-semibold text-white">{formatPct(studentStats?.avgAttentiveness)}</p>
+								<p className="text-lg font-semibold text-slate-800 dark:text-white">{formatPct(studentStats?.avgAttentiveness)}</p>
 							</div>
-							<div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
+							<div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-3">
 								<p className="text-xs text-slate-500 mb-1">Lectures</p>
-								<p className="text-lg font-semibold text-white">{studentStats?.totalLecturesAttended ?? result?.recentSummaries?.length ?? '—'}</p>
+								<p className="text-lg font-semibold text-slate-800 dark:text-white">{studentStats?.totalLecturesAttended ?? result?.recentSummaries?.length ?? '—'}</p>
 							</div>
-							<div className="rounded-xl bg-slate-900/60 border border-slate-800 p-3">
+							<div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-3">
 								<p className="text-xs text-slate-500 mb-1">Top Emotion</p>
-								<p className="text-lg font-semibold text-white capitalize">{studentStats?.mostFrequentEmotion ?? '—'}</p>
+								<p className="text-lg font-semibold text-slate-800 dark:text-white capitalize">{studentStats?.mostFrequentEmotion ?? '—'}</p>
 							</div>
 						</div>
 						<div className="mt-4 inline-flex items-center gap-2 text-xs text-slate-500">

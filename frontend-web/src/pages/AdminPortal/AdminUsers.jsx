@@ -16,10 +16,10 @@ const ROLE_COLORS = {
 }
 
 const STATUS_COLORS = {
-  active:               'bg-emerald-500/10 text-emerald-400',
-  inactive:             'bg-slate-700/40 text-slate-400',
-  suspended:            'bg-rose-500/10 text-rose-400',
-  pending_verification: 'bg-amber-500/10 text-amber-400',
+  active:               'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  inactive:             'bg-slate-700/40 text-slate-400 border-slate-700/50',
+  suspended:            'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  pending_verification: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
 }
 
 // Reusable avatar — shows photo if available, otherwise gradient initials
@@ -98,7 +98,7 @@ export default function AdminUsers() {
         </div>
         <button
           onClick={() => setModal({ mode: 'create' })}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors cursor-pointer"
         >
           <Plus size={15} /> Add User
         </button>
@@ -120,7 +120,7 @@ export default function AdminUsers() {
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search by name, email, or role…"
-          className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-navy-900 border border-slate-800 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+          className="input-field w-full pl-9 pr-4 py-2.5 text-sm placeholder-slate-600"
         />
       </div>
 
@@ -131,17 +131,17 @@ export default function AdminUsers() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="border-b border-slate-800">
-                <tr className="text-xs text-slate-500">
-                  <th className="text-left px-5 py-3.5 font-medium">User</th>
-                  <th className="text-left px-5 py-3.5 font-medium">Email</th>
-                  <th className="text-left px-5 py-3.5 font-medium">Role</th>
-                  <th className="text-left px-5 py-3.5 font-medium">Status</th>
-                  <th className="text-left px-5 py-3.5 font-medium hidden lg:table-cell">Joined</th>
-                  <th className="text-right px-5 py-3.5 font-medium">Actions</th>
+              <thead>
+                <tr className="text-[11px] text-slate-500 uppercase tracking-wide border-b border-slate-800/60">
+                  <th className="text-left px-5 py-3.5 font-semibold">User</th>
+                  <th className="text-left px-5 py-3.5 font-semibold">Email</th>
+                  <th className="text-left px-5 py-3.5 font-semibold">Role</th>
+                  <th className="text-left px-5 py-3.5 font-semibold">Status</th>
+                  <th className="text-left px-5 py-3.5 font-semibold hidden lg:table-cell">Joined</th>
+                  <th className="text-right px-5 py-3.5 font-semibold">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody>
                 {filtered.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-14 text-center text-slate-600">
@@ -150,7 +150,7 @@ export default function AdminUsers() {
                     </td>
                   </tr>
                 ) : filtered.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-800/20 transition-colors">
+                  <tr key={u.id} className="border-t border-slate-800/40 hover:bg-slate-800/30 transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
                         <Avatar src={u.profilePictureUrl} name={u.fullName} size={32} />
@@ -171,7 +171,7 @@ export default function AdminUsers() {
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[u.isActive ? 'active' : 'inactive']}`}>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${STATUS_COLORS[u.isActive ? 'active' : 'inactive']}`}>
                         {u.isActive ? 'active' : 'inactive'}
                       </span>
                     </td>
@@ -184,14 +184,14 @@ export default function AdminUsers() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => setModal({ mode: 'edit', user: u })}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all cursor-pointer"
                           title="Edit"
                         >
                           <Pencil size={14} />
                         </button>
                         <button
                           onClick={() => setDelConfirm(u.id)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"
                           title="Delete"
                         >
                           <Trash2 size={14} />
@@ -436,7 +436,7 @@ function UserModal({ mode, user, roles, onClose, onSaved }) {
                 value={form.roleName}
                 onChange={e => set('roleName', e.target.value)}
                 required
-                className="w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-slate-700 text-sm text-slate-200 appearance-none focus:outline-none focus:border-violet-500/50 transition-colors"
+                className="input-field w-full px-3 py-2.5 text-sm appearance-none"
               >
                 <option value="">Select role…</option>
                 {roles.map(r => (
@@ -494,7 +494,7 @@ function Field({ label, type = 'text', value, onChange, required, disabled, plac
         required={required}
         disabled={disabled}
         placeholder={placeholder}
-        className="w-full px-3 py-2.5 rounded-xl bg-navy-900 border border-slate-700 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="input-field w-full px-3 py-2.5 text-sm placeholder-slate-600 disabled:opacity-50 disabled:cursor-not-allowed"
       />
     </div>
   )

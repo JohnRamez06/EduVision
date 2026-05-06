@@ -22,7 +22,7 @@ export default function DepartmentOverview({ data = [], colors = DEFAULT_COLORS 
 	return (
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
-				<h2 className="font-semibold text-white flex items-center gap-2">
+				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
 					<BarChart3 size={16} className="text-sky-400" /> Department Overview
 				</h2>
 				<span className="text-xs text-slate-500">Student distribution</span>
@@ -47,12 +47,12 @@ export default function DepartmentOverview({ data = [], colors = DEFAULT_COLORS 
 							const engagement = Number(entry.avgEngagement ?? 0)
 							const pct = engagement <= 1 ? Math.round(engagement * 100) : Math.round(engagement)
 							return (
-								<div key={entry.department ?? index} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3.5">
+								<div key={entry.department ?? index} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/50 p-3.5">
 									<div className="flex items-center justify-between gap-3 mb-2">
-										<p className="text-sm font-medium text-slate-200 truncate">{entry.department ?? 'General'}</p>
+										<p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{entry.department ?? 'General'}</p>
 										<span className="text-xs text-slate-500">{pct > 0 ? `${pct}%` : '—'}</span>
 									</div>
-									<div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+									<div className="h-1.5 bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden">
 										<div
 											className="h-full rounded-full"
 											style={{ width: `${pct}%`, background: color }}

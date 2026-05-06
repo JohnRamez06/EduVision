@@ -20,21 +20,22 @@ const greet = name => {
 
 const StatCard = ({ icon: Icon, label, value, sub, color = 'violet' }) => {
   const colors = {
-    violet:  'bg-violet-500/15 text-violet-400',
-    rose:    'bg-rose-500/15 text-rose-400',
-    emerald: 'bg-emerald-500/15 text-emerald-400',
-    blue:    'bg-blue-500/15 text-blue-400',
-    amber:   'bg-amber-500/15 text-amber-400',
+    violet:  { bg: 'bg-violet-500/12',  text: 'text-violet-400',  ring: 'group-hover:ring-violet-500/20'  },
+    rose:    { bg: 'bg-rose-500/12',    text: 'text-rose-400',    ring: 'group-hover:ring-rose-500/20'    },
+    emerald: { bg: 'bg-emerald-500/12', text: 'text-emerald-400', ring: 'group-hover:ring-emerald-500/20' },
+    blue:    { bg: 'bg-blue-500/12',    text: 'text-blue-400',    ring: 'group-hover:ring-blue-500/20'    },
+    amber:   { bg: 'bg-amber-500/12',   text: 'text-amber-400',   ring: 'group-hover:ring-amber-500/20'   },
   }
+  const c = colors[color]
   return (
-    <div className="glass rounded-2xl p-5 flex items-center gap-4">
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${colors[color]}`}>
-        <Icon size={20} />
+    <div className="group glass rounded-2xl p-5 flex items-center gap-4 hover:border-slate-700/60 transition-all duration-200">
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ring-2 ring-transparent transition-all duration-200 ${c.bg} ${c.text} ${c.ring}`}>
+        <Icon size={19} />
       </div>
       <div className="min-w-0">
-        <p className="text-xs text-slate-500 font-medium mb-0.5">{label}</p>
-        <p className="text-2xl font-bold text-white leading-none">{value ?? '—'}</p>
-        {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
+        <p className="text-xs text-slate-500 font-medium mb-1">{label}</p>
+        <p className="text-2xl font-bold text-white leading-none tabular-nums">{value ?? '—'}</p>
+        {sub && <p className="text-[11px] text-slate-600 mt-1">{sub}</p>}
       </div>
     </div>
   )
@@ -47,10 +48,10 @@ const ROLE_COLORS = {
 }
 
 const STATUS_COLORS = {
-  active:               'bg-emerald-500/10 text-emerald-400',
-  inactive:             'bg-slate-700/40 text-slate-400',
-  suspended:            'bg-rose-500/10 text-rose-400',
-  pending_verification: 'bg-amber-500/10 text-amber-400',
+  active:               'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  inactive:             'bg-slate-700/40 text-slate-400 border-slate-700/50',
+  suspended:            'bg-rose-500/10 text-rose-400 border-rose-500/20',
+  pending_verification: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
 }
 
 export default function AdminDashboard() {
@@ -131,20 +132,20 @@ export default function AdminDashboard() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-xs text-slate-500 border-b border-slate-800">
-                  <th className="text-left pb-2.5 font-medium">Name</th>
-                  <th className="text-left pb-2.5 font-medium">Email</th>
-                  <th className="text-left pb-2.5 font-medium">Role</th>
-                  <th className="text-left pb-2.5 font-medium">Status</th>
-                  <th className="text-left pb-2.5 font-medium hidden lg:table-cell">Joined</th>
+                <tr className="text-[11px] text-slate-500 uppercase tracking-wide">
+                  <th className="text-left pb-3 font-semibold pr-4">Name</th>
+                  <th className="text-left pb-3 font-semibold pr-4">Email</th>
+                  <th className="text-left pb-3 font-semibold pr-4">Role</th>
+                  <th className="text-left pb-3 font-semibold pr-4">Status</th>
+                  <th className="text-left pb-3 font-semibold hidden lg:table-cell">Joined</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody>
                 {(users ?? []).slice(0, 8).map(u => (
                   <tr
                     key={u.id}
                     onClick={() => navigate('/admin/users')}
-                    className="hover:bg-slate-800/20 transition-colors cursor-pointer"
+                    className="border-t border-slate-800/40 hover:bg-slate-800/30 transition-colors cursor-pointer"
                   >
                     <td className="py-3 pr-4">
                       <div className="flex items-center gap-3">
@@ -165,7 +166,7 @@ export default function AdminDashboard() {
                       </div>
                     </td>
                     <td className="py-3 pr-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[u.isActive ? 'active' : 'inactive']}`}>
+                      <span className={`text-xs px-2.5 py-0.5 rounded-full font-semibold border ${STATUS_COLORS[u.isActive ? 'active' : 'inactive']}`}>
                         {u.isActive ? 'active' : 'inactive'}
                       </span>
                     </td>

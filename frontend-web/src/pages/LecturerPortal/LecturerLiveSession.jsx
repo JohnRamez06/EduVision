@@ -18,15 +18,15 @@ const FRAME_INTERVAL_MS = 3000
 const SNAPSHOT_POLL_MS = 10000
 
 const EMOTION_META = {
-  happy: { label: 'Happy', color: 'text-emerald-400', bg: 'bg-emerald-500/15', emoji: '😊' },
-  engaged: { label: 'Engaged', color: 'text-violet-400', bg: 'bg-violet-500/15', emoji: '🎯' },
-  neutral: { label: 'Neutral', color: 'text-slate-300', bg: 'bg-slate-700/40', emoji: '😐' },
-  confused: { label: 'Confused', color: 'text-amber-400', bg: 'bg-amber-500/15', emoji: '🤔' },
-  surprised: { label: 'Surprised', color: 'text-teal-400', bg: 'bg-teal-500/15', emoji: '😮' },
-  sad: { label: 'Sad', color: 'text-blue-400', bg: 'bg-blue-500/15', emoji: '😔' },
-  angry: { label: 'Angry', color: 'text-rose-400', bg: 'bg-rose-500/15', emoji: '😠' },
-  fearful: { label: 'Fearful', color: 'text-orange-400', bg: 'bg-orange-500/15', emoji: '😨' },
-  disgusted: { label: 'Disgusted', color: 'text-pink-400', bg: 'bg-pink-500/15', emoji: '🤢' },
+  happy:     { label: 'Happy',     color: 'text-emerald-400', bg: 'bg-emerald-500/15', emoji: '😊' },
+  engaged:   { label: 'Engaged',   color: 'text-violet-400',  bg: 'bg-violet-500/15',  emoji: '🎯' },
+  neutral:   { label: 'Neutral',   color: 'text-slate-300',   bg: 'bg-slate-700/40',   emoji: '😐' },
+  confused:  { label: 'Confused',  color: 'text-amber-400',   bg: 'bg-amber-500/15',   emoji: '🤔' },
+  surprised: { label: 'Surprised', color: 'text-teal-400',    bg: 'bg-teal-500/15',    emoji: '😮' },
+  sad:       { label: 'Sad',       color: 'text-blue-400',    bg: 'bg-blue-500/15',    emoji: '😔' },
+  angry:     { label: 'Angry',     color: 'text-rose-400',    bg: 'bg-rose-500/15',    emoji: '😠' },
+  fearful:   { label: 'Fearful',   color: 'text-orange-400',  bg: 'bg-orange-500/15',  emoji: '😨' },
+  disgusted: { label: 'Disgusted', color: 'text-pink-400',    bg: 'bg-pink-500/15',    emoji: '🤢' },
 }
 
 const SEVERITY_STYLES = {
@@ -49,10 +49,10 @@ const getConcentrationLevel = (concentration) => {
 }
 
 const CONCENTRATION_STYLE = {
-  high: 'bg-emerald-500/20 text-emerald-300',
-  medium: 'bg-amber-500/20 text-amber-300',
-  low: 'bg-rose-500/20 text-rose-300',
-  distracted: 'bg-rose-500/20 text-rose-300',
+  high:       'bg-emerald-500/20 text-emerald-300',
+  medium:     'bg-amber-500/20   text-amber-300',
+  low:        'bg-rose-500/20    text-rose-300',
+  distracted: 'bg-rose-500/20    text-rose-300',
 }
 
 // Sub-components
@@ -176,12 +176,12 @@ function StudentRow({ student }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-slate-200 truncate">{student.studentName}</p>
-        <span className={`inline-flex items-center gap-1 text-xs mt-0.5 ${meta.color}`}>
-          <span>{meta.emoji}</span>
+        <span className={`inline-flex items-center gap-1.5 text-xs mt-0.5 ${meta.color}`}>
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
           <span>{meta.label}</span>
         </span>
       </div>
-      <span className={`text-xs px-2 py-0.5 rounded-full capitalize shrink-0 ${concStyle}`}>
+      <span className={`text-xs px-2.5 py-0.5 rounded-full capitalize shrink-0 border font-semibold ${concStyle}`}>
         {concentrationLevel}
       </span>
     </div>
@@ -506,8 +506,8 @@ export default function LecturerLiveSession() {
       <LecturerLayout>
         <div className="max-w-lg mx-auto mt-10">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-11 h-11 rounded-xl bg-emerald-500/15 flex items-center justify-center">
-              <Video size={20} className="text-emerald-400" />
+            <div className="w-11 h-11 rounded-xl bg-violet-500/15 flex items-center justify-center">
+              <Video size={20} className="text-violet-400" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">Start Live Session</h1>
@@ -534,7 +534,7 @@ export default function LecturerLiveSession() {
                       value={form.courseId}
                       onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}
                       required
-                      className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-navy-900 border border-slate-700 text-sm text-slate-200 appearance-none focus:outline-none focus:border-emerald-500/50 transition-colors"
+                      className="input-field w-full pl-9 pr-8 py-2.5 text-sm appearance-none"
                     >
                       <option value="">Select a course…</option>
                       {courses.map(c => (
@@ -557,7 +557,7 @@ export default function LecturerLiveSession() {
                     onChange={e => setForm(f => ({ ...f, room: e.target.value }))}
                     placeholder="e.g. Hall B, Lab 3…"
                     required
-                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-navy-900 border border-slate-700 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-emerald-500/50 transition-colors"
+                    className="input-field w-full pl-9 pr-4 py-2.5 text-sm placeholder-slate-600"
                   />
                 </div>
               </div>
@@ -569,7 +569,7 @@ export default function LecturerLiveSession() {
                   <select
                     value={form.duration}
                     onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
-                    className="w-full pl-9 pr-8 py-2.5 rounded-xl bg-navy-900 border border-slate-700 text-sm text-slate-200 appearance-none focus:outline-none focus:border-emerald-500/50 transition-colors"
+                    className="input-field w-full pl-9 pr-8 py-2.5 text-sm appearance-none"
                   >
                     {[1, 1.5, 2, 2.5, 3].map(h => (
                       <option key={h} value={h}>{h} {h === 1 ? 'hour' : 'hours'}</option>
@@ -582,7 +582,7 @@ export default function LecturerLiveSession() {
               <button
                 type="submit"
                 disabled={starting || loadingCourses}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-2"
+                className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-2"
               >
                 {starting ? 'Starting…' : <><Video size={15} /> Start Live Session</>}
               </button>
@@ -638,7 +638,7 @@ export default function LecturerLiveSession() {
       {/* Camera Selector Modal */}
       {showCameraSelector && availableCameras.length > 0 && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-slate-800 rounded-xl p-6 max-w-md w-full mx-4">
+          <div className="glass rounded-xl p-6 max-w-md w-full mx-4">
             <h3 className="text-white font-bold mb-4">Select Camera</h3>
             <div className="space-y-2 mb-6">
               {availableCameras.map((camera, idx) => (
@@ -701,9 +701,9 @@ export default function LecturerLiveSession() {
               color="blue"
             />
             <EngagementArc value={engagement} />
-            <div className={`glass rounded-2xl p-4 flex flex-col items-center justify-center gap-1 ${emoMeta.bg}`}>
+            <div className={`glass rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 ${emoMeta.bg}`}>
               <p className="text-xs text-slate-500 font-medium">Mood</p>
-              <span className="text-3xl leading-none">{emoMeta.emoji}</span>
+              <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${emoMeta.dot} opacity-80`} />
               <span className={`text-sm font-semibold ${emoMeta.color}`}>{emoMeta.label}</span>
             </div>
           </div>
@@ -752,7 +752,7 @@ export default function LecturerLiveSession() {
                     const m = EMOTION_META[emotion] ?? EMOTION_META.neutral
                     return (
                       <div key={emotion} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${m.bg}`}>
-                        <span className="text-sm">{m.emoji}</span>
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`} />
                         <span className={`text-xs font-medium ${m.color}`}>{m.label}</span>
                         <span className="text-xs text-slate-500">{count}</span>
                       </div>

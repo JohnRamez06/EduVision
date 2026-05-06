@@ -9,9 +9,16 @@ const Skeleton = ({ className = '' }) => (
 
 function EngagementBadge({ value }) {
   const pct = Math.round(value ?? 0)
-  if (pct >= 70) return <span className="text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full">{pct}%</span>
-  if (pct >= 45) return <span className="text-xs font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">{pct}%</span>
-  return <span className="text-xs font-semibold text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded-full">{pct}%</span>
+  const cls = pct >= 70
+    ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
+    : pct >= 45
+    ? 'text-amber-400 bg-amber-500/10 border-amber-500/20'
+    : 'text-rose-400 bg-rose-500/10 border-rose-500/20'
+  return (
+    <span className={`inline-flex items-center text-xs font-semibold px-2.5 py-0.5 rounded-full border tabular-nums ${cls}`}>
+      {pct}%
+    </span>
+  )
 }
 
 export default function LecturerSessions() {
@@ -50,8 +57,8 @@ export default function LecturerSessions() {
   return (
     <LecturerLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <Clock size={22} className="text-teal-400" /> Session History
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+          <Clock size={22} className="text-violet-400" /> Session History
         </h1>
         <p className="text-sm text-slate-500 mt-1">Your completed lecture sessions</p>
       </div>
@@ -77,11 +84,11 @@ export default function LecturerSessions() {
             <div key={s.sessionId}>
               <button
                 onClick={() => openSession(s)}
-                className="w-full glass rounded-2xl p-5 flex items-center gap-5 hover:border-teal-500/30 transition-all text-left group"
+                className="w-full glass rounded-2xl p-5 flex items-center gap-5 hover:border-violet-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 transition-all text-left group"
               >
                 {/* Date block */}
                 <div className="w-14 text-center shrink-0">
-                  <p className="text-lg font-bold text-white leading-none">
+                  <p className="text-lg font-bold text-slate-800 dark:text-white leading-none">
                     {s.date ? new Date(s.date).getDate() : '—'}
                   </p>
                   <p className="text-xs text-slate-500 uppercase">
@@ -93,7 +100,7 @@ export default function LecturerSessions() {
 
                 {/* Course */}
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-slate-200 truncate">{s.courseName ?? 'Unknown course'}</p>
+                  <p className="font-medium text-slate-700 dark:text-slate-200 truncate">{s.courseName ?? 'Unknown course'}</p>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {s.date ? new Date(s.date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''}
                   </p>
@@ -129,12 +136,14 @@ export default function LecturerSessions() {
                   ) : (
                     <div className="space-y-1.5">
                       {students.map(st => (
-                        <div key={st.studentId} className="flex items-center justify-between py-2 px-3 rounded-xl bg-navy-900/50">
-                          <p className="text-sm text-slate-200">{st.studentName}</p>
-                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                            st.status === 'present' ? 'bg-emerald-500/15 text-emerald-400'
-                            : st.status === 'late'  ? 'bg-amber-500/15 text-amber-400'
-                            :                         'bg-rose-500/15 text-rose-400'
+                        <div key={st.studentId} className="flex items-center justify-between py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800/60 hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-colors">
+                          <p className="text-sm text-slate-700 dark:text-slate-200">{st.studentName}</p>
+                          <span className={`text-xs font-semibold px-2.5 py-0.5 rounded-full border capitalize ${
+                            st.status === 'present'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : st.status === 'late'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
                           }`}>
                             {st.status}
                           </span>

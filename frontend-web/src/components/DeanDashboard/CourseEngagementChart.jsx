@@ -27,7 +27,7 @@ export default function CourseEngagementChart({ data = [], colors = DEFAULT_COLO
 	return (
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
-				<h2 className="font-semibold text-white flex items-center gap-2">
+				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
 					<Target size={16} className="text-sky-400" /> Course Engagement
 				</h2>
 				<span className="text-xs text-slate-500">Latest tracked courses</span>
@@ -53,19 +53,19 @@ export default function CourseEngagementChart({ data = [], colors = DEFAULT_COLO
 
 					<div className="space-y-3 mt-4">
 						{chartData.slice(0, 6).map((entry, index) => (
-							<div key={entry.name} className="rounded-xl border border-slate-800 bg-slate-950/50 p-3.5">
+							<div key={entry.name} className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950/50 p-3.5">
 								<div className="flex items-start justify-between gap-4 mb-2">
 									<div>
-										<p className="text-sm font-medium text-slate-200">{entry.name}</p>
+										<p className="text-sm font-medium text-slate-700 dark:text-slate-200">{entry.name}</p>
 										<p className="text-xs text-slate-500 mt-0.5">Session intensity and attendance</p>
 									</div>
 									<div className="text-right">
 										<p className="text-xs text-slate-500">Engagement</p>
-										<p className="text-sm font-semibold text-slate-100">{entry.engagement ?? '—'}%</p>
+										<p className="text-sm font-semibold text-slate-700 dark:text-slate-100">{entry.engagement ?? '—'}%</p>
 									</div>
 								</div>
 								<div className="grid grid-cols-[1fr_auto] gap-3 items-center">
-									<div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+									<div className="h-1.5 bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden">
 										<div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-violet-500" style={{ width: `${entry.engagement ?? 0}%` }} />
 									</div>
 									<span className="text-xs text-slate-500 w-14 text-right">{entry.attendance ?? '—'}%</span>

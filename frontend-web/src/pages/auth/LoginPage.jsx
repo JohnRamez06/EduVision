@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AuthContext } from '../../context/AuthContext'
 import authService from '../../services/authService'
 import LoginForm from '../../components/auth/LoginForm'
+import ThemeToggle from '../../components/common/ThemeToggle'
 
 const ROLES = [
   { id: 'student',  label: 'Student' },
@@ -79,6 +80,9 @@ export default function LoginPage() {
     <div className="relative min-h-screen bg-navy-900 overflow-hidden bg-grid flex items-center justify-center px-4">
       <div className="orb w-[500px] h-[500px] bg-blue-600/15 -top-32 -left-32 animate-float-slow" />
       <div className="orb w-[400px] h-[400px] bg-violet-600/12 -bottom-24 -right-24 animate-float" />
+      <div className="absolute top-5 right-5 z-20">
+        <ThemeToggle />
+      </div>
 
       <div className="relative z-10 w-full max-w-md animate-fade-up">
         <LoginForm onSubmit={handleSubmit} loading={loading} error={error} />

@@ -81,8 +81,8 @@ function ReportButton({ onGenerate, label = 'Generate Report', disabled = false 
       <button onClick={generate} disabled={disabled}
         className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-white text-xs font-medium transition-colors ${
           disabled
-            ? 'bg-slate-700 text-slate-500 cursor-not-allowed'
-            : 'bg-violet-600 hover:bg-violet-500'
+            ? 'bg-slate-700/80 text-slate-500 cursor-not-allowed'
+            : 'btn-primary cursor-pointer'
         }`}>
         {disabled ? <Loader2 size={12} className="animate-spin" /> : <FileText size={12} />}
         {disabled ? 'Loading…' : label}
@@ -125,7 +125,7 @@ function WeeklyTab({ lecturerId }) {
 
   return (
     <div className="glass rounded-2xl p-6">
-      <h2 className="font-semibold text-white mb-1">Weekly Performance Report</h2>
+      <h2 className="font-semibold text-slate-800 dark:text-white mb-1">Weekly Performance Report</h2>
       <p className="text-xs text-slate-500 mb-5">
         Generate a PDF summary of your engagement, emotion trends, and alerts for a specific week.
       </p>
@@ -135,7 +135,7 @@ function WeeklyTab({ lecturerId }) {
           <select
             value={week}
             onChange={e => setWeek(Number(e.target.value))}
-            className="appearance-none pl-3 pr-8 py-2 rounded-xl bg-navy-900 border border-slate-700 text-slate-200 text-sm focus:outline-none focus:border-emerald-500 cursor-pointer"
+            className="input-field appearance-none pl-3 pr-8 py-2 text-sm cursor-pointer"
           >
             {weeks.map(w => (
               <option key={w} value={w}>Week {w}</option>
@@ -151,7 +151,7 @@ function WeeklyTab({ lecturerId }) {
         />
       </div>
 
-      <div className="rounded-xl bg-navy-900/50 border border-slate-800 p-4">
+      <div className="rounded-xl bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 p-4">
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">What's included</p>
         <ul className="space-y-1.5 text-xs text-slate-400">
           {[
@@ -161,7 +161,7 @@ function WeeklyTab({ lecturerId }) {
             'Course comparison for the selected week',
           ].map(item => (
             <li key={item} className="flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-emerald-500 shrink-0" />
+              <span className="w-1 h-1 rounded-full bg-violet-500 shrink-0" />
               {item}
             </li>
           ))}
@@ -213,7 +213,7 @@ function SessionsTab() {
           className="glass rounded-xl px-5 py-4 flex items-center gap-4">
           {/* Date */}
           <div className="w-12 text-center shrink-0">
-            <p className="text-base font-bold text-white leading-none">
+            <p className="text-base font-bold text-slate-800 dark:text-white leading-none">
               {s.date ? new Date(s.date).getDate() : '—'}
             </p>
             <p className="text-[10px] text-slate-500 uppercase">
@@ -225,7 +225,7 @@ function SessionsTab() {
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-200 truncate">{s.courseName ?? '—'}</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{s.courseName ?? '—'}</p>
             <div className="flex items-center gap-3 mt-0.5">
               <span className="flex items-center gap-1 text-xs text-slate-500">
                 <Users size={10} /> {s.studentCount} students
@@ -305,7 +305,7 @@ function HistoryTab() {
     <div className="space-y-2">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-slate-500">{reports.length} report{reports.length !== 1 ? 's' : ''}</p>
-        <button onClick={load} className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors">
+        <button onClick={load} className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors">
           <RefreshCw size={12}/> Refresh
         </button>
       </div>
@@ -322,7 +322,7 @@ function HistoryTab() {
 
           {/* Info */}
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-200 truncate">{r.title}</p>
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{r.title}</p>
             <div className="flex items-center gap-3 mt-0.5">
               <span className="text-xs text-slate-500">{TYPE_LABEL[r.type] ?? r.type}</span>
               <span className="text-xs text-slate-600">
@@ -334,13 +334,15 @@ function HistoryTab() {
           {/* Action */}
           {r.status === 'ready' && r.fileUrl ? (
             <button onClick={() => download(r.fileUrl)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors">
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors cursor-pointer">
               <Download size={12}/> Download
             </button>
           ) : r.status === 'failed' ? (
-            <span className="text-xs text-rose-400 bg-rose-500/10 px-2 py-1 rounded-lg">Failed</span>
+            <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded-full">Failed</span>
           ) : (
-            <span className="text-xs text-amber-400 bg-amber-500/10 px-2 py-1 rounded-lg">Generating…</span>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full">
+              <Loader2 size={10} className="animate-spin" /> Generating
+            </span>
           )}
         </div>
       ))}
@@ -380,23 +382,23 @@ export default function LecturerReports() {
   return (
     <LecturerLayout>
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white flex items-center gap-2">
+        <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
           <FileText size={22} className="text-violet-400" /> Reports
         </h1>
         <p className="text-sm text-slate-500 mt-1">Generate and download PDF analytics reports</p>
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-1 p-1 rounded-xl bg-navy-900/60 border border-slate-800 w-fit mb-6">
+      <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700/80 w-fit mb-6">
         {TABS.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
               tab === t
-                ? 'bg-violet-600 text-white shadow'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
+                ? 'bg-violet-600 text-white force-white shadow-sm shadow-violet-500/30 border border-violet-500/30'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800/50'
+            } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60`}
           >
             {t}
           </button>

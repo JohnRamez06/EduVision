@@ -23,6 +23,7 @@ __pycache__/
 .env
 .Rproj.user
 analytics-r/config.R
+backend/src/main/resources/application-local.properties
 analytics-r/logs/
 analytics-r/output/
 config.py

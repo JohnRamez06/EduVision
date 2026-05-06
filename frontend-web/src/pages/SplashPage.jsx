@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Brain, Eye, Zap, BarChart3, Users, Shield, ArrowRight, GraduationCap } from 'lucide-react'
+import ThemeToggle from '../components/common/ThemeToggle'
 
 const PARTICLES = Array.from({ length: 22 }, (_, i) => ({
   id: i,
@@ -19,13 +20,27 @@ const FEATURES = [
   { icon: Shield,    label: 'Privacy First',        desc: 'Consent-driven, anonymized, fully secure' },
 ]
 
+const LIVE_SIGNALS = [
+  { label: 'Engagement', value: '+18%', tone: 'text-emerald-400' },
+  { label: 'At-risk Alerts', value: 'Real-time', tone: 'text-amber-400' },
+  { label: 'Privacy', value: 'FERPA-ready', tone: 'text-violet-400' },
+]
+
 export default function SplashPage() {
   const navigate = useNavigate()
   const [visible, setVisible] = useState(false)
+  const [signalIdx, setSignalIdx] = useState(0)
 
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 80)
     return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      setSignalIdx((prev) => (prev + 1) % LIVE_SIGNALS.length)
+    }, 2200)
+    return () => clearInterval(id)
   }, [])
 
   return (
@@ -58,12 +73,15 @@ export default function SplashPage() {
           </div>
           <span className="text-lg font-bold tracking-tight text-white">EduVision</span>
         </div>
-        <button
-          onClick={() => navigate('/login')}
-          className="text-sm text-slate-400 hover:text-white transition-colors duration-200 font-medium"
-        >
-          Sign in
-        </button>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <button
+            onClick={() => navigate('/login')}
+            className="text-sm text-slate-400 hover:text-white transition-colors duration-200 font-medium"
+          >
+            Sign in
+          </button>
+        </div>
       </nav>
 
       {/* Hero */}
@@ -94,10 +112,10 @@ export default function SplashPage() {
 
         {/* Headline */}
         <h1 className={`text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight leading-none mb-5 transition-all duration-700 delay-200 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <span className="text-white">See</span>{' '}
-          <span className="gradient-text">Beyond</span>
+          <span className={`inline-block hero-word ${visible ? 'hero-word-show' : ''}`}>See</span>{' '}
+          <span className={`inline-block hero-word hero-word-delay-1 gradient-text ${visible ? 'hero-word-show' : ''}`}>Beyond</span>
           <br />
-          <span className="text-white">the Classroom</span>
+          <span className={`inline-block hero-word hero-word-delay-2 ${visible ? 'hero-word-show' : ''} text-white`}>the Classroom</span>
         </h1>
 
         {/* Sub */}
@@ -110,7 +128,7 @@ export default function SplashPage() {
         <div className={`flex flex-col sm:flex-row items-center gap-4 mb-20 transition-all duration-700 delay-[400ms] ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <button
             onClick={() => navigate('/login')}
-            className="btn-primary flex items-center gap-2 text-base"
+            className="btn-primary btn-wow flex items-center gap-2 text-base"
           >
             Get Started
             <ArrowRight size={16} />
@@ -121,6 +139,21 @@ export default function SplashPage() {
           >
             Create Account
           </button>
+        </div>
+
+        {/* Live value strip */}
+        <div className={`mb-8 transition-all duration-700 delay-[450ms] ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
+          <div className="glass rounded-full px-4 py-2.5 inline-flex items-center gap-3">
+            <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
+              <Users size={12} className="text-violet-400" />
+              Live Intelligence
+            </span>
+            <span className="w-1 h-1 rounded-full bg-slate-600" />
+            <span key={`${LIVE_SIGNALS[signalIdx].label}-${LIVE_SIGNALS[signalIdx].value}`} className="text-xs signal-fade">
+              <span className="text-slate-300">{LIVE_SIGNALS[signalIdx].label}: </span>
+              <span className={`font-semibold ${LIVE_SIGNALS[signalIdx].tone}`}>{LIVE_SIGNALS[signalIdx].value}</span>
+            </span>
+          </div>
         </div>
 
         {/* Feature cards */}

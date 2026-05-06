@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
-import { ArrowRight, Eye, EyeOff, GraduationCap, Lock, Mail } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, GraduationCap, Lock, Mail, AlertCircle,
+         GraduationCap as StudentIcon, BookOpen, Building2, Shield } from 'lucide-react'
 
 const ROLE_OPTIONS = [
-  { value: 'student',  label: 'Student' },
-  { value: 'lecturer', label: 'Lecturer' },
-  { value: 'dean',     label: 'Dean' },
-  { value: 'admin',    label: 'Admin' },
+  { value: 'student',  label: 'Student',  icon: StudentIcon },
+  { value: 'lecturer', label: 'Lecturer', icon: BookOpen    },
+  { value: 'dean',     label: 'Dean',     icon: Building2   },
+  { value: 'admin',    label: 'Admin',    icon: Shield      },
 ]
 
 export default function LoginForm({ onSubmit, loading = false, error = '', initialRole = 'student' }) {
@@ -28,21 +29,26 @@ export default function LoginForm({ onSubmit, loading = false, error = '', initi
       </div>
 
       {error ? (
-        <div className="flex items-center gap-2 px-4 py-3 mb-5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
-          <span className="text-xs font-bold">!</span>
+        <div className="flex items-center gap-2.5 px-4 py-3 mb-5 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
+          <AlertCircle size={15} className="shrink-0" />
           {error}
         </div>
       ) : null}
 
-      <div className="grid grid-cols-4 gap-2 mb-6">
-        {ROLE_OPTIONS.map((role) => (
+      <div className="grid grid-cols-4 gap-1.5 mb-6">
+        {ROLE_OPTIONS.map(({ value, label, icon: Icon }) => (
           <button
-            key={role.value}
+            key={value}
             type="button"
-            onClick={() => setForm((current) => ({ ...current, role: role.value }))}
-            className={`py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${form.role === role.value ? 'bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300 bg-slate-900/40'}`}
+            onClick={() => setForm((current) => ({ ...current, role: value }))}
+            className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 cursor-pointer ${
+              form.role === value
+                ? 'bg-gradient-to-br from-blue-500 to-violet-600 text-white force-white shadow-md shadow-blue-500/20 border border-blue-400/20'
+                : 'text-slate-600 dark:text-slate-500 hover:text-slate-800 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-900/50 border border-slate-300 dark:border-slate-800/60 hover:border-slate-400 dark:hover:border-slate-700'
+            }`}
           >
-            {role.label}
+            <Icon size={14} />
+            {label}
           </button>
         ))}
       </div>

@@ -1,13 +1,16 @@
 // frontend-web/src/components/common/AlertBell.jsx
-import React, { useState, useEffect } from 'react';
-import { Bell, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { Bell, AlertTriangle } from 'lucide-react';
 import alertService from '../../services/alertService';
 
 const AlertBell = () => {
-    const [alerts, setAlerts] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [showDropdown, setShowDropdown] = useState(false);
     const [unreadCount, setUnreadCount] = useState(0);
+    const wrapperRef = useRef(null);
+    const panelRef = useRef(null);
+    const [panelStyle, setPanelStyle] = useState({ top: 64, right: 16 });
 
     useEffect(() => {
         fetchNotifications();
@@ -15,6 +18,51 @@ const AlertBell = () => {
         const interval = setInterval(fetchNotifications, 10000);
         return () => clearInterval(interval);
     }, []);
+
+    useEffect(() => {
+        const onClickOutside = (event) => {
+            const clickedWrapper = wrapperRef.current?.contains(event.target);
+            const clickedPanel = panelRef.current?.contains(event.target);
+            if (!clickedWrapper && !clickedPanel) {
+                setShowDropdown(false);
+            }
+        };
+        const onEscape = (event) => {
+            if (event.key === 'Escape') {
+                setShowDropdown(false);
+            }
+        };
+        document.addEventListener('mousedown', onClickOutside);
+        document.addEventListener('keydown', onEscape);
+        return () => {
+            document.removeEventListener('mousedown', onClickOutside);
+            document.removeEventListener('keydown', onEscape);
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!showDropdown) return;
+        const positionPanel = () => {
+            const rect = wrapperRef.current?.getBoundingClientRect();
+            if (!rect) return;
+            const panelWidth = Math.min(352, window.innerWidth - 16);
+            const right = Math.max(8, window.innerWidth - rect.right);
+            const top = rect.bottom + 10;
+            const maxRight = Math.max(8, window.innerWidth - panelWidth - 8);
+            setPanelStyle({
+                top,
+                right: Math.min(right, maxRight),
+            });
+        };
+
+        positionPanel();
+        window.addEventListener('resize', positionPanel);
+        window.addEventListener('scroll', positionPanel, true);
+        return () => {
+            window.removeEventListener('resize', positionPanel);
+            window.removeEventListener('scroll', positionPanel, true);
+        };
+    }, [showDropdown]);
 
     const fetchNotifications = async () => {
         try {
@@ -42,13 +90,39 @@ const AlertBell = () => {
         }
     };
 
+    const handleMarkRead = async (id) => {
+        try {
+            await alertService.markNotificationRead(id);
+            setNotifications(prev => prev.map(n => (n.id === id ? { ...n, is_read: true } : n)));
+            setUnreadCount(prev => Math.max(0, prev - 1));
+        } catch (error) {
+            console.error('Failed to mark notification as read:', error);
+        }
+    };
+
+    const handleMarkAllRead = async () => {
+        try {
+            await alertService.markAllNotificationsRead();
+            setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+            setUnreadCount(0);
+        } catch (error) {
+            console.error('Failed to mark all notifications as read:', error);
+        }
+    };
+
     return (
-        <div className="relative">
+        <div className="relative z-[1200]" ref={wrapperRef}>
             <button
                 onClick={() => setShowDropdown(!showDropdown)}
-                className="relative p-2 rounded-lg bg-slate-800 hover:bg-slate-700 transition-colors"
+                aria-expanded={showDropdown}
+                aria-label="Notifications"
+                className={`relative p-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 ${
+                    showDropdown
+                        ? 'bg-violet-500/15 text-violet-400 ring-1 ring-violet-500/40'
+                        : 'text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800/70'
+                }`}
             >
-                <Bell size={18} className="text-slate-400" />
+                <Bell size={18} />
                 {unreadCount > 0 && (
                     <span className="absolute top-0 right-0 w-4 h-4 bg-red-500 rounded-full text-xs text-white flex items-center justify-center">
                         {unreadCount}
@@ -56,12 +130,29 @@ const AlertBell = () => {
                 )}
             </button>
 
-            {showDropdown && (
-                <div className="absolute right-0 mt-2 w-80 bg-slate-800 rounded-xl border border-slate-700 shadow-xl z-50">
-                    <div className="p-3 border-b border-slate-700">
-                        <h3 className="text-sm font-semibold text-white">Notifications</h3>
+            {showDropdown && createPortal(
+                <>
+                    <div
+                        className="fixed inset-0 z-[2147483645] bg-transparent"
+                        onClick={() => setShowDropdown(false)}
+                    />
+                    <div
+                        ref={panelRef}
+                        style={{ top: panelStyle.top, right: panelStyle.right }}
+                        className="fixed w-[22rem] max-w-[calc(100vw-1rem)] glass rounded-xl border shadow-2xl z-[2147483646]"
+                    >
+                    <div className="p-3 border-b border-slate-200/80 dark:border-slate-700 flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-slate-800 dark:text-white">Notifications</h3>
+                        {unreadCount > 0 && (
+                            <button
+                                onClick={handleMarkAllRead}
+                                className="text-xs font-medium text-violet-500 hover:text-violet-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 rounded"
+                            >
+                                Mark all read
+                            </button>
+                        )}
                     </div>
-                    <div className="max-h-96 overflow-y-auto">
+                    <div className="max-h-[70vh] overflow-y-auto">
                         {notifications.length === 0 ? (
                             <div className="p-4 text-center text-slate-500 text-sm">
                                 No notifications
@@ -70,17 +161,17 @@ const AlertBell = () => {
                             notifications.map(notif => (
                                 <div
                                     key={notif.id}
-                                    className={`p-3 border-b border-slate-700 hover:bg-slate-700/50 transition-colors ${!notif.is_read ? 'bg-slate-700/30' : ''}`}
+                                    className={`p-3 border-b border-slate-200/80 dark:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors ${!notif.is_read ? 'bg-violet-500/8' : ''}`}
                                 >
                                     <div className="flex items-start gap-2">
                                         <div className={`mt-0.5 ${getSeverityColor(notif.type)}`}>
                                             {getTypeIcon(notif.type)}
                                         </div>
                                         <div className="flex-1">
-                                            <p className="text-sm font-medium text-white">
+                                            <p className="text-sm font-medium text-slate-800 dark:text-white">
                                                 {notif.title}
                                             </p>
-                                            <p className="text-xs text-slate-400 mt-0.5">
+                                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                                 {notif.message}
                                             </p>
                                             <p className="text-xs text-slate-500 mt-1">
@@ -89,8 +180,8 @@ const AlertBell = () => {
                                         </div>
                                         {!notif.is_read && (
                                             <button
-                                                onClick={() => alertService.markNotificationRead(notif.id)}
-                                                className="text-xs text-blue-400 hover:text-blue-300"
+                                                onClick={() => handleMarkRead(notif.id)}
+                                                className="text-xs text-violet-500 hover:text-violet-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 rounded"
                                             >
                                                 Mark read
                                             </button>
@@ -101,7 +192,8 @@ const AlertBell = () => {
                         )}
                     </div>
                 </div>
-            )}
+                </>
+            , document.body)}
         </div>
     );
 };
