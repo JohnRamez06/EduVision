@@ -10,8 +10,12 @@ import com.eduvision.dto.attendance.WeeklyAttendanceDTO;
 import com.eduvision.dto.attendance.WeeklyStudentAttendanceDTO;
 import com.eduvision.exception.ResourceNotFoundException;
 import jakarta.transaction.Transactional;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -218,76 +222,92 @@ public class AttendanceService {
     // ============================================================
 
     public void calculateWeeklyAttendance() {
-        logger.info("Starting weekly attendance calculation...");
+    logger.info("Starting weekly attendance calculation...");
+    
+    LocalDate today = LocalDate.now();
+    LocalDate monday = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
+    LocalDate sunday = monday.plusDays(6);
+    
+    int weekNumber = monday.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear());
+    int year = monday.getYear();
+    
+    logger.info("Calculating for week {} of {}", weekNumber, year);
+    
+    String periodId = getOrCreateWeekPeriod(weekNumber, year, monday, sunday);
+    
+    String assignmentsSql = """
+        SELECT cs.student_id, cs.course_id
+        FROM course_students cs
+        WHERE cs.dropped_at IS NULL
+    """;
+    
+    List<Map<String, Object>> assignments = jdbc.queryForList(assignmentsSql);
+    
+    int present = 0, absent = 0;
+    
+    for (Map<String, Object> assignment : assignments) {
+        String studentId = (String) assignment.get("student_id");
+        String courseId = (String) assignment.get("course_id");
         
-        LocalDate today = LocalDate.now();
-        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
-        LocalDate sunday = monday.plusDays(6);
-        
-        int weekNumber = monday.get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear());
-        int year = monday.getYear();
-        
-        logger.info("Calculating for week {} of {}", weekNumber, year);
-        
-        String periodId = getOrCreateWeekPeriod(weekNumber, year, monday, sunday);
-        
-        String assignmentsSql = """
-            SELECT cs.student_id, cs.course_id
-            FROM course_students cs
-            WHERE cs.dropped_at IS NULL
+        // Check if student attended any session this week (including excused)
+        String attendanceSql = """
+            SELECT 
+                CASE 
+                    WHEN COUNT(DISTINCT sa.session_id) > 0 THEN 'present'
+                    WHEN EXISTS (SELECT 1 FROM manual_attendance ma 
+                                 WHERE ma.student_id = ? 
+                                   AND ma.course_id = ? 
+                                   AND ma.week_id = ? 
+                                   AND ma.status = 'excused') THEN 'excused'
+                    ELSE 'absent'
+                END as status,
+                COUNT(DISTINCT sa.session_id) as attended_count
+            FROM lecture_sessions ls
+            LEFT JOIN session_attendance sa ON sa.session_id = ls.id AND sa.student_id = ? AND sa.status = 'present'
+            WHERE ls.course_id = ? 
+              AND DATE(ls.scheduled_start) BETWEEN ? AND ?
+              AND ls.status = 'completed'
         """;
         
-        List<Map<String, Object>> assignments = jdbc.queryForList(assignmentsSql);
+        Map<String, Object> result = jdbc.queryForMap(attendanceSql, 
+            studentId, courseId, periodId, studentId, courseId, monday, sunday);
         
-        int present = 0, absent = 0;
+        String status = (String) result.get("status");
+        Number attendedCountNum = (Number) result.get("attended_count");
+        int attendedCount = attendedCountNum != null ? attendedCountNum.intValue() : 0;
         
-        for (Map<String, Object> assignment : assignments) {
-            String studentId = (String) assignment.get("student_id");
-            String courseId = (String) assignment.get("course_id");
-            
-            String attendanceSql = """
-                SELECT COUNT(DISTINCT sa.session_id) as attended_count
-                FROM session_attendance sa
-                JOIN lecture_sessions ls ON ls.id = sa.session_id
-                WHERE sa.student_id = ? 
-                  AND ls.course_id = ?
-                  AND DATE(ls.scheduled_start) BETWEEN ? AND ?
-                  AND sa.status = 'present'
-            """;
-            
-            Integer attendedCount = jdbc.queryForObject(attendanceSql, Integer.class, 
-                studentId, courseId, monday, sunday);
-            
-            String sessionsSql = """
-                SELECT COUNT(*) as session_count
-                FROM lecture_sessions
-                WHERE course_id = ?
-                  AND DATE(scheduled_start) BETWEEN ? AND ?
-                  AND status = 'completed'
-            """;
-            
-            Integer sessionCount = jdbc.queryForObject(sessionsSql, Integer.class, 
-                courseId, monday, sunday);
-            
-            String status;
-            if (sessionCount == null || sessionCount == 0) {
-                status = "regular";
-                present++;
-            } else if (attendedCount != null && attendedCount > 0) {
-                status = "regular";
-                present++;
-            } else {
-                status = "absent";
-                absent++;
-            }
-            
-            updateWeeklyAttendance(periodId, studentId, courseId, 
-                sessionCount != null ? sessionCount : 0,
-                attendedCount != null ? attendedCount : 0, status);
+        // Check if any sessions were held this week
+        String sessionsSql = """
+            SELECT COUNT(*) as session_count
+            FROM lecture_sessions
+            WHERE course_id = ?
+              AND DATE(scheduled_start) BETWEEN ? AND ?
+              AND status = 'completed'
+        """;
+        
+        Integer sessionCount = jdbc.queryForObject(sessionsSql, Integer.class, 
+            courseId, monday, sunday);
+        
+        String finalStatus;
+        if (sessionCount == null || sessionCount == 0) {
+            finalStatus = "regular";
+            present++;
+        } else if (status.equals("present") || status.equals("excused")) {
+            // 🔥 KEY CHANGE: Excused counts as present!
+            finalStatus = "regular";
+            present++;
+        } else {
+            finalStatus = "absent";
+            absent++;
         }
         
-        logger.info("Weekly calculation complete: Present={}, Absent={}", present, absent);
+        // Update weekly attendance
+        updateWeeklyAttendance(periodId, studentId, courseId, 
+            sessionCount != null ? sessionCount : 0, attendedCount, finalStatus);
     }
+    
+    logger.info("Weekly calculation complete: Present={}, Absent={}", present, absent);
+}
 
     private String getOrCreateWeekPeriod(int weekNumber, int year, LocalDate startDate, LocalDate endDate) {
         String selectSql = "SELECT id FROM weekly_periods WHERE week_number = ? AND year = ?";
@@ -455,13 +475,18 @@ public List<Map<String, Object>> getStudentsForManualAttendance(String courseId,
             COALESCE(wca.sessions_attended, 0) as sessionsAttended,
             COALESCE(wca.sessions_held, 0) as totalSessions,
             COALESCE(wca.attendance_rate, 0) as attendanceRate,
-            wca.status as autoStatus,
+            CASE 
+                WHEN wca.status = 'regular' THEN 'present'
+                ELSE COALESCE(wca.status, 'absent')
+            END as autoStatus,
             ma.status as manualStatus,
             ma.notes,
             c.title as courseName,
             CASE 
-                WHEN ma.status IS NOT NULL THEN ma.status
-                ELSE COALESCE(wca.status, 'absent')
+                WHEN ma.status IS NOT NULL THEN 
+                    CASE WHEN ma.status = 'present' OR ma.status = 'excused' THEN 'present' ELSE ma.status END
+                ELSE 
+                    CASE WHEN wca.status = 'regular' THEN 'present' ELSE 'absent' END
             END as finalStatus,
             CASE WHEN ma.status IS NOT NULL THEN TRUE ELSE FALSE END as isManuallyModified
         FROM course_students cs
@@ -482,7 +507,6 @@ public List<Map<String, Object>> getStudentsForManualAttendance(String courseId,
     
     return jdbc.queryForList(sql, weekId, weekId, courseId, lecturerId);
 }
-
 // In AttendanceService.java - Replace your saveManualAttendance method with this:
 
 @Transactional
@@ -492,45 +516,42 @@ public void saveManualAttendance(String courseId, String weekId, List<Map<String
         String status = (String) student.get("status");
         String notes = (String) student.get("notes");
         
-        logger.info("Saving manual attendance: student={}, course={}, week={}, status={}", 
-                    studentId, courseId, weekId, status);
+        // Convert status for manual_attendance table
+        String manualStatus = "regular".equals(status) ? "present" : status;
         
-        // Check if manual record exists
-        String checkSql = """
-            SELECT id FROM manual_attendance 
-            WHERE student_id = ? AND course_id = ? AND week_id = ?
+        // Delete existing record first
+        String deleteSql = "DELETE FROM manual_attendance WHERE student_id = ? AND course_id = ? AND week_id = ?";
+        jdbc.update(deleteSql, studentId, courseId, weekId);
+        
+        // Insert new record
+        String insertSql = """
+            INSERT INTO manual_attendance (id, student_id, course_id, week_id, status, modified_by, notes, created_at, updated_at)
+            VALUES (UUID(), ?, ?, ?, ?, ?, ?, NOW(), NOW())
         """;
+        jdbc.update(insertSql, studentId, courseId, weekId, manualStatus, lecturerId, notes);
         
-        List<String> existing = jdbc.queryForList(checkSql, String.class, studentId, courseId, weekId);
+        // 🔥 EXCUSED COUNTS AS PRESENT - update weekly_course_attendance
+        String weeklyStatus = "regular".equals(status) || "excused".equals(status) ? "regular" : status;
         
-        if (existing.isEmpty()) {
-            // Insert new manual record
-            String insertSql = """
-                INSERT INTO manual_attendance (id, student_id, course_id, week_id, status, modified_by, notes)
-                VALUES (UUID(), ?, ?, ?, ?, ?, ?)
-            """;
-            jdbc.update(insertSql, studentId, courseId, weekId, status, lecturerId, notes);
-            logger.info("Inserted new manual attendance record for student {}", studentId);
-        } else {
-            // Update existing
-            String updateSql = """
-                UPDATE manual_attendance 
-                SET status = ?, modified_by = ?, notes = ?, updated_at = NOW()
-                WHERE student_id = ? AND course_id = ? AND week_id = ?
-            """;
-            jdbc.update(updateSql, status, lecturerId, notes, studentId, courseId, weekId);
-            logger.info("Updated manual attendance record for student {}", studentId);
-        }
-        
-        // Also update weekly_course_attendance to reflect manual override
-        String updateWeeklySql = """
+        String updateWeekly = """
             UPDATE weekly_course_attendance 
             SET status = ?, last_updated = NOW()
             WHERE student_id = ? AND course_id = ? AND week_id = ?
         """;
-        jdbc.update(updateWeeklySql, status, studentId, courseId, weekId);
+        int updated = jdbc.update(updateWeekly, weeklyStatus, studentId, courseId, weekId);
+        
+        if (updated == 0) {
+            String insertWeekly = """
+                INSERT INTO weekly_course_attendance 
+                (id, week_id, student_id, course_id, sessions_held, sessions_attended, 
+                 sessions_missed, attendance_rate, status, last_updated)
+                VALUES (UUID(), ?, ?, ?, 0, 0, 0, 0, ?, NOW())
+            """;
+            jdbc.update(insertWeekly, weekId, studentId, courseId, weeklyStatus);
+        }
+        
+        logger.info("Manual attendance saved for student: {} with status: {} -> weekly status: {}", 
+                    studentId, status, weeklyStatus);
     }
-    
-    logger.info("Manual attendance saved for course {} week {}", courseId, weekId);
 }
 }
