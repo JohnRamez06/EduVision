@@ -2,10 +2,15 @@
 # weekly_lecturer_analysis.R
 # ============================================================
 
-AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
-ROOT   <- dirname(AN_DIR)
-source(file.path(ROOT, "config.R"),                          local = TRUE)
-source(file.path(ROOT, "scripts", "utils.R"),                local = TRUE)
+ROOT <- {
+  env <- Sys.getenv("ANALYTICS_HOME", "")
+  if (nchar(env) > 0) env else {
+    d <- tryCatch(normalizePath(dirname(sys.frame(1)$ofile)), error = function(e) getwd())
+    dirname(d)
+  }
+}
+if (!exists("get_connection")) source(file.path(ROOT, "config.R"), local = TRUE)
+if (!exists("%||%"))           source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
 source(file.path(ROOT, "scripts", "fetch_class_snapshots.R"), local = TRUE)
 source(file.path(ROOT, "scripts", "calculate_statistics.R"),  local = TRUE)
 
@@ -15,8 +20,14 @@ source(file.path(ROOT, "scripts", "calculate_statistics.R"),  local = TRUE)
 #' @return Named list.
 weekly_lecturer_analysis <- function(lecturer_id, week_id) {
   wp <- with_connection(function(con) {
-    dbGetQuery(con, sqlInterpolate(con,
-      "SELECT * FROM weekly_periods WHERE id = ?wid", wid = week_id))
+    if (grepl("^[0-9]+$", as.character(week_id))) {
+      dbGetQuery(con, sqlInterpolate(con,
+        "SELECT * FROM weekly_periods WHERE week_number = ?wn ORDER BY year DESC LIMIT 1",
+        wn = as.integer(week_id)))
+    } else {
+      dbGetQuery(con, sqlInterpolate(con,
+        "SELECT * FROM weekly_periods WHERE id = ?wid", wid = week_id))
+    }
   })
   if (nrow(wp) == 0) stop("weekly_period not found: ", week_id)
 

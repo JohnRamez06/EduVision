@@ -2,8 +2,15 @@
 # db_maintenance.R — Scheduled DB maintenance tasks
 # ============================================================
 
-SCRIPTS_DIR <- dirname(sys.frame(1)$ofile %||% ".")
-source(file.path(dirname(SCRIPTS_DIR), "config.R"), local = TRUE)
+ROOT <- {
+  env <- Sys.getenv("ANALYTICS_HOME", "")
+  if (nchar(env) > 0) env else {
+    d <- tryCatch(normalizePath(dirname(sys.frame(1)$ofile)), error = function(e) getwd())
+    dirname(d)
+  }
+}
+if (!exists("get_connection")) source(file.path(ROOT, "config.R"), local = TRUE)
+if (!exists("%||%"))           source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
 source(file.path(SCRIPTS_DIR, "utils.R"), local = TRUE)
 
 LOG_FILE <- file.path(dirname(SCRIPTS_DIR), "logs", "error.log")

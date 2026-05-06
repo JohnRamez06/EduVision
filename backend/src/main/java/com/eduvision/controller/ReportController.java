@@ -1,6 +1,6 @@
-// src/main/java/com/eduvision/controller/ReportController.java
 package com.eduvision.controller;
 
+import com.eduvision.model.Report;
 import com.eduvision.service.ReportService;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
@@ -8,6 +8,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -21,45 +22,38 @@ public class ReportController {
     }
 
     @PostMapping("/student/{studentId}/weekly/{weekId}")
-    public ResponseEntity<Map<String, String>> generateStudentWeeklyReport(
-            @PathVariable String studentId,
-            @PathVariable String weekId) {
-        String fileUrl = reportService.generateStudentWeeklyReport(studentId, weekId);
-        return ResponseEntity.ok(Map.of(
-                "message", "Student weekly report generated successfully.",
-                "fileUrl", fileUrl,
-                "status",  "ready"));
+    public ResponseEntity<Map<String, Object>> generateStudentWeeklyReport(
+            @PathVariable String studentId, @PathVariable String weekId) {
+        Report r = reportService.generateStudentWeeklyReport(studentId, weekId);
+        return ResponseEntity.ok(toMap(r));
     }
 
     @PostMapping("/lecturer/{lecturerId}/weekly/{weekId}")
-    public ResponseEntity<Map<String, String>> generateLecturerWeeklyReport(
-            @PathVariable String lecturerId,
-            @PathVariable String weekId) {
-        String fileUrl = reportService.generateLecturerWeeklyReport(lecturerId, weekId);
-        return ResponseEntity.ok(Map.of(
-                "message", "Lecturer weekly report generated successfully.",
-                "fileUrl", fileUrl,
-                "status",  "ready"));
+    public ResponseEntity<Map<String, Object>> generateLecturerWeeklyReport(
+            @PathVariable String lecturerId, @PathVariable String weekId) {
+        Report r = reportService.generateLecturerWeeklyReport(lecturerId, weekId);
+        return ResponseEntity.ok(toMap(r));
     }
 
     @PostMapping("/dean/weekly/{weekId}")
-    public ResponseEntity<Map<String, String>> generateDeanWeeklyReport(
+    public ResponseEntity<Map<String, Object>> generateDeanWeeklyReport(
             @PathVariable String weekId) {
-        String fileUrl = reportService.generateDeanWeeklyReport(weekId);
-        return ResponseEntity.ok(Map.of(
-                "message", "Dean weekly report generated successfully.",
-                "fileUrl", fileUrl,
-                "status",  "ready"));
+        Report r = reportService.generateDeanWeeklyReport(weekId);
+        return ResponseEntity.ok(toMap(r));
     }
 
     @PostMapping("/session/{sessionId}")
-    public ResponseEntity<Map<String, String>> generateSessionReport(
+    public ResponseEntity<Map<String, Object>> generateSessionReport(
             @PathVariable String sessionId) {
-        String fileUrl = reportService.generateSessionReport(sessionId);
-        return ResponseEntity.ok(Map.of(
-                "message", "Session report generated successfully.",
-                "fileUrl", fileUrl,
-                "status",  "ready"));
+        Report r = reportService.generateSessionReport(sessionId);
+        return ResponseEntity.ok(toMap(r));
+    }
+
+    @GetMapping("/my")
+    public ResponseEntity<List<Map<String, Object>>> getMyReports() {
+        List<Map<String, Object>> reports = reportService.getMyReports()
+                .stream().map(this::toMap).toList();
+        return ResponseEntity.ok(reports);
     }
 
     @GetMapping("/download/{fileName}")
@@ -70,5 +64,17 @@ public class ReportController {
                 .header(HttpHeaders.CONTENT_DISPOSITION,
                         "attachment; filename=\"" + fileName + "\"")
                 .body(resource);
+    }
+
+    private Map<String, Object> toMap(Report r) {
+        return Map.of(
+            "id",          r.getId(),
+            "title",       r.getTitle(),
+            "type",        r.getType().name(),
+            "status",      r.getStatus().name(),
+            "fileUrl",     r.getFileUrl() != null ? r.getFileUrl() : "",
+            "requestedAt", r.getRequestedAt().toString(),
+            "completedAt", r.getCompletedAt() != null ? r.getCompletedAt().toString() : ""
+        );
     }
 }

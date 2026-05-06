@@ -1,0 +1,15 @@
+# config.py — local database configuration
+# ─────────────────────────────────────────────────────────────────────────────
+# Copy this file to config.py and edit your values. Never commit config.py.
+#
+#   cp config.py.example config.py        (Mac / Linux)
+#   copy config.py.example config.py      (Windows)
+# ─────────────────────────────────────────────────────────────────────────────
+
+DB_CONFIG = {
+    "host":     "127.0.0.1",
+    "port":     3306,        # MAMP users: change to 8889
+    "user":     "root",
+    "password": "",          # your MySQL password
+    "database": "eduvision",
+}

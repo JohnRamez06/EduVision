@@ -10,6 +10,7 @@ Usage:
 No webcam needed — uses existing profile photos from the database.
 """
 
+import os
 import cv2
 import numpy as np
 import mysql.connector
@@ -17,15 +18,17 @@ import urllib.request
 import sys
 
 # ── CONFIG ────────────────────────────────────────────────────────────────────
-DB_CONFIG = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",
-    "database": "eduvision",
-}
+def _find_project_root():
+    from pathlib import Path
+    p = Path(__file__).resolve().parent
+    while p != p.parent:
+        if (p / "config.py").exists():
+            return p
+        p = p.parent
+    raise FileNotFoundError("config.py not found — copy config.py.example to config.py")
 
-EMBEDDING_SIZE = (128, 128)   # must match face_recognizer.py
-# ─────────────────────────────────────────────────────────────────────────────
+sys.path.insert(0, str(_find_project_root()))
+from config import DB_CONFIG
 
 cascade = cv2.CascadeClassifier(
     cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
@@ -82,12 +85,27 @@ def detect_face(img_bgr: np.ndarray):
     return tuple(sorted(faces, key=lambda f: f[2] * f[3], reverse=True)[0])
 
 
-def preprocess_face(face_bgr: np.ndarray) -> np.ndarray:
-    """128x128 → grayscale → normalize → flatten. Matches face_recognizer.py exactly."""
-    resized    = cv2.resize(face_bgr, EMBEDDING_SIZE)
-    gray       = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-    normalized = gray.astype(np.float32) / 255.0
-    return normalized.flatten()
+def preprocess_face(face_bgr: np.ndarray) -> np.ndarray | None:
+    """Extract 128-d Facenet embedding using DeepFace. Returns normalized float32 array."""
+    try:
+        from deepface import DeepFace
+        result = DeepFace.represent(
+            img_path=face_bgr,
+            model_name="Facenet",
+            enforce_detection=False,
+            detector_backend="skip",
+            align=True
+        )
+        if not result:
+            return None
+        embedding = np.array(result[0]["embedding"], dtype=np.float32)
+        norm = np.linalg.norm(embedding)
+        if norm > 0:
+            embedding = embedding / norm
+        return embedding
+    except Exception as e:
+        print(f"      ↳ DeepFace error: {e}")
+        return None
 
 
 def save_embedding(user_id: str, embedding: np.ndarray) -> bool:
@@ -156,6 +174,11 @@ def main():
         x, y, w, h   = face_box
         face_crop    = img[y:y+h, x:x+w]
         embedding    = preprocess_face(face_crop)
+
+        if embedding is None:
+            print("      ↳ ❌  Failed to extract Facenet embedding")
+            fail_count += 1
+            continue
 
         if save_embedding(uid, embedding):
             print(f"      ↳ ✅  Enrolled (face {w}×{h}px)")

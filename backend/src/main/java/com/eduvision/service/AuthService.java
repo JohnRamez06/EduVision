@@ -193,6 +193,7 @@ public class AuthService {
     private LoginResponse buildResponse(User user, String token, Set<String> roles) {
         return new LoginResponse(
                 token,
+                user.getId(),
                 user.getEmail(),
                 user.getFirstName() + " " + user.getLastName(),
                 roles,

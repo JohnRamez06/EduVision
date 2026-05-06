@@ -4,7 +4,7 @@ import AlertBell from '../components/common/AlertBell';
 
 import {
   GraduationCap, LayoutDashboard, BookOpen, Clock,
-  User, LogOut, Bell, Menu, Video,
+  User, LogOut, Bell, Menu, Video, FileText,
 } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
 import authService from '../services/authService'
@@ -14,6 +14,7 @@ const NAV = [
   { to: '/lecturer/courses',      icon: BookOpen,        label: 'My Courses',   end: false },
   { to: '/lecturer/live',         icon: Video,           label: 'Live Session', end: false },
   { to: '/lecturer/sessions',     icon: Clock,           label: 'Sessions',     end: false },
+  { to: '/lecturer/reports',      icon: FileText,        label: 'Reports',      end: false },
   { to: '/lecturer/profile',      icon: User,            label: 'Profile',      end: false },
 ]
 

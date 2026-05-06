@@ -3,16 +3,13 @@ library(RMariaDB)
 
 # Resolve analytics-r root dynamically (works whether called via Rscript or sourced)
 .resolve_base <- function() {
-  # 1. Honour an env var set by the Java caller
   env <- Sys.getenv("ANALYTICS_HOME", "")
   if (nchar(env) > 0) return(normalizePath(env))
 
-  # 2. Use --file= from commandArgs (reliable when run via Rscript)
   cmd <- commandArgs(trailingOnly = FALSE)
   file_flag <- grep("^--file=", cmd, value = TRUE)
   if (length(file_flag) > 0) {
     script_path <- normalizePath(sub("^--file=", "", file_flag[1]), mustWork = FALSE)
-    # Walk up from the script's directory until we find config.R
     candidate <- dirname(script_path)
     for (i in seq_len(6)) {
       if (file.exists(file.path(candidate, "config.R"))) return(candidate)
@@ -20,17 +17,17 @@ library(RMariaDB)
     }
   }
 
-  # 3. Fall back to working directory
   getwd()
 }
 
 BASE_DIR <- .resolve_base()
 
+# ── Database credentials — edit these to match your local setup ───────────────
 DB_CONFIG <- list(
   host     = "127.0.0.1",
-  port     = 8889,
-  user     = "root",
-  password = "root",
+  port     = 3306,          # MAMP users: change to 8889
+  user     = "root",        # your MySQL username
+  password = "your_password_here",
   database = "eduvision"
 )
 

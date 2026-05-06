@@ -2,6 +2,16 @@
 # utils.R — Shared utility functions
 # ============================================================
 
+# Null-coalescing operator (used widely across analysis scripts)
+`%||%` <- function(a, b) if (!is.null(a)) a else b
+
+# Open a connection, run expr(con), then close it
+with_connection <- function(expr) {
+  con <- get_connection()
+  on.exit(try(DBI::dbDisconnect(con), silent = TRUE), add = TRUE)
+  expr(con)
+}
+
 #' Log a timestamped message to a log file and stdout.
 log_message <- function(msg, log_file = NULL) {
   ts  <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")

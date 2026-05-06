@@ -89,13 +89,14 @@ student_eng <- with_connection(function(con) {
        FROM student_emotion_snapshots ses
        JOIN users u ON u.id = ses.student_id
        JOIN lecture_sessions ls ON ls.id = ses.session_id
-       JOIN weekly_periods wp ON wp.id = ?wid
       WHERE ls.lecturer_id = ?lid
-        AND ses.captured_at BETWEEN wp.start_date
-            AND DATE_ADD(wp.end_date, INTERVAL 1 DAY)
+        AND ses.captured_at BETWEEN ?sd
+            AND DATE_ADD(?ed, INTERVAL 1 DAY)
       GROUP BY ses.student_id, u.first_name, u.last_name
       ORDER BY avg_conc DESC",
-    wid = week_id, lid = lecturer_id))
+    lid = lecturer_id,
+    sd  = as.character(wp$start_date[1]),
+    ed  = as.character(wp$end_date[1])))
 })
 
 if (nrow(student_eng) > 0) {

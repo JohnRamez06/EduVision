@@ -1,22 +1,25 @@
-# C:\Users\john\Desktop\eduvision\vision-engine\training\enroll_students.py
 import sys
-sys.path.insert(0, r'C:\Users\john\Desktop\eduvision\vision-engine')
+from pathlib import Path
+
+def _find_project_root():
+    p = Path(__file__).resolve().parent
+    while p != p.parent:
+        if (p / "config.py").exists():
+            return p
+        p = p.parent
+    raise FileNotFoundError("config.py not found — copy config.py.example to config.py")
+
+_root = _find_project_root()
+sys.path.insert(0, str(_root))
+from config import DB_CONFIG
 
 import cv2
 import numpy as np
 import mysql.connector
-from pathlib import Path
 from deepface import DeepFace
 import time
 
-# Configuration
-FACE_ENROLLMENT_DIR = Path("C:/Users/john/Desktop/eduvision/face_enrollment")
-DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '',
-    'database': 'eduvision'
-}
+FACE_ENROLLMENT_DIR = _root / "face_enrollment"
 
 class FolderEnroller:
     def __init__(self):

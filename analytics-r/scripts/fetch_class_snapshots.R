@@ -2,8 +2,15 @@
 # fetch_class_snapshots.R — Fetch class-level emotion snapshots
 # ============================================================
 
-SCRIPTS_DIR <- dirname(sys.frame(1)$ofile %||% ".")
-source(file.path(dirname(SCRIPTS_DIR), "config.R"), local = TRUE)
+ROOT <- {
+  env <- Sys.getenv("ANALYTICS_HOME", "")
+  if (nchar(env) > 0) env else {
+    d <- tryCatch(normalizePath(dirname(sys.frame(1)$ofile)), error = function(e) getwd())
+    dirname(d)
+  }
+}
+if (!exists("get_connection")) source(file.path(ROOT, "config.R"), local = TRUE)
+if (!exists("%||%"))           source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
 
 #' Fetch all class-level emotion snapshots for a session.
 #' Columns: id, session_id, seq_index, captured_at, student_count,

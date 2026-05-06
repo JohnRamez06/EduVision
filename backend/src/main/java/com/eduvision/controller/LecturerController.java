@@ -57,7 +57,20 @@ public class LecturerController {
     public void deleteLecturer(@PathVariable String id) {
         userService.deleteById(id);
     }
-    // In LecturerController.java, ADD this method:
+    @GetMapping("/profile")
+    public ResponseEntity<Map<String, Object>> getMyProfile() {
+        String email = SecurityContextHolder.getContext().getAuthentication().getName();
+        User lecturer = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        Map<String, Object> profile = new java.util.LinkedHashMap<>();
+        profile.put("id",        lecturer.getId());
+        profile.put("email",     lecturer.getEmail());
+        profile.put("firstName", lecturer.getFirstName());
+        profile.put("lastName",  lecturer.getLastName());
+        profile.put("fullName",  lecturer.getFirstName() + " " + lecturer.getLastName());
+        return ResponseEntity.ok(profile);
+    }
+
     @GetMapping("/courses")
    public ResponseEntity<List<Map<String, String>>> getMyCourses() {
     String email = SecurityContextHolder.getContext().getAuthentication().getName();

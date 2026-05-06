@@ -22,3 +22,7 @@ __pycache__/
 *.pyc
 .env
 .Rproj.user
+analytics-r/config.R
+analytics-r/logs/
+analytics-r/output/
+config.py

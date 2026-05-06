@@ -2,10 +2,15 @@
 # export_analysis.R — Export analysis results to CSV
 # ============================================================
 
-AN_DIR <- dirname(sys.frame(1)$ofile %||% ".")
-ROOT   <- dirname(AN_DIR)
-source(file.path(ROOT, "config.R"),   local = TRUE)
-source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
+ROOT <- {
+  env <- Sys.getenv("ANALYTICS_HOME", "")
+  if (nchar(env) > 0) env else {
+    d <- tryCatch(normalizePath(dirname(sys.frame(1)$ofile)), error = function(e) getwd())
+    dirname(d)
+  }
+}
+if (!exists("get_connection")) source(file.path(ROOT, "config.R"), local = TRUE)
+if (!exists("%||%"))           source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
 
 EXPORTS_DIR <- file.path(ROOT, "data", "exports")
 

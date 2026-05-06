@@ -392,7 +392,7 @@ CREATE TABLE consent_log (
 
 CREATE TABLE reports (
     id               CHAR(36)     PRIMARY KEY DEFAULT (UUID()),
-    type             ENUM('session_summary','student_progress','course_analytics','engagement_trend','custom') NOT NULL,
+    type             ENUM('session_summary','student_progress','course_analytics','engagement_trend','weekly_student','weekly_lecturer','weekly_dean','comparison','custom') NOT NULL,
     status           ENUM('pending','generating','ready','failed') NOT NULL DEFAULT 'pending',
     title            VARCHAR(255) NOT NULL,
     description      TEXT,

@@ -2,8 +2,15 @@
 # fetch_student_snapshots.R — Fetch per-student emotion snapshots
 # ============================================================
 
-SCRIPTS_DIR <- dirname(sys.frame(1)$ofile %||% ".")
-source(file.path(dirname(SCRIPTS_DIR), "config.R"), local = TRUE)
+ROOT <- {
+  env <- Sys.getenv("ANALYTICS_HOME", "")
+  if (nchar(env) > 0) env else {
+    d <- tryCatch(normalizePath(dirname(sys.frame(1)$ofile)), error = function(e) getwd())
+    dirname(d)
+  }
+}
+if (!exists("get_connection")) source(file.path(ROOT, "config.R"), local = TRUE)
+if (!exists("%||%"))           source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
 
 #' Fetch student-level snapshots for one student in one session.
 #' Returns: id, student_id, session_id, emotion, concentration,

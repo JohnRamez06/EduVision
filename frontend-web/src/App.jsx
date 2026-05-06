@@ -16,6 +16,7 @@ import LecturerCourses from './pages/LecturerPortal/LecturerCourses'
 import LecturerLiveSession from './pages/LecturerPortal/LecturerLiveSession'
 import LecturerSessions from './pages/LecturerPortal/LecturerSessions'
 import LecturerProfile from './pages/LecturerPortal/LecturerProfile'
+import LecturerReports from './pages/LecturerPortal/LecturerReports'
 import AdminDashboard from './pages/AdminPortal/AdminDashboard'
 import AdminUsers from './pages/AdminPortal/AdminUsers'
 import AdminRoles from './pages/AdminPortal/AdminRoles'
@@ -68,6 +69,7 @@ export default function App() {
       <Route path="/lecturer/courses" element={<ProtectedRoute role="lecturer"><LecturerCourses /></ProtectedRoute>} />
       <Route path="/lecturer/live" element={<ProtectedRoute role="lecturer"><LecturerLiveSession /></ProtectedRoute>} />
       <Route path="/lecturer/sessions" element={<ProtectedRoute role="lecturer"><LecturerSessions /></ProtectedRoute>} />
+      <Route path="/lecturer/reports" element={<ProtectedRoute role="lecturer"><LecturerReports /></ProtectedRoute>} />
       <Route path="/lecturer/profile" element={<ProtectedRoute role="lecturer"><LecturerProfile /></ProtectedRoute>} />
 
       <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />

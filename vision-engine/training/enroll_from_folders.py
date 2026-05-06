@@ -5,22 +5,28 @@ with proper Facenet embeddings (128-dimensions) instead of grayscale pixels.
 """
 
 import sys
+from pathlib import Path
+
+def _find_project_root():
+    p = Path(__file__).resolve().parent
+    while p != p.parent:
+        if (p / "config.py").exists():
+            return p
+        p = p.parent
+    raise FileNotFoundError("config.py not found — copy config.py.example to config.py")
+
+_root = _find_project_root()
+sys.path.insert(0, str(_root))
+from config import DB_CONFIG
+
 import os
 import cv2
 import numpy as np
 import mysql.connector
-from pathlib import Path
 from tqdm import tqdm
 from deepface import DeepFace
 
-# Configuration
-FACE_ENROLLMENT_DIR = Path("../face_enrollment")  # Adjust if needed
-DB_CONFIG = {
-    'host': 'localhost',
-    'user': 'root',
-    'password': '',
-    'database': 'eduvision'
-}
+FACE_ENROLLMENT_DIR = _root / "face_enrollment"
 
 class FolderEnroller:
     def __init__(self):

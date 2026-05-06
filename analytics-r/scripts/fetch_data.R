@@ -2,8 +2,15 @@
 # fetch_data.R — Generic data-fetching helpers
 # ============================================================
 
-SCRIPTS_DIR <- dirname(sys.frame(1)$ofile %||% ".")
-source(file.path(dirname(SCRIPTS_DIR), "config.R"), local = TRUE)
+ROOT <- {
+  env <- Sys.getenv("ANALYTICS_HOME", "")
+  if (nchar(env) > 0) env else {
+    d <- tryCatch(normalizePath(dirname(sys.frame(1)$ofile)), error = function(e) getwd())
+    dirname(d)
+  }
+}
+if (!exists("get_connection")) source(file.path(ROOT, "config.R"), local = TRUE)
+if (!exists("%||%"))           source(file.path(ROOT, "scripts", "utils.R"), local = TRUE)
 
 #' Fetch all lecture sessions for a course between two dates.
 fetch_sessions_for_course <- function(course_id, date_from = NULL, date_to = NULL) {
@@ -33,13 +40,18 @@ fetch_sessions_for_course <- function(course_id, date_from = NULL, date_to = NUL
   })
 }
 
-#' Fetch weekly period row by id.
+#' Fetch weekly period row by id (UUID) or week number (integer string).
 fetch_weekly_period <- function(week_id) {
   with_connection(function(con) {
-    dbGetQuery(con,
-      sqlInterpolate(con,
+    if (grepl("^[0-9]+$", as.character(week_id))) {
+      dbGetQuery(con, sqlInterpolate(con,
+        "SELECT * FROM weekly_periods WHERE week_number = ?wn ORDER BY year DESC LIMIT 1",
+        wn = as.integer(week_id)))
+    } else {
+      dbGetQuery(con, sqlInterpolate(con,
         "SELECT * FROM weekly_periods WHERE id = ?week_id",
         week_id = week_id))
+    }
   })
 }
 

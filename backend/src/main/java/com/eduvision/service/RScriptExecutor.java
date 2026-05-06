@@ -35,6 +35,13 @@ public class RScriptExecutor {
         try {
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.redirectErrorStream(false);
+            // Run from project root (parent of backend/) so analytics-r/ paths resolve correctly
+            pb.directory(java.nio.file.Paths.get(System.getProperty("user.dir")).getParent().toFile());
+            // Ensure TinyTeX (PDF) and Rscript are reachable regardless of how the JVM was launched
+            String tinyTexBin = System.getProperty("user.home") + "/Library/TinyTeX/bin/universal-darwin";
+            pb.environment().merge("PATH",
+                tinyTexBin + ":/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/bin:/bin",
+                (existing, extra) -> extra + ":" + existing);
             Process process = pb.start();
 
             // Log stdout
