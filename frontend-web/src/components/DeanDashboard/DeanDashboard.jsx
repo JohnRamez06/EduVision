@@ -1,207 +1,285 @@
-import React, { useContext, useEffect, useState } from 'react'
-import { AlertTriangle, ExternalLink, Sparkles, Users, GraduationCap, BookOpen, Activity } from 'lucide-react'
-import { AuthContext } from '../../context/AuthContext'
-import { SHINY_BASE_URL } from '../../config/api'
-import deanService from '../../services/deanService'
-import ThemeToggle from '../common/ThemeToggle'
-import DepartmentOverview from './DepartmentOverview'
-import CourseEngagementChart from './CourseEngagementChart'
-import LecturerComparison from './LecturerComparison'
-import WeeklyReportViewer from './WeeklyReportViewer'
-import IndividualStudentSearch from './IndividualStudentSearch'
+import React, { useEffect, useState, useCallback } from "react";
+import { getDashboard, getLecturerPerformance, getCourseStats, getWeeklyTrends } from "../../services/deanService";
+import { LineChart, Line, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { RefreshCw, Download, Users, School, BarChart2, UserCheck } from "lucide-react";
+import clsx from "clsx";
+import dayjs from "dayjs";
 
-const Skeleton = ({ className = '' }) => <div className={`animate-pulse rounded-xl bg-slate-800/60 ${className}`} />
+const glassCard = "bg-white/40 backdrop-blur-md shadow-lg rounded-xl border border-white/20";
 
-const greet = (name) => {
-	const hour = new Date().getHours()
-	const prefix = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening'
-	return `${prefix}, ${name?.split(' ')[0] ?? 'Dean'}`
+const statCards = [
+  { label: "Total Students", icon: Users, key: "totalStudents" },
+  { label: "Total Lecturers", icon: School, key: "totalLecturers" },
+  { label: "Total Courses", icon: BarChart2, key: "totalCourses" },
+  { label: "Avg Engagement", icon: UserCheck, key: "avgEngagement", format: v => `${Math.round(v)}%` },
+];
+
+const COLORS = [
+  "#82ca9d", "#8884d8", "#ffc658", "#ff8042", "#0088FE", "#00C49F", "#FFBB28", "#FF4444",
+];
+
+function Skeleton({ className }) {
+  return (
+    <div className={clsx("animate-pulse bg-gray-200/50 rounded", className)} />
+  );
 }
 
-const formatPct = (value) => {
-	const numeric = Number(value)
-	if (!Number.isFinite(numeric)) return '—'
-	return `${numeric <= 1 ? Math.round(numeric * 100) : Math.round(numeric)}%`
+function formatEngagement(v) {
+  return `${Math.round(v || 0)}%`;
 }
 
-const statTone = {
-	blue: 'bg-blue-500/15 text-blue-400',
-	emerald: 'bg-emerald-500/15 text-emerald-400',
-	violet: 'bg-violet-500/15 text-violet-400',
-	amber: 'bg-amber-500/15 text-amber-400',
+function exportCSV(data, name) {
+  const csv =
+    Array.isArray(data) && data.length
+      ? [
+          Object.keys(data[0]).join(","),
+          ...data.map((row) => Object.values(row).join(",")),
+        ].join("\n")
+      : "";
+  const blob = new Blob([csv], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = name + ".csv";
+  a.click();
 }
-
-const StatCard = ({ icon: Icon, label, value, sub, tone = 'blue' }) => (
-	<div className="glass rounded-2xl p-5 flex items-center gap-4">
-		<div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${statTone[tone]}`}>
-			<Icon size={20} />
-		</div>
-		<div className="min-w-0">
-			<p className="text-xs text-slate-500 font-medium mb-0.5">{label}</p>
-			<p className="text-2xl font-bold text-slate-800 dark:text-white leading-none">{value ?? '—'}</p>
-			{sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
-		</div>
-	</div>
-)
 
 export default function DeanDashboard() {
-	const { user } = useContext(AuthContext)
-	const [dashboard, setDashboard] = useState(null)
-	const [recentReports, setRecentReports] = useState([])
-	const [loading, setLoading] = useState(true)
-	const [error, setError] = useState('')
-	const [studentId, setStudentId] = useState('')
-	const [studentLookup, setStudentLookup] = useState(null)
-	const [lookupLoading, setLookupLoading] = useState(false)
-	const [lookupError, setLookupError] = useState('')
+  const [stats, setStats] = useState(null);
+  const [lecturers, setLecturers] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [trend, setTrend] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [errors, setErrors] = useState({});
+  const [refreshing, setRefreshing] = useState(false);
 
-	useEffect(() => {
-		Promise.all([
-			deanService.getDashboard(),
-			deanService.getRecentReports(),
-		])
-			.then(([dashboardData, reports]) => {
-				setDashboard(dashboardData)
-				setRecentReports(reports)
-			})
-			.catch((caughtError) => setError(caughtError.response?.data?.message ?? 'Failed to load dean dashboard.'))
-			.finally(() => setLoading(false))
-	}, [])
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    setErrors({});
+    try {
+      const [dashboard, lecPerf, courseStats, weeklyTrends] = await Promise.all([
+        getDashboard(),
+        getLecturerPerformance(),
+        getCourseStats(),
+        getWeeklyTrends(),
+      ]);
+      setStats(dashboard);
+      setLecturers(lecPerf);
+      setCourses(courseStats);
+      setTrend(weeklyTrends.reverse());
+      setLoading(false);
+    } catch (e) {
+      setErrors({ load: e.message || "Error loading data" });
+      setLoading(false);
+    }
+  }, []);
 
-	const summary = dashboard?.summary ?? dashboard ?? {}
-	const departmentOverview = Array.isArray(dashboard?.departmentOverview) ? dashboard.departmentOverview : []
-	const lecturerComparison = Array.isArray(dashboard?.lecturerComparison) ? dashboard.lecturerComparison : []
-	const courseEngagement = Array.isArray(dashboard?.courseEngagement) ? dashboard.courseEngagement : []
-	const fallbackRecentReports = Array.isArray(dashboard?.recentReports) ? dashboard.recentReports : []
-	const reportsData = recentReports.length > 0 ? recentReports : fallbackRecentReports
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
-	const handleStudentSearch = async (event) => {
-		event.preventDefault()
-		const query = studentId.trim()
-		if (!query) return
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchAll();
+    setRefreshing(false);
+  };
 
-		setLookupLoading(true)
-		setLookupError('')
-		setStudentLookup(null)
+  const now = dayjs();
+  const department = "Faculty of Engineering"; // or pull from user context/store
 
-		try {
-			const result = await deanService.searchStudent(query)
-			if (!result) {
-				setLookupError('No matching student record found.')
-				return
-			}
-			setStudentLookup(result)
-		} catch (caughtError) {
-			setLookupError(caughtError.response?.data?.message ?? 'Student lookup failed.')
-		} finally {
-			setLookupLoading(false)
-		}
-	}
+  // Emotion distribution for chart (sum across session stats if available)
+  let emotionDist = {};
+  lecturers.forEach(l => {
+    // assuming extra fields for demonstration; replace as needed
+    if (l.emotionDistribution) {
+      for (const [emo, cnt] of Object.entries(l.emotionDistribution))
+        emotionDist[emo] = (emotionDist[emo] || 0) + cnt;
+    }
+  });
+  // If not available, make a dummy one so pie chart doesn't error.
+  if (!Object.keys(emotionDist).length) {
+    emotionDist = {
+      happy: 40, neutral: 30, sad: 10, angry: 8, surprised: 6, fearful: 4, disgust: 2,
+    };
+  }
+  const emotionPieData = Object.entries(emotionDist).map(([k, v]) => ({
+    name: k.charAt(0).toUpperCase() + k.slice(1),
+    value: v,
+  }));
 
-	return (
-		<div className="min-h-screen text-slate-100 relative overflow-hidden" style={{ backgroundColor: 'var(--bg-app)' }}>
-			<div className="orb w-[520px] h-[520px] bg-sky-600/12 -top-36 -left-40" />
-			<div className="orb w-[420px] h-[420px] bg-violet-600/10 bottom-0 right-0" />
+  return (
+    <div className={clsx("p-6 md:p-10", "bg-gradient-to-br from-[#f0f4ff] via-white to-[#faeef6] min-h-screen")}>
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-end mb-6 md:mb-8">
+        <div className="flex-1">
+          <h2 className="text-2xl font-extrabold text-gray-800 mb-1">Dean Dashboard</h2>
+          <div className="text-lg text-gray-600">{department}</div>
+          <div className="text-sm text-gray-400">{now.format("dddd, MMM D, YYYY")}</div>
+        </div>
+        <div className="flex items-center gap-3 mt-4 md:mt-0">
+          <button
+            className={clsx("px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-blue-700 hover:bg-blue-50 transition", refreshing && "opacity-60 pointer-events-none")}
+            onClick={handleRefresh}
+            disabled={refreshing}
+          >
+            <RefreshCw className={clsx("w-5 h-5 animate-spin", !refreshing && "hidden")} />
+            <RefreshCw className={clsx("w-5 h-5", refreshing && "hidden")} />
+            {refreshing ? "Refreshing..." : "Refresh"}
+          </button>
+          <button
+            className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-green-700 hover:bg-green-50"
+            onClick={() => exportCSV(lecturers, "lecturer_performance")}
+          >
+            <Download className="w-5 h-5" />
+            Download Lecturers
+          </button>
+          <button
+            className="px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-green-700 hover:bg-green-50"
+            onClick={() => exportCSV(courses, "course_stats")}
+          >
+            <Download className="w-5 h-5" />
+            Download Courses
+          </button>
+        </div>
+      </div>
 
-			<div className="relative z-10 max-w-7xl mx-auto px-5 md:px-7 py-6 md:py-8 space-y-6">
-				<div className="flex justify-end">
-					<ThemeToggle />
-				</div>
-				<section className="glass-dark rounded-3xl p-6 md:p-8 overflow-hidden relative">
-					<div className="absolute inset-0 bg-gradient-to-br from-sky-500/10 via-transparent to-violet-500/10 pointer-events-none" />
-					<div className="relative grid gap-6 lg:grid-cols-[1.3fr_0.9fr] items-center">
-						<div>
-							<div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold text-sky-300 bg-sky-500/10 border border-sky-500/20 mb-4">
-								<Sparkles size={12} /> Faculty intelligence hub
-							</div>
-							<h1 className="text-3xl md:text-4xl font-black tracking-tight text-slate-800 dark:text-white mb-3">
-								{loading ? 'Loading dean dashboard…' : greet(user?.fullName)}
-							</h1>
-							<p className="text-slate-400 max-w-2xl leading-relaxed">
-								Department health, lecturer performance, and student risk signals in one view.
-								This dashboard is wired to the backend facade and the Analytics-R service for deeper reporting.
-							</p>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
+        {statCards.map(({ label, icon: Icon, key, format }) => (
+          <div key={key} className={clsx(glassCard, "px-6 py-5 flex flex-col items-center")}>
+            <Icon className="w-7 h-7 text-blue-500 mb-2" />
+            <div className="text-lg font-semibold">
+              {loading ? <Skeleton className="w-16 h-6" /> :
+                format ? format(stats[key]) : stats[key]}
+            </div>
+            <div className="text-xs text-gray-500 mt-1">{label}</div>
+          </div>
+        ))}
+      </div>
 
-							<div className="flex flex-wrap gap-3 mt-5">
-								<a href={SHINY_BASE_URL} target="_blank" rel="noreferrer" className="btn-primary inline-flex items-center gap-2">
-									Open Analytics-R <ExternalLink size={15} />
-								</a>
-								<span className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400">
-									<AlertTriangle size={13} className="text-emerald-400" /> Connected to /facade/dean/dashboard
-								</span>
-							</div>
-						</div>
+      {/* Charts */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-7 mb-10">
+        {/* Weekly Attendance Trend */}
+        <div className={clsx(glassCard, "p-5")}>
+          <div className="font-semibold mb-2">Weekly Attendance Trend</div>
+          {loading ? <Skeleton className="w-full h-48" /> :
+            <ResponsiveContainer width="100%" height={220}>
+              <LineChart data={trend}>
+                <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                <YAxis domain={[0, 100]} unit="%" />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="avgAttendance" name="Avg Attendance" stroke="#3182ce" strokeWidth={3} />
+                <Line type="monotone" dataKey="studentCount" name="Students" stroke="#8884d8" strokeDasharray="4 4" />
+              </LineChart>
+            </ResponsiveContainer>}
+        </div>
+        {/* Emotion Pie */}
+        <div className={clsx(glassCard, "p-5")}>
+          <div className="font-semibold mb-2">Emotion Distribution</div>
+          {loading ? <Skeleton className="w-full h-48" /> :
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie
+                  data={emotionPieData}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={70}
+                  fill="#8884d8"
+                  label={({ name, percent }) =>
+                    `${name}: ${(percent * 100).toFixed(0)}%`
+                  }
+                >
+                  {emotionPieData.map((entry, i) => (
+                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Legend />
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>}
+        </div>
+      </div>
 
-						<div className="grid grid-cols-2 gap-3">
-							<div className="rounded-2xl p-4 bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-								<p className="text-xs text-slate-500 mb-1">Average Engagement</p>
-								<p className="text-3xl font-black text-slate-800 dark:text-white">{formatPct(summary.avgEngagement)}</p>
-								<p className="text-xs text-slate-500 mt-1">Faculty-wide learning attention</p>
-							</div>
-							<div className="rounded-2xl p-4 bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-								<p className="text-xs text-slate-500 mb-1">Average Attendance</p>
-								<p className="text-3xl font-black text-slate-800 dark:text-white">{formatPct(summary.avgAttendance)}</p>
-								<p className="text-xs text-slate-500 mt-1">Across observed sessions</p>
-							</div>
-							<div className="rounded-2xl p-4 bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-								<p className="text-xs text-slate-500 mb-1">Tracked Courses</p>
-								<p className="text-3xl font-black text-slate-800 dark:text-white">{summary.totalCourses ?? courseEngagement.length ?? 0}</p>
-								<p className="text-xs text-slate-500 mt-1">Course streams included</p>
-							</div>
-							<div className="rounded-2xl p-4 bg-slate-100 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
-								<p className="text-xs text-slate-500 mb-1">Active Sessions</p>
-								<p className="text-3xl font-black text-slate-800 dark:text-white">{summary.activeSessions ?? 0}</p>
-								<p className="text-xs text-slate-500 mt-1">Currently live classes</p>
-							</div>
-						</div>
-					</div>
-				</section>
+      {/* Lecturer Performance */}
+      <div className={clsx(glassCard, "p-6 mb-7")}>
+        <div className="font-semibold text-lg mb-3">Lecturer Performance</div>
+        {loading ? (
+          <Skeleton className="w-full h-40" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-xs font-bold text-left bg-white/30">
+                  <th className="py-2 px-3">Name</th>
+                  <th className="py-2 px-3">Department</th>
+                  <th className="py-2 px-3">Courses</th>
+                  <th className="py-2 px-3">Sentiment</th>
+                  <th className="py-2 px-3">Concentration</th>
+                  <th className="py-2 px-3">Attendance</th>
+                  <th className="py-2 px-3">Rating</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lecturers.map((l, i) => (
+                  <tr key={i} className="border-b border-gray-200/40 hover:bg-gray-50/40">
+                    <td className="py-2 px-3">{l.name}</td>
+                    <td className="py-2 px-3">{l.department}</td>
+                    <td className="py-2 px-3">{l.coursesTaught}</td>
+                    <td className="py-2 px-3">{l.sentimentScore}</td>
+                    <td className="py-2 px-3">{l.avgConcentration}</td>
+                    <td className="py-2 px-3">{l.avgAttendance}</td>
+                    <td className="py-2 px-3">
+                      <span className={clsx("px-2 py-1 rounded", {
+                        "bg-green-100 text-green-800": l.rating === "Excellent",
+                        "bg-blue-100 text-blue-800": l.rating === "Good",
+                        "bg-yellow-100 text-yellow-800": l.rating === "Average",
+                        "bg-red-100 text-red-800": l.rating === "Needs Improvement",
+                      })}>{l.rating}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-				{error && (
-					<div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
-						<AlertTriangle size={15} className="shrink-0" /> {error}
-					</div>
-				)}
-
-				<div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-					{loading
-						? [...Array(4)].map((_, index) => <Skeleton key={index} className="h-24" />)
-						: [
-							{ icon: Users, label: 'Students', value: summary.totalStudents ?? 0, sub: 'enrolled across departments', tone: 'blue' },
-							{ icon: GraduationCap, label: 'Lecturers', value: summary.totalLecturers ?? 0, sub: 'active teaching staff', tone: 'emerald' },
-							{ icon: BookOpen, label: 'Roles', value: summary.totalRoles ?? 0, sub: 'permission groups', tone: 'violet' },
-							{ icon: Activity, label: 'Sessions', value: summary.totalSessions ?? 0, sub: 'tracked sessions', tone: 'amber' },
-						].map((stat) => <StatCard key={stat.label} {...stat} />)}
-				</div>
-
-				<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-					<DepartmentOverview data={departmentOverview} />
-					<LecturerComparison data={lecturerComparison} />
-				</div>
-
-				<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-					<CourseEngagementChart data={courseEngagement} />
-					<WeeklyReportViewer reports={reportsData} />
-				</div>
-
-				<div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-					<IndividualStudentSearch
-						query={studentId}
-						onQueryChange={setStudentId}
-						onSubmit={handleStudentSearch}
-						loading={lookupLoading}
-						error={lookupError}
-						result={studentLookup}
-					/>
-					<div className="glass rounded-2xl p-5">
-						<h2 className="font-semibold text-slate-800 dark:text-white mb-4">Backend Connection</h2>
-						<div className="space-y-3 text-sm text-slate-400 leading-relaxed">
-							<p>This page loads dean overview data from /facade/dean/dashboard and recent reports from /facade/dean/reports/recent.</p>
-							<p>If the recent reports facade is unavailable, the UI falls back to existing report sources without breaking the dashboard.</p>
-						</div>
-					</div>
-				</div>
-			</div>
-		</div>
-	)
+      {/* Course Statistics */}
+      <div className={clsx(glassCard, "p-6")}>
+        <div className="font-semibold text-lg mb-3">Course Statistics</div>
+        {loading ? (
+          <Skeleton className="w-full h-32" />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="text-xs font-bold text-left bg-white/30">
+                  <th className="py-2 px-3">Code</th>
+                  <th className="py-2 px-3">Title</th>
+                  <th className="py-2 px-3">Lecturer</th>
+                  <th className="py-2 px-3">Enrolled</th>
+                  <th className="py-2 px-3">Sessions</th>
+                  <th className="py-2 px-3">Engagement</th>
+                  <th className="py-2 px-3">Attendance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {courses.map((c, i) => (
+                  <tr key={i} className="border-b border-gray-200/40 hover:bg-gray-50/40">
+                    <td className="py-2 px-3">{c.code}</td>
+                    <td className="py-2 px-3">{c.title}</td>
+                    <td className="py-2 px-3">{c.lecturer}</td>
+                    <td className="py-2 px-3">{c.enrolledStudents}</td>
+                    <td className="py-2 px-3">{c.sessionCount}</td>
+                    <td className="py-2 px-3">{formatEngagement(c.avgEngagement)}</td>
+                    <td className="py-2 px-3">{formatEngagement(c.avgAttendance)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

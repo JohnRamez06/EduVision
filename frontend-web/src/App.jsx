@@ -77,6 +77,7 @@ export default function App() {
       <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
       <Route path="/admin/roles" element={<ProtectedRoute role="admin"><AdminRoles /></ProtectedRoute>} />
+      <Route path="/dean" element={<ProtectedRoute role="dean"><DeanDashboard /></ProtectedRoute>} />
 
       <Route path="/dean" element={<ProtectedRoute role="dean"><DeanDashboard /></ProtectedRoute>} />
       <Route path="/admin/face-enrollment" element={<ProtectedRoute role="admin"><FaceEnrollment /></ProtectedRoute>} />

@@ -18,15 +18,15 @@ const FRAME_INTERVAL_MS = 3000
 const SNAPSHOT_POLL_MS = 10000
 
 const EMOTION_META = {
-  happy:     { label: 'Happy',     color: 'text-emerald-400', bg: 'bg-emerald-500/15', emoji: '😊' },
-  engaged:   { label: 'Engaged',   color: 'text-violet-400',  bg: 'bg-violet-500/15',  emoji: '🎯' },
-  neutral:   { label: 'Neutral',   color: 'text-slate-300',   bg: 'bg-slate-700/40',   emoji: '😐' },
-  confused:  { label: 'Confused',  color: 'text-amber-400',   bg: 'bg-amber-500/15',   emoji: '🤔' },
-  surprised: { label: 'Surprised', color: 'text-teal-400',    bg: 'bg-teal-500/15',    emoji: '😮' },
-  sad:       { label: 'Sad',       color: 'text-blue-400',    bg: 'bg-blue-500/15',    emoji: '😔' },
-  angry:     { label: 'Angry',     color: 'text-rose-400',    bg: 'bg-rose-500/15',    emoji: '😠' },
-  fearful:   { label: 'Fearful',   color: 'text-orange-400',  bg: 'bg-orange-500/15',  emoji: '😨' },
-  disgusted: { label: 'Disgusted', color: 'text-pink-400',    bg: 'bg-pink-500/15',    emoji: '🤢' },
+  happy:     { label: 'Happy',     color: 'text-emerald-400', bg: 'bg-emerald-500/15', dot: 'bg-emerald-400', emoji: '😊' },
+  engaged:   { label: 'Engaged',   color: 'text-violet-400',  bg: 'bg-violet-500/15',  dot: 'bg-violet-400', emoji: '🎯' },
+  neutral:   { label: 'Neutral',   color: 'text-slate-300',   bg: 'bg-slate-700/40',   dot: 'bg-slate-500', emoji: '😐' },
+  confused:  { label: 'Confused',  color: 'text-amber-400',   bg: 'bg-amber-500/15',   dot: 'bg-amber-400', emoji: '🤔' },
+  surprised: { label: 'Surprised', color: 'text-teal-400',    bg: 'bg-teal-500/15',    dot: 'bg-teal-400', emoji: '😮' },
+  sad:       { label: 'Sad',       color: 'text-blue-400',    bg: 'bg-blue-500/15',    dot: 'bg-blue-400', emoji: '😔' },
+  angry:     { label: 'Angry',     color: 'text-rose-400',    bg: 'bg-rose-500/15',    dot: 'bg-rose-400', emoji: '😠' },
+  fearful:   { label: 'Fearful',   color: 'text-orange-400',  bg: 'bg-orange-500/15',  dot: 'bg-orange-400', emoji: '😨' },
+  disgusted: { label: 'Disgusted', color: 'text-pink-400',    bg: 'bg-pink-500/15',    dot: 'bg-pink-400', emoji: '🤢' },
 }
 
 const SEVERITY_STYLES = {
@@ -49,10 +49,10 @@ const getConcentrationLevel = (concentration) => {
 }
 
 const CONCENTRATION_STYLE = {
-  high:       'bg-emerald-500/20 text-emerald-300',
-  medium:     'bg-amber-500/20   text-amber-300',
-  low:        'bg-rose-500/20    text-rose-300',
-  distracted: 'bg-rose-500/20    text-rose-300',
+  high:       'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+  medium:     'bg-amber-500/20   text-amber-300 border-amber-500/30',
+  low:        'bg-rose-500/20    text-rose-300 border-rose-500/30',
+  distracted: 'bg-rose-500/20    text-rose-300 border-rose-500/30',
 }
 
 // Sub-components
@@ -165,7 +165,7 @@ function AlertItem({ alert }) {
 function StudentRow({ student }) {
   const meta = EMOTION_META[student.emotion?.toLowerCase()] ?? EMOTION_META.neutral
   const concentrationLevel = getConcentrationLevel(student.concentration)
-  const concStyle = CONCENTRATION_STYLE[concentrationLevel] ?? 'bg-slate-500/20 text-slate-300'
+  const concStyle = CONCENTRATION_STYLE[concentrationLevel] ?? 'bg-slate-500/20 text-slate-300 border-slate-500/30'
   const initials = (student.studentName ?? '?')
     .split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
 
@@ -229,6 +229,7 @@ export default function LecturerLiveSession() {
   const [wsConnected, setWsConnected] = useState(false)
   const [availableCameras, setAvailableCameras] = useState([])
   const [showCameraSelector, setShowCameraSelector] = useState(false)
+  const [videoReady, setVideoReady] = useState(false)
 
   const videoRef = useRef(null)
   const streamRef = useRef(null)
@@ -282,15 +283,26 @@ export default function LecturerLiveSession() {
       streamRef.current = stream
       if (videoRef.current) {
         videoRef.current.srcObject = stream
-        videoRef.current.play().catch(() => { })
+        await videoRef.current.play().catch(() => { })
       }
       setCameraOn(true)
       setShowCameraSelector(false)
     } catch (e) {
+      console.error('Camera error:', e)
       setCameraError('Camera access denied — frame capture disabled.')
       setCameraOn(false)
     }
   }, [cameraConfig])
+
+  // 🔥 FIX: Start camera with delay to ensure DOM is ready
+  useEffect(() => {
+    if (session && !cameraOn && !cameraError) {
+      const timer = setTimeout(() => {
+        startCamera()
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [session, cameraOn, cameraError, startCamera])
 
   // Switch camera
   const switchCamera = async (deviceId) => {
@@ -317,9 +329,12 @@ export default function LecturerLiveSession() {
 
   const activateSession = useCallback((sess) => {
     setSession(sess)
-    startCamera()
-    connectWebSocket(sess.sessionId)
-    startSnapshotPoll(sess.sessionId)
+    // 🔥 FIX: Add delay before starting camera
+    setTimeout(() => {
+      startCamera()
+      // connectWebSocket(sess.sessionId)
+      startSnapshotPoll(sess.sessionId)
+    }, 300)
   }, [startCamera])
 
   const cleanup = () => {
@@ -672,6 +687,7 @@ export default function LecturerLiveSession() {
                 autoPlay
                 muted
                 playsInline
+                onCanPlay={() => setVideoReady(true)}
                 className="w-full h-full object-cover scale-x-[-1]"
               />
             ) : (
