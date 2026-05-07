@@ -32,3 +32,47 @@ emotion_colors <- c(
   "neutral" = "#6b7280",
   "confused" = "#8b5cf6"
 )
+
+## Attendance helper
+render_attendance_table <- function(wa) {
+  if (is.null(wa) || nrow(wa) == 0) {
+    cat("**No attendance data available for this week.**\n")
+    return()
+  }
+
+  # Normalize column names used by generator
+  # Expecting columns: course_name, sessions_attended, sessions_held, status (weekly status)
+  course_col <- ifelse('course_name' %in% names(wa), 'course_name', ifelse('course' %in% names(wa), 'course', names(wa)[1]))
+  sess_att_col <- ifelse('sessions_attended' %in% names(wa), 'sessions_attended', 'sessions_attended')
+  sess_held_col <- ifelse('sessions_held' %in% names(wa), 'sessions_held', 'sessions_held')
+  status_col <- ifelse('status' %in% names(wa), 'status', ifelse('weekly_status' %in% names(wa), 'weekly_status', 'status'))
+
+  wa$display_status <- apply(wa, 1, function(row) {
+    sa <- as.numeric(row[[sess_att_col]])
+    ws <- tolower(as.character(row[[status_col]]))
+    if (!is.na(sa) && sa > 0) {
+      '✅ PRESENT (attended at least once)'
+    } else if (!is.na(ws) && ws == 'excused') {
+      '🟠 EXCUSED (approved absence)'
+    } else {
+      '❌ ABSENT (no attendance this week)'
+    }
+  })
+
+  df <- data.frame(
+    Course = wa[[course_col]],
+    Status = wa$display_status,
+    Sessions_Attended = wa[[sess_att_col]],
+    Sessions_Held = wa[[sess_held_col]],
+    stringsAsFactors = FALSE
+  )
+
+  knitr::kable(df, format = 'html', table.attr = 'class="table table-striped"')
+}
+
+```
+
+```{r attendance, echo=FALSE}
+# Render attendance table using passed params
+render_attendance_table(params$weekly_attendance)
+```

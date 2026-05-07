@@ -132,6 +132,7 @@ html_content <- paste0(
         .info { background-color: #d1ecf1; border-left: 4px solid #17a2b8; padding: 15px; margin: 20px 0; border-radius: 5px; }
         .present { color: green; font-weight: bold; }
         .absent { color: red; font-weight: bold; }
+        .excused { color: #d97706; font-weight: bold; }
         .footer { margin-top: 40px; text-align: center; color: #7f8c8d; font-size: 12px; border-top: 1px solid #eee; padding-top: 20px; }
         .metric { display: inline-block; margin: 10px; padding: 15px; background: #f8f9fa; border-radius: 8px; text-align: center; min-width: 120px; }
         .metric-value { font-size: 24px; font-weight: bold; color: #3498db; }
@@ -153,8 +154,12 @@ html_content <- paste0(
 
 if (nrow(attendance) > 0) {
   for(i in 1:nrow(attendance)) {
-    if(attendance$sessions_attended[i] > 0) {
+    # Respect weekly_status (e.g. 'excused') and treat as excused even if sessions_attended == 0
+    weekly_status <- tolower(as.character(ifelse(is.na(attendance$weekly_status[i]), "", attendance$weekly_status[i])))
+    if (attendance$sessions_attended[i] > 0) {
       status_display <- '<span class="present">✅ PRESENT (attended at least once)</span>'
+    } else if (weekly_status == 'excused') {
+      status_display <- '<span class="excused">🟠 EXCUSED (approved absence)</span>'
     } else {
       status_display <- '<span class="absent">❌ ABSENT (no attendance this week)</span>'
     }
