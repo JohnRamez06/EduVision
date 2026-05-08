@@ -85,6 +85,38 @@ public class ReportService {
                         fileName, sessionId, null);
     }
 
+    /**
+     * Compute and persist student_lecture_summaries for all students in a session.
+     * Must be called after a session ends so the analytics dashboard shows real data.
+     */
+    public boolean computeStudentSummaries(String sessionId) {
+        boolean ok = rScriptExecutor.execute("scripts/compute_student_summaries.R", sessionId);
+        if (!ok) {
+            throw new RuntimeException("R summary computation failed for session: " + sessionId);
+        }
+        return true;
+    }
+
+    /**
+     * Generate a per-student session PDF report for the currently authenticated student.
+     */
+    public Report generateMySessionReport(String sessionId) {
+        User me = currentUser();
+        return generateStudentSessionReport(me.getId(), sessionId);
+    }
+
+    /**
+     * Generate a per-student session PDF report visible only to that student.
+     */
+    public Report generateStudentSessionReport(String studentId, String sessionId) {
+        String fileName = "student_" + studentId + "_session_" + sessionId + ".pdf";
+        String title    = "My Session Report";
+        return generate(ReportType.session_summary, title,
+                        "generators/generate_student_session_report.R",
+                        new String[]{"student/", ""},
+                        fileName, studentId, sessionId);
+    }
+
     public List<Report> getMyReports() {
         User me = currentUser();
         return reportRepository.findByRequestedByIdOrderByRequestedAtDesc(me.getId());

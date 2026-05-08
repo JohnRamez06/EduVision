@@ -49,6 +49,34 @@ public class ReportController {
         return ResponseEntity.ok(toMap(r));
     }
 
+    /**
+     * POST /api/v1/reports/session/{sessionId}/compute-summaries
+     *
+     * Triggers R to compute student_lecture_summaries for all students in the session.
+     * Called by the lecturer/system after a session ends.
+     */
+    @PostMapping("/session/{sessionId}/compute-summaries")
+    public ResponseEntity<Map<String, String>> computeStudentSummaries(
+            @PathVariable String sessionId) {
+        reportService.computeStudentSummaries(sessionId);
+        return ResponseEntity.ok(Map.of(
+            "status",  "ok",
+            "message", "Student summaries computed for session " + sessionId
+        ));
+    }
+
+    /**
+     * POST /api/v1/reports/my/session/{sessionId}
+     *
+     * Student generates their own session report PDF.
+     */
+    @PostMapping("/my/session/{sessionId}")
+    public ResponseEntity<Map<String, Object>> generateMySessionReport(
+            @PathVariable String sessionId) {
+        Report r = reportService.generateMySessionReport(sessionId);
+        return ResponseEntity.ok(toMap(r));
+    }
+
     @GetMapping("/my")
     public ResponseEntity<List<Map<String, Object>>> getMyReports() {
         List<Map<String, Object>> reports = reportService.getMyReports()

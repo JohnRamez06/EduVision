@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -19,6 +20,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -71,6 +73,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/consent/**").hasRole("STUDENT")
 
                 // SHARED ENDPOINTS
+                .requestMatchers("/api/v1/reports/my/**").hasRole("STUDENT")
+                .requestMatchers("/api/v1/reports/my").hasRole("STUDENT")
                 .requestMatchers("/api/v1/reports/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/emotion-data/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/sessions/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")

@@ -11,6 +11,7 @@ import StudentCourses from './pages/StudentPortal/StudentCourses'
 import StudentProfile from './pages/StudentPortal/StudentProfile'
 import StudentRecommendations from './pages/StudentPortal/StudentRecommendations'
 import StudentConsent from './pages/StudentPortal/StudentConsent'
+import StudentReports from './pages/StudentPortal/StudentReports'
 import LecturerDashboard from './pages/LecturerPortal/LecturerDashboard'
 import LecturerCourses from './pages/LecturerPortal/LecturerCourses'
 import LecturerLiveSession from './pages/LecturerPortal/LecturerLiveSession'
@@ -65,7 +66,8 @@ export default function App() {
       <Route path="/student/courses" element={<ProtectedRoute role="student"><StudentCourses /></ProtectedRoute>} />
       <Route path="/student/profile" element={<ProtectedRoute role="student"><StudentProfile /></ProtectedRoute>} />
       <Route path="/student/recommendations" element={<ProtectedRoute role="student"><StudentRecommendations /></ProtectedRoute>} />
-      <Route path="/student/consent" element={<ProtectedRoute role="student"><StudentConsent /></ProtectedRoute>} />
+      <Route path="/student/consent"  element={<ProtectedRoute role="student"><StudentConsent /></ProtectedRoute>} />
+      <Route path="/student/reports"  element={<ProtectedRoute role="student"><StudentReports /></ProtectedRoute>} />
 
       <Route path="/lecturer" element={<ProtectedRoute role="lecturer"><LecturerDashboard /></ProtectedRoute>} />
       <Route path="/lecturer/courses" element={<ProtectedRoute role="lecturer"><LecturerCourses /></ProtectedRoute>} />
