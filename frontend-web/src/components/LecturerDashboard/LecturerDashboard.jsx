@@ -75,7 +75,7 @@ export default function LecturerDashboard() {
 function Stat({ label, value, icon: Icon }) {
   return (
     <div className="glass rounded-2xl p-4 flex items-center gap-3">
-      <div className="w-10 h-10 rounded-xl bg-slate-800/70 flex items-center justify-center text-violet-400">
+      <div className="w-10 h-10 rounded-xl bg-slate-800/70 flex items-center justify-center text-[#667D9D]">
         <Icon size={18} />
       </div>
       <div>

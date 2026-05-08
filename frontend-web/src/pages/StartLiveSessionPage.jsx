@@ -434,8 +434,8 @@ export default function StartLiveSessionPage() {
                 </div>
               </div>
 
-              <div className="mt-6 p-3 bg-blue-900/30 border border-blue-500/50 rounded-lg">
-                <p className="text-blue-200 text-xs leading-relaxed">
+              <div className="mt-6 p-3 bg-[#060817]/30 border border-[#667D9D]/50 rounded-lg">
+                <p className="text-[#ACBBC6] text-xs leading-relaxed">
                   Your browser camera will be used to detect student emotions in real time.
                   Frames are analyzed every 3 seconds.
                 </p>

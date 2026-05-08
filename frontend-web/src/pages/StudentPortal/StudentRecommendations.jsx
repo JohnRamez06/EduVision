@@ -85,7 +85,7 @@ export default function StudentRecommendations() {
               onClick={() => setFilter(f)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
                 filter === f
-                  ? 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+                  ? 'bg-[#667D9D]/20 text-[#ACBBC6] border border-[#667D9D]/30'
                   : 'text-slate-500 border border-slate-800 hover:text-slate-300'
               }`}
             >

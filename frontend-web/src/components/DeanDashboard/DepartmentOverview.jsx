@@ -23,7 +23,7 @@ export default function DepartmentOverview({ data = [], colors = DEFAULT_COLORS 
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
 				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-					<BarChart3 size={16} className="text-sky-400" /> Department Overview
+					<BarChart3 size={16} className="text-[#667D9D]" /> Department Overview
 				</h2>
 				<span className="text-xs text-slate-500">Student distribution</span>
 			</div>

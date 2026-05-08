@@ -4,7 +4,7 @@ import alertService from '../../services/alertService'
 const SEVERITY_STYLES = {
   critical: 'border-red-500 bg-red-500/10 text-red-300',
   warning: 'border-amber-500 bg-amber-500/10 text-amber-300',
-  info: 'border-blue-500 bg-blue-500/10 text-blue-300',
+  info: 'border-[#667D9D] bg-[#667D9D]/10 text-[#ACBBC6]',
 }
 
 export default function AlertBanner({ alerts = [], onClear }) {

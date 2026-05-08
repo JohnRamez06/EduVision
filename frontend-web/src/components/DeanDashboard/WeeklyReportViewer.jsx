@@ -15,7 +15,7 @@ export default function WeeklyReportViewer({ reports = [] }) {
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
 				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-					<BarChart3 size={16} className="text-sky-400" /> Recent Reports
+					<BarChart3 size={16} className="text-[#667D9D]" /> Recent Reports
 				</h2>
 				<span className="text-xs text-slate-500">Latest generated summaries</span>
 			</div>

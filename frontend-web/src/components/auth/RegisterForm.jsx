@@ -36,7 +36,7 @@ export default function RegisterForm({ onSubmit, loading = false, error = '' }) 
   return (
     <div className="glass rounded-3xl p-8 shadow-2xl">
       <div className="flex flex-col items-center mb-8">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center mb-4 shadow-lg shadow-violet-500/30">
+        <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center mb-4 shadow-lg shadow-[#667D9D]/30">
           <GraduationCap size={26} className="text-white" />
         </div>
         <h1 className="text-2xl font-bold text-white tracking-tight">Create account</h1>
@@ -56,7 +56,7 @@ export default function RegisterForm({ onSubmit, loading = false, error = '' }) 
             key={role.value}
             type="button"
             onClick={() => setForm((current) => ({ ...current, roleName: role.value }))}
-            className={`py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${form.roleName === role.value ? 'bg-gradient-to-r from-blue-500 to-violet-600 text-white shadow-md' : 'text-slate-500 hover:text-slate-300 bg-slate-900/40'}`}
+            className={`py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${form.roleName === role.value ? 'bg-gradient-to-r from-[#16254F] to-[#667D9D] text-white shadow-md' : 'text-slate-500 hover:text-slate-300 bg-slate-900/40'}`}
           >
             {role.label}
           </button>

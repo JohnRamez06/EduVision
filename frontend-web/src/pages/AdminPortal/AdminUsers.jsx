@@ -12,7 +12,7 @@ const Skeleton = ({ className = '' }) => (
 const ROLE_COLORS = {
   admin:    'bg-rose-500/10 text-rose-400 border-rose-500/20',
   lecturer: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  student:  'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  student:  'bg-[#667D9D]/10 text-[#667D9D] border-[#667D9D]/20',
 }
 
 const STATUS_COLORS = {
@@ -41,7 +41,7 @@ function Avatar({ src, name, size = 32, className = '' }) {
   return (
     <div
       style={{ width: size, height: size, fontSize: size * 0.38 }}
-      className={`rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center font-bold text-white shrink-0 ${className}`}
+      className={`rounded-full bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center font-bold text-white shrink-0 ${className}`}
     >
       {initial}
     </div>
@@ -98,7 +98,7 @@ export default function AdminUsers() {
         </div>
         <button
           onClick={() => setModal({ mode: 'create' })}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors cursor-pointer"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16254F] hover:bg-[#667D9D] text-white text-sm font-medium transition-colors cursor-pointer"
         >
           <Plus size={15} /> Add User
         </button>
@@ -184,7 +184,7 @@ export default function AdminUsers() {
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => setModal({ mode: 'edit', user: u })}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all cursor-pointer"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-[#667D9D] hover:bg-[#667D9D]/10 transition-all cursor-pointer"
                           title="Edit"
                         >
                           <Pencil size={14} />
@@ -363,10 +363,10 @@ function UserModal({ mode, user, roles, onClose, onSaved }) {
               <img
                 src={picDataUrl}
                 alt="Profile preview"
-                className="w-24 h-24 rounded-full object-cover ring-2 ring-violet-500/40"
+                className="w-24 h-24 rounded-full object-cover ring-2 ring-[#667D9D]/40"
               />
             ) : (
-              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-3xl font-bold text-white ring-2 ring-violet-500/20">
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center text-3xl font-bold text-white ring-2 ring-[#667D9D]/20">
                 {(displayName?.[0] ?? '?').toUpperCase()}
               </div>
             )}
@@ -380,7 +380,7 @@ function UserModal({ mode, user, roles, onClose, onSaved }) {
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="mt-2 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            className="mt-2 text-xs text-[#667D9D] hover:text-[#ACBBC6] transition-colors"
           >
             {picDataUrl ? 'Change photo' : 'Add photo'}
           </button>
@@ -454,7 +454,7 @@ function UserModal({ mode, user, roles, onClose, onSaved }) {
               onClick={() => set('isActive', !form.isActive)}
               className="flex items-center gap-3 w-full"
             >
-              <div className={`w-10 h-6 rounded-full transition-colors relative flex items-center ${form.isActive ? 'bg-violet-600' : 'bg-slate-700'}`}>
+              <div className={`w-10 h-6 rounded-full transition-colors relative flex items-center ${form.isActive ? 'bg-[#16254F]' : 'bg-slate-700'}`}>
                 <span className={`absolute w-4 h-4 rounded-full bg-white shadow transition-transform ${form.isActive ? 'translate-x-5' : 'translate-x-1'}`} />
               </div>
               <span className="text-sm text-slate-300">Account active</span>
@@ -472,7 +472,7 @@ function UserModal({ mode, user, roles, onClose, onSaved }) {
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-2.5 rounded-xl bg-[#16254F] hover:bg-[#667D9D] disabled:opacity-60 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
             >
               {saving ? 'Saving…' : <><Check size={14} /> {mode === 'create' ? 'Create' : 'Save'}</>}
             </button>

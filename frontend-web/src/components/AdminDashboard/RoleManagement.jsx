@@ -11,7 +11,7 @@ export default function RoleManagement() {
 
   return (
     <div className="glass rounded-2xl p-5">
-      <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><ShieldCheck size={16} className="text-violet-400" /> Role Management</h3>
+      <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><ShieldCheck size={16} className="text-[#667D9D]" /> Role Management</h3>
       <div className="space-y-2">
         {roles.length === 0 ? <div className="text-sm text-slate-600 py-8 text-center">No roles available.</div> : roles.map((role) => (
           <div key={role.id} className="rounded-xl bg-navy-900/50 border border-slate-800/60 p-3">

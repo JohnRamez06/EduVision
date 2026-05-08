@@ -130,7 +130,7 @@ const CameraSelector = ({ onCameraSelected }) => {
   if (loading && cameras.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#16254F]"></div>
       </div>
     );
   }
@@ -138,9 +138,9 @@ const CameraSelector = ({ onCameraSelected }) => {
   return (
     <div className="max-w-4xl mx-auto p-6 space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-lg p-6 text-white">
+      <div className="bg-gradient-to-r from-[#16254F] to-[#060817] rounded-lg p-6 text-white">
         <h2 className="text-3xl font-bold">Camera Setup</h2>
-        <p className="text-blue-100 mt-2">Select and test your camera before starting a session</p>
+        <p className="text-[#ECECEC] mt-2">Select and test your camera before starting a session</p>
       </div>
 
       {error && (
@@ -174,8 +174,8 @@ const CameraSelector = ({ onCameraSelected }) => {
                     onClick={() => handleCameraSelect(camera)}
                     className={`w-full p-4 rounded-lg border-2 transition text-left ${
                       selectedCamera?.id === camera.id
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-300 bg-gray-50 hover:border-blue-400'
+                        ? 'border-[#16254F] bg-[#ECECEC]'
+                        : 'border-gray-300 bg-gray-50 hover:border-[#667D9D]'
                     }`}
                   >
                     <div className="flex items-center justify-between">
@@ -185,7 +185,7 @@ const CameraSelector = ({ onCameraSelected }) => {
                       </div>
                       <div className={`w-4 h-4 rounded-full border-2 ${
                         selectedCamera?.id === camera.id
-                          ? 'bg-blue-600 border-blue-600'
+                          ? 'bg-[#16254F] border-[#16254F]'
                           : 'border-gray-400'
                       }`}></div>
                     </div>

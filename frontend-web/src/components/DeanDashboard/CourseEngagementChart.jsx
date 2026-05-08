@@ -28,7 +28,7 @@ export default function CourseEngagementChart({ data = [], colors = DEFAULT_COLO
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
 				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-					<Target size={16} className="text-sky-400" /> Course Engagement
+					<Target size={16} className="text-[#667D9D]" /> Course Engagement
 				</h2>
 				<span className="text-xs text-slate-500">Latest tracked courses</span>
 			</div>
@@ -66,7 +66,7 @@ export default function CourseEngagementChart({ data = [], colors = DEFAULT_COLO
 								</div>
 								<div className="grid grid-cols-[1fr_auto] gap-3 items-center">
 									<div className="h-1.5 bg-slate-300 dark:bg-slate-800 rounded-full overflow-hidden">
-										<div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-violet-500" style={{ width: `${entry.engagement ?? 0}%` }} />
+										<div className="h-full rounded-full bg-gradient-to-r from-[#667D9D] to-[#667D9D]" style={{ width: `${entry.engagement ?? 0}%` }} />
 									</div>
 									<span className="text-xs text-slate-500 w-14 text-right">{entry.attendance ?? '—'}%</span>
 								</div>

@@ -22,7 +22,7 @@ export default function IndividualStudentSearch({
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
 				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-					<Search size={16} className="text-sky-400" /> Student Lookup
+					<Search size={16} className="text-[#667D9D]" /> Student Lookup
 				</h2>
 				<span className="text-xs text-slate-500">Backend-assisted search</span>
 			</div>
@@ -77,7 +77,7 @@ export default function IndividualStudentSearch({
 							</div>
 						</div>
 						<div className="mt-4 inline-flex items-center gap-2 text-xs text-slate-500">
-							<ShieldAlert size={12} className="text-sky-400" /> Opened through the dean backend lookup path.
+							<ShieldAlert size={12} className="text-[#667D9D]" /> Opened through the dean backend lookup path.
 						</div>
 					</div>
 				)}

@@ -115,7 +115,7 @@ export default function DeanDashboard() {
         </div>
         <div className="flex items-center gap-3 mt-4 md:mt-0">
           <button
-            className={clsx("px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-blue-700 hover:bg-blue-50 transition", refreshing && "opacity-60 pointer-events-none")}
+            className={clsx("px-4 py-2 rounded-lg flex items-center gap-2 font-medium text-[#16254F] hover:bg-[#ECECEC] transition", refreshing && "opacity-60 pointer-events-none")}
             onClick={handleRefresh}
             disabled={refreshing}
           >
@@ -144,7 +144,7 @@ export default function DeanDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-10">
         {statCards.map(({ label, icon: Icon, key, format }) => (
           <div key={key} className={clsx(glassCard, "px-6 py-5 flex flex-col items-center")}>
-            <Icon className="w-7 h-7 text-blue-500 mb-2" />
+            <Icon className="w-7 h-7 text-[#667D9D] mb-2" />
             <div className="text-lg font-semibold">
               {loading ? <Skeleton className="w-16 h-6" /> :
                 format ? format(stats[key]) : stats[key]}
@@ -231,7 +231,7 @@ export default function DeanDashboard() {
                     <td className="py-2 px-3">
                       <span className={clsx("px-2 py-1 rounded", {
                         "bg-green-100 text-green-800": l.rating === "Excellent",
-                        "bg-blue-100 text-blue-800": l.rating === "Good",
+                        "bg-[#ECECEC] text-[#060817]": l.rating === "Good",
                         "bg-yellow-100 text-yellow-800": l.rating === "Average",
                         "bg-red-100 text-red-800": l.rating === "Needs Improvement",
                       })}>{l.rating}</span>

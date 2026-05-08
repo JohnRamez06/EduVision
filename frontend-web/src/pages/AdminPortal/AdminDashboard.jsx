@@ -20,10 +20,10 @@ const greet = name => {
 
 const StatCard = ({ icon: Icon, label, value, sub, color = 'violet' }) => {
   const colors = {
-    violet:  { bg: 'bg-violet-500/12',  text: 'text-violet-400',  ring: 'group-hover:ring-violet-500/20'  },
+    violet:  { bg: 'bg-[#667D9D]/12',  text: 'text-[#667D9D]',  ring: 'group-hover:ring-[#667D9D]/20'  },
     rose:    { bg: 'bg-rose-500/12',    text: 'text-rose-400',    ring: 'group-hover:ring-rose-500/20'    },
     emerald: { bg: 'bg-emerald-500/12', text: 'text-emerald-400', ring: 'group-hover:ring-emerald-500/20' },
-    blue:    { bg: 'bg-blue-500/12',    text: 'text-blue-400',    ring: 'group-hover:ring-blue-500/20'    },
+    blue:    { bg: 'bg-[#667D9D]/12',    text: 'text-[#667D9D]',    ring: 'group-hover:ring-[#667D9D]/20'    },
     amber:   { bg: 'bg-amber-500/12',   text: 'text-amber-400',   ring: 'group-hover:ring-amber-500/20'   },
   }
   const c = colors[color]
@@ -44,7 +44,7 @@ const StatCard = ({ icon: Icon, label, value, sub, color = 'violet' }) => {
 const ROLE_COLORS = {
   admin:    'bg-rose-500/10 text-rose-400 border-rose-500/20',
   lecturer: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-  student:  'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  student:  'bg-[#667D9D]/10 text-[#667D9D] border-[#667D9D]/20',
 }
 
 const STATUS_COLORS = {
@@ -111,11 +111,11 @@ export default function AdminDashboard() {
       <div className="glass rounded-2xl p-5">
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-semibold text-white flex items-center gap-2">
-            <Users size={16} className="text-violet-400" /> Recent Users
+            <Users size={16} className="text-[#667D9D]" /> Recent Users
           </h2>
           <button
             onClick={() => navigate('/admin/users')}
-            className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+            className="flex items-center gap-1 text-xs text-[#667D9D] hover:text-[#ACBBC6] transition-colors"
           >
             View all <ArrowRight size={12} />
           </button>
@@ -149,7 +149,7 @@ export default function AdminDashboard() {
                   >
                     <td className="py-3 pr-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center text-xs font-bold text-white shrink-0">
                           {(u.fullName?.[0] ?? '?').toUpperCase()}
                         </div>
                         <span className="font-medium text-slate-200 truncate max-w-[120px]">{u.fullName}</span>

@@ -30,7 +30,7 @@ export default function LecturerCourses() {
     <LecturerLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <BookOpen size={22} className="text-violet-400" /> My Courses
+          <BookOpen size={22} className="text-[#667D9D]" /> My Courses
         </h1>
         <p className="text-sm text-slate-500 mt-1">All courses you are currently teaching</p>
       </div>
@@ -53,10 +53,10 @@ export default function LecturerCourses() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {courses.map(c => (
-            <div key={c.courseId} className="glass rounded-2xl p-5 flex flex-col gap-4 hover:border-violet-500/30 transition-colors group">
+            <div key={c.courseId} className="glass rounded-2xl p-5 flex flex-col gap-4 hover:border-[#667D9D]/30 transition-colors group">
               <div className="flex items-start justify-between">
-                <div className="w-11 h-11 rounded-xl bg-violet-500/10 flex items-center justify-center shrink-0">
-                  <BookOpen size={20} className="text-violet-400" />
+                <div className="w-11 h-11 rounded-xl bg-[#667D9D]/10 flex items-center justify-center shrink-0">
+                  <BookOpen size={20} className="text-[#667D9D]" />
                 </div>
                 {c.activeSessions > 0 && (
                   <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
@@ -67,7 +67,7 @@ export default function LecturerCourses() {
               </div>
 
               <div>
-                <p className="text-xs font-mono text-violet-400 mb-0.5">{c.code}</p>
+                <p className="text-xs font-mono text-[#667D9D] mb-0.5">{c.code}</p>
                 <h3 className="font-semibold text-slate-800 dark:text-white leading-snug">{c.title}</h3>
                 {c.department && <p className="text-xs text-slate-500 mt-0.5">{c.department}</p>}
               </div>
@@ -88,14 +88,14 @@ export default function LecturerCourses() {
                       {c.activeSessions > 0 ? `${c.activeSessions} active` : 'No active session'}
                     </span>
                   </div>
-                  <ChevronRight size={14} className="text-slate-500 group-hover:text-violet-400 transition-colors" />
+                  <ChevronRight size={14} className="text-slate-500 group-hover:text-[#667D9D] transition-colors" />
                 </div>
                 
                 {/* Action Buttons */}
                 <div className="flex gap-2 mt-1">
                   <button
                     onClick={() => handleManualAttendance(c.courseId, c.title)}
-                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 text-xs font-medium transition-all w-full"
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#16254F]/20 hover:bg-[#16254F]/30 text-[#667D9D] text-xs font-medium transition-all w-full"
                   >
                     <Calendar size={12} />
                     Manual Attendance

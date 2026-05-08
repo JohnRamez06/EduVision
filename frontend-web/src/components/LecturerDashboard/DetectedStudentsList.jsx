@@ -4,13 +4,13 @@ import lecturerService from "../../services/lecturerService";
 
 const EMOTION_STYLE = {
   happy: "bg-green-500/15 text-green-300",
-  engaged: "bg-blue-500/15 text-blue-300",
+  engaged: "bg-[#667D9D]/15 text-[#ACBBC6]",
   neutral: "bg-slate-500/15 text-slate-300",
   confused: "bg-amber-500/15 text-amber-300",
-  sad: "bg-sky-500/15 text-sky-300",
+  sad: "bg-[#667D9D]/15 text-[#ACBBC6]",
   angry: "bg-red-500/15 text-red-300",
   surprised: "bg-yellow-500/15 text-yellow-300",
-  disgusted: "bg-purple-500/15 text-purple-300",
+  disgusted: "bg-[#667D9D]/15 text-[#ACBBC6]",
   fearful: "bg-orange-500/15 text-orange-300",
 };
 
@@ -38,7 +38,7 @@ function Avatar({ name, url }) {
     .toUpperCase()
     .slice(0, 2);
   return (
-    <div className="w-9 h-9 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
+    <div className="w-9 h-9 rounded-full bg-[#667D9D]/20 text-[#ACBBC6] flex items-center justify-center text-xs font-bold shrink-0">
       {initials}
     </div>
   );
@@ -72,10 +72,10 @@ export default function DetectedStudentsList({ sessionId }) {
     <div className="glass rounded-2xl p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-white flex items-center gap-2">
-          <Users size={16} className="text-violet-400" />
+          <Users size={16} className="text-[#667D9D]" />
           Detected Students
           {students.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-medium">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[#667D9D]/20 text-[#ACBBC6] font-medium">
               {students.length}
             </span>
           )}

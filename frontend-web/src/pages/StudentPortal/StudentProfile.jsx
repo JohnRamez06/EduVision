@@ -42,7 +42,7 @@ export default function StudentProfile() {
     <StudentLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <User size={22} className="text-blue-400" /> My Profile
+          <User size={22} className="text-[#667D9D]" /> My Profile
         </h1>
         <p className="text-sm text-slate-500 mt-1">Your student account information</p>
       </div>
@@ -66,14 +66,14 @@ export default function StudentProfile() {
             </>
           ) : (
             <>
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center text-2xl font-bold text-white shrink-0">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center text-2xl font-bold text-white shrink-0">
                 {initials}
               </div>
               <div>
                 <h2 className="text-xl font-bold text-white">{fullName}</h2>
                 <p className="text-sm text-slate-400 mt-0.5">{profile?.email ?? authUser?.email}</p>
                 <div className="flex items-center gap-2 mt-2">
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-300 border border-blue-500/20 font-medium">
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#667D9D]/15 text-[#ACBBC6] border border-[#667D9D]/20 font-medium">
                     Student
                   </span>
                   {profile?.program && (

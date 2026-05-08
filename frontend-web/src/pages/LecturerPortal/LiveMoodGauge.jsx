@@ -5,7 +5,7 @@ const EMOTION_META = {
   happy:     { label: 'Happy',     dot: 'bg-emerald-400', color: 'text-emerald-400', bg: 'bg-emerald-500/15' },
   neutral:   { label: 'Neutral',   dot: 'bg-slate-400',   color: 'text-slate-300',   bg: 'bg-slate-700/40'   },
   confused:  { label: 'Confused',  dot: 'bg-amber-400',   color: 'text-amber-400',   bg: 'bg-amber-500/15'   },
-  sad:       { label: 'Sad',       dot: 'bg-blue-400',    color: 'text-blue-400',    bg: 'bg-blue-500/15'    },
+  sad:       { label: 'Sad',       dot: 'bg-[#667D9D]',    color: 'text-[#667D9D]',    bg: 'bg-[#667D9D]/15'    },
   surprised: { label: 'Surprised', dot: 'bg-teal-400',    color: 'text-teal-400',    bg: 'bg-teal-500/15'    },
   angry:     { label: 'Angry',     dot: 'bg-rose-400',    color: 'text-rose-400',    bg: 'bg-rose-500/15'    },
   fearful:   { label: 'Fearful',   dot: 'bg-orange-400',  color: 'text-orange-400',  bg: 'bg-orange-500/15'  },
@@ -45,10 +45,10 @@ export default function LiveMoodGauge({ mood }) {
         </div>
         <div className="rounded-xl bg-slate-800/60 p-3">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-            <Brain size={11} className="text-blue-400" />
+            <Brain size={11} className="text-[#667D9D]" />
             Concentration
           </div>
-          <p className="text-xl font-bold text-blue-400 tabular-nums">{concentration}%</p>
+          <p className="text-xl font-bold text-[#667D9D] tabular-nums">{concentration}%</p>
         </div>
       </div>
 

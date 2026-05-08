@@ -23,7 +23,7 @@ const FEATURES = [
 const LIVE_SIGNALS = [
   { label: 'Engagement', value: '+18%', tone: 'text-emerald-400' },
   { label: 'At-risk Alerts', value: 'Real-time', tone: 'text-amber-400' },
-  { label: 'Privacy', value: 'FERPA-ready', tone: 'text-violet-400' },
+  { label: 'Privacy', value: 'FERPA-ready', tone: 'text-[#667D9D]' },
 ]
 
 export default function SplashPage() {
@@ -47,15 +47,15 @@ export default function SplashPage() {
     <div className="relative min-h-screen bg-navy-900 overflow-hidden bg-grid flex flex-col">
 
       {/* Ambient orbs */}
-      <div className="orb w-[600px] h-[600px] bg-blue-600/20 -top-40 -left-40 animate-float-slow" />
-      <div className="orb w-[500px] h-[500px] bg-violet-600/15 -bottom-32 -right-32 animate-float" />
-      <div className="orb w-[300px] h-[300px] bg-indigo-500/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-float-fast" />
+      <div className="orb w-[600px] h-[600px] bg-[#16254F]/20 -top-40 -left-40 animate-float-slow" />
+      <div className="orb w-[500px] h-[500px] bg-[#16254F]/15 -bottom-32 -right-32 animate-float" />
+      <div className="orb w-[300px] h-[300px] bg-[#667D9D]/10 top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-float-fast" />
 
       {/* Floating particles */}
       {PARTICLES.map(p => (
         <span
           key={p.id}
-          className="absolute rounded-full bg-blue-400 pointer-events-none"
+          className="absolute rounded-full bg-[#667D9D] pointer-events-none"
           style={{
             top: p.top, left: p.left,
             width: p.size, height: p.size,
@@ -68,7 +68,7 @@ export default function SplashPage() {
       {/* Navbar */}
       <nav className={`relative z-10 flex items-center justify-between px-8 py-5 transition-all duration-700 ${visible ? 'opacity-100' : 'opacity-0'}`}>
         <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center animate-glow-pulse">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center animate-glow-pulse">
             <GraduationCap size={18} className="text-white" />
           </div>
           <span className="text-lg font-bold tracking-tight text-white">EduVision</span>
@@ -91,21 +91,21 @@ export default function SplashPage() {
         <div className={`mb-8 transition-all duration-700 delay-100 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="relative inline-flex items-center justify-center w-28 h-28">
             {/* Orbit ring */}
-            <div className="absolute inset-0 rounded-full border border-blue-500/20 animate-spin-slow" />
-            <div className="absolute inset-3 rounded-full border border-violet-500/15 animate-spin-slow" style={{ animationDirection: 'reverse', animationDuration: '18s' }} />
+            <div className="absolute inset-0 rounded-full border border-[#667D9D]/20 animate-spin-slow" />
+            <div className="absolute inset-3 rounded-full border border-[#667D9D]/15 animate-spin-slow" style={{ animationDirection: 'reverse', animationDuration: '18s' }} />
             {/* Core */}
-            <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-blue-500 via-indigo-500 to-violet-600 flex items-center justify-center shadow-2xl animate-glow-pulse">
+            <div className="relative w-20 h-20 rounded-2xl bg-gradient-to-br from-[#16254F] via-[#667D9D] to-[#667D9D] flex items-center justify-center shadow-2xl animate-glow-pulse">
               <Brain size={36} className="text-white" />
             </div>
             {/* Orbiting dot */}
-            <span className="absolute w-3 h-3 rounded-full bg-blue-400 shadow-lg shadow-blue-400/50 animate-orbit" />
+            <span className="absolute w-3 h-3 rounded-full bg-[#667D9D] shadow-lg shadow-[#667D9D]/50 animate-orbit" />
           </div>
         </div>
 
         {/* Badge */}
         <div className={`mb-5 transition-all duration-700 delay-150 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
-          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-blue-300 bg-blue-500/10 border border-blue-500/20">
-            <Zap size={11} className="fill-blue-400 text-blue-400" />
+          <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#ACBBC6] bg-[#667D9D]/10 border border-[#667D9D]/20">
+            <Zap size={11} className="fill-blue-400 text-[#667D9D]" />
             AI-Powered Education Analytics
           </span>
         </div>
@@ -145,7 +145,7 @@ export default function SplashPage() {
         <div className={`mb-8 transition-all duration-700 delay-[450ms] ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="glass rounded-full px-4 py-2.5 inline-flex items-center gap-3">
             <span className="inline-flex items-center gap-1.5 text-xs text-slate-400">
-              <Users size={12} className="text-violet-400" />
+              <Users size={12} className="text-[#667D9D]" />
               Live Intelligence
             </span>
             <span className="w-1 h-1 rounded-full bg-slate-600" />
@@ -159,9 +159,9 @@ export default function SplashPage() {
         {/* Feature cards */}
         <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 max-w-4xl w-full transition-all duration-700 delay-500 ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           {FEATURES.map(({ icon: Icon, label, desc }) => (
-            <div key={label} className="glass rounded-2xl p-5 text-left hover:border-blue-500/30 transition-all duration-300 hover:-translate-y-1 group">
-              <div className="w-9 h-9 rounded-lg bg-blue-500/15 flex items-center justify-center mb-3 group-hover:bg-blue-500/25 transition-colors">
-                <Icon size={18} className="text-blue-400" />
+            <div key={label} className="glass rounded-2xl p-5 text-left hover:border-[#667D9D]/30 transition-all duration-300 hover:-translate-y-1 group">
+              <div className="w-9 h-9 rounded-lg bg-[#667D9D]/15 flex items-center justify-center mb-3 group-hover:bg-[#667D9D]/25 transition-colors">
+                <Icon size={18} className="text-[#667D9D]" />
               </div>
               <p className="text-sm font-semibold text-slate-200 mb-1">{label}</p>
               <p className="text-xs text-slate-500 leading-snug">{desc}</p>

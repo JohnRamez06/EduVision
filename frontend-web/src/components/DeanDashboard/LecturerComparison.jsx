@@ -31,7 +31,7 @@ export default function LecturerComparison({ data = [], colors = DEFAULT_COLORS 
 		<div className="glass rounded-2xl p-5">
 			<div className="flex items-center justify-between mb-4 gap-3">
 				<h2 className="font-semibold text-slate-800 dark:text-white flex items-center gap-2">
-					<TrendingUp size={16} className="text-sky-400" /> Lecturer Comparison
+					<TrendingUp size={16} className="text-[#667D9D]" /> Lecturer Comparison
 				</h2>
 				<span className="text-xs text-slate-500">Top engagement scores</span>
 			</div>

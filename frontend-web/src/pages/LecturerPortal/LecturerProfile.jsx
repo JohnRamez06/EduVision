@@ -42,7 +42,7 @@ export default function LecturerProfile() {
     <LecturerLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <User size={22} className="text-violet-400" /> My Profile
+          <User size={22} className="text-[#667D9D]" /> My Profile
         </h1>
         <p className="text-sm text-slate-500 mt-1">Your lecturer account information</p>
       </div>
@@ -63,14 +63,14 @@ export default function LecturerProfile() {
             </>
           ) : (
             <>
-              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-2xl font-bold text-white shrink-0">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center text-2xl font-bold text-white shrink-0">
                 {initials}
               </div>
               <div>
                 <h2 className="text-xl font-bold text-slate-800 dark:text-white">{fullName}</h2>
                 <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">{profile?.email ?? authUser?.email}</p>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-500/20 font-medium">Lecturer</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-[#667D9D]/15 text-[#16254F] dark:text-[#ACBBC6] border border-[#667D9D]/20 font-medium">Lecturer</span>
                   {profile?.department && (
                     <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">{profile.department}</span>
                   )}

@@ -21,7 +21,7 @@ const TestCameraPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+    <div className="min-h-screen bg-gradient-to-br from-[#ECECEC] to-[#ECECEC]">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
@@ -80,7 +80,7 @@ const TestCameraPage = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
               {/* Camera Info Card */}
               <div className="lg:col-span-2">
-                <div className="bg-white rounded-lg shadow-lg p-8 border-l-4 border-blue-500">
+                <div className="bg-white rounded-lg shadow-lg p-8 border-l-4 border-[#667D9D]">
                   <h3 className="text-xl font-bold text-gray-800 mb-6">
                     Camera Configuration Summary
                   </h3>
@@ -89,7 +89,7 @@ const TestCameraPage = () => {
                     {/* Camera Selection */}
                     <div className="flex items-start space-x-4">
                       <div className="flex-shrink-0">
-                        <div className="flex items-center justify-center h-12 w-12 rounded-md bg-blue-500 text-white">
+                        <div className="flex items-center justify-center h-12 w-12 rounded-md bg-[#667D9D] text-white">
                           📷
                         </div>
                       </div>
@@ -118,7 +118,7 @@ const TestCameraPage = () => {
                     {/* Resolution */}
                     <div className="flex items-start space-x-4 pt-4 border-t border-gray-200">
                       <div className="flex-shrink-0">
-                        <div className="flex items-center justify-center h-12 w-12 rounded-md bg-indigo-500 text-white">
+                        <div className="flex items-center justify-center h-12 w-12 rounded-md bg-[#667D9D] text-white">
                           🎬
                         </div>
                       </div>
@@ -138,7 +138,7 @@ const TestCameraPage = () => {
                     {/* Frame Rate */}
                     <div className="flex items-start space-x-4 pt-4 border-t border-gray-200">
                       <div className="flex-shrink-0">
-                        <div className="flex items-center justify-center h-12 w-12 rounded-md bg-purple-500 text-white">
+                        <div className="flex items-center justify-center h-12 w-12 rounded-md bg-[#667D9D] text-white">
                           ⚡
                         </div>
                       </div>
@@ -168,11 +168,11 @@ const TestCameraPage = () => {
                   <p className="text-xs text-gray-500 mt-3">Camera is connected and configured</p>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-blue-500">
+                <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-[#667D9D]">
                   <p className="text-sm text-gray-600 uppercase font-semibold tracking-wide">
                     Quality
                   </p>
-                  <p className="text-2xl font-bold text-blue-600 mt-2">
+                  <p className="text-2xl font-bold text-[#667D9D] mt-2">
                     {selectedConfig.resolution === '1920x1080' ? 'High' : 'Medium'}
                   </p>
                   <p className="text-xs text-gray-500 mt-3">
@@ -180,11 +180,11 @@ const TestCameraPage = () => {
                   </p>
                 </div>
 
-                <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-indigo-500">
+                <div className="bg-white rounded-lg shadow-lg p-6 border-t-4 border-[#667D9D]">
                   <p className="text-sm text-gray-600 uppercase font-semibold tracking-wide">
                     Next Step
                   </p>
-                  <p className="text-sm font-semibold text-indigo-600 mt-2">
+                  <p className="text-sm font-semibold text-[#667D9D] mt-2">
                     Start Live Session
                   </p>
                   <p className="text-xs text-gray-500 mt-3">Begin classroom engagement tracking</p>
@@ -202,7 +202,7 @@ const TestCameraPage = () => {
               </button>
               <button
                 onClick={handleStartSession}
-                className="px-8 py-3 rounded-lg font-semibold transition-all bg-blue-600 text-white hover:bg-blue-700 shadow-lg hover:shadow-xl"
+                className="px-8 py-3 rounded-lg font-semibold transition-all bg-[#16254F] text-white hover:bg-[#16254F] shadow-lg hover:shadow-xl"
               >
                 Start Live Session →
               </button>

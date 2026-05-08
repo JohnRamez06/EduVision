@@ -78,8 +78,8 @@ export default function LoginPage() {
 
   return (
     <div className="relative min-h-screen bg-navy-900 overflow-hidden bg-grid flex items-center justify-center px-4">
-      <div className="orb w-[500px] h-[500px] bg-blue-600/15 -top-32 -left-32 animate-float-slow" />
-      <div className="orb w-[400px] h-[400px] bg-violet-600/12 -bottom-24 -right-24 animate-float" />
+      <div className="orb w-[500px] h-[500px] bg-[#16254F]/15 -top-32 -left-32 animate-float-slow" />
+      <div className="orb w-[400px] h-[400px] bg-[#16254F]/12 -bottom-24 -right-24 animate-float" />
       <div className="absolute top-5 right-5 z-20">
         <ThemeToggle />
       </div>

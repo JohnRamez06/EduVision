@@ -13,9 +13,9 @@ const Skeleton = ({ className = '' }) => (
 const ROLE_STYLES = {
   admin:    { text: 'text-rose-400',    border: 'border-rose-500/20',    icon: 'bg-rose-500/15'    },
   lecturer: { text: 'text-emerald-400', border: 'border-emerald-500/20', icon: 'bg-emerald-500/15' },
-  student:  { text: 'text-blue-400',    border: 'border-blue-500/20',    icon: 'bg-blue-500/15'    },
+  student:  { text: 'text-[#667D9D]',    border: 'border-[#667D9D]/20',    icon: 'bg-[#667D9D]/15'    },
 }
-const DEFAULT_STYLE = { text: 'text-violet-400', border: 'border-violet-500/20', icon: 'bg-violet-500/15' }
+const DEFAULT_STYLE = { text: 'text-[#667D9D]', border: 'border-[#667D9D]/20', icon: 'bg-[#667D9D]/15' }
 
 // Group permissions by resource for cleaner UI
 const groupByResource = perms =>
@@ -136,7 +136,7 @@ export default function AdminRoles() {
                     </span>
                     <button
                       onClick={() => openEdit(role)}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-violet-400 hover:bg-violet-500/10 transition-all"
+                      className="p-1.5 rounded-lg text-slate-500 hover:text-[#667D9D] hover:bg-[#667D9D]/10 transition-all"
                       title="Edit permissions"
                     >
                       <Pencil size={14} />
@@ -159,7 +159,7 @@ export default function AdminRoles() {
                       </h4>
                       <button
                         onClick={() => openEdit(role)}
-                        className="text-xs text-violet-400 hover:text-violet-300 transition-colors flex items-center gap-1"
+                        className="text-xs text-[#667D9D] hover:text-[#ACBBC6] transition-colors flex items-center gap-1"
                       >
                         <Pencil size={10} /> Edit
                       </button>
@@ -288,7 +288,7 @@ function EditPermissionsModal({ role, allPerms, currentPerms, onClose, onSaved }
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Filter permissions…"
-              className="w-full pl-8 pr-4 py-2 rounded-xl bg-navy-900 border border-slate-700 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-violet-500/50 transition-colors"
+              className="w-full pl-8 pr-4 py-2 rounded-xl bg-navy-900 border border-slate-700 text-sm text-slate-200 placeholder-slate-600 focus:outline-none focus:border-[#667D9D]/50 transition-colors"
             />
           </div>
         </div>
@@ -314,8 +314,8 @@ function EditPermissionsModal({ role, allPerms, currentPerms, onClose, onSaved }
                   className="flex items-center gap-2 mb-2 group w-full"
                 >
                   <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
-                    allChecked  ? 'bg-violet-600 border-violet-600' :
-                    someChecked ? 'bg-violet-600/40 border-violet-500' :
+                    allChecked  ? 'bg-[#16254F] border-[#16254F]' :
+                    someChecked ? 'bg-[#16254F]/40 border-[#667D9D]' :
                                   'border-slate-600 bg-transparent'
                   }`}>
                     {(allChecked || someChecked) && <Check size={10} className="text-white" strokeWidth={3} />}
@@ -338,7 +338,7 @@ function EditPermissionsModal({ role, allPerms, currentPerms, onClose, onSaved }
                     >
                       <div className={`w-4 h-4 rounded border flex items-center justify-center transition-colors shrink-0 ${
                         selected.has(p.id)
-                          ? 'bg-violet-600 border-violet-600'
+                          ? 'bg-[#16254F] border-[#16254F]'
                           : 'border-slate-600 group-hover:border-slate-400'
                       }`}>
                         {selected.has(p.id) && <Check size={10} className="text-white" strokeWidth={3} />}
@@ -368,7 +368,7 @@ function EditPermissionsModal({ role, allPerms, currentPerms, onClose, onSaved }
           <button
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+            className="flex-1 py-2.5 rounded-xl bg-[#16254F] hover:bg-[#667D9D] disabled:opacity-60 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
           >
             {saving ? 'Saving…' : <><Check size={14} /> Save Permissions</>}
           </button>

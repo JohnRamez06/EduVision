@@ -46,9 +46,9 @@ const EMOTION_META = {
   },
   engaged: {
     label: "Engaged",
-    color: "text-violet-400",
-    bg: "bg-violet-500/15",
-    dot: "bg-violet-400",
+    color: "text-[#667D9D]",
+    bg: "bg-[#667D9D]/15",
+    dot: "bg-[#667D9D]",
     emoji: "🎯",
   },
   neutral: {
@@ -74,9 +74,9 @@ const EMOTION_META = {
   },
   sad: {
     label: "Sad",
-    color: "text-blue-400",
-    bg: "bg-blue-500/15",
-    dot: "bg-blue-400",
+    color: "text-[#667D9D]",
+    bg: "bg-[#667D9D]/15",
+    dot: "bg-[#667D9D]",
     emoji: "😔",
   },
   angry: {
@@ -105,7 +105,7 @@ const EMOTION_META = {
 const SEVERITY_STYLES = {
   critical: "border-rose-500/40 bg-rose-500/10 text-rose-300",
   warning: "border-amber-500/40 bg-amber-500/10 text-amber-300",
-  info: "border-blue-500/40 bg-blue-500/10 text-blue-300",
+  info: "border-[#667D9D]/40 bg-[#667D9D]/10 text-[#ACBBC6]",
 };
 
 // Helper function to convert concentration to level string
@@ -143,8 +143,8 @@ function StatCard({
 }) {
   const colors = {
     emerald: "bg-emerald-500/15 text-emerald-400",
-    violet: "bg-violet-500/15 text-violet-400",
-    blue: "bg-blue-500/15 text-blue-400",
+    violet: "bg-[#667D9D]/15 text-[#667D9D]",
+    blue: "bg-[#667D9D]/15 text-[#667D9D]",
     amber: "bg-amber-500/15 text-amber-400",
     rose: "bg-rose-500/15 text-rose-400",
   };
@@ -176,8 +176,8 @@ function EngagementArc({ value = 0 }) {
   const dash = (pct / 100) * circ;
 
   return (
-    <div className="glass rounded-2xl p-5 flex flex-col items-center justify-center gap-2">
-      <p className="text-xs text-slate-500 font-medium">Engagement</p>
+    <div className="glass rounded-2xl p-5 flex flex-col items-center justify-center gap-2 border-t-2 border-[#16254F]/60">
+      <p className="text-xs text-[#ACBBC6] font-medium">Engagement</p>
       <div className="relative w-28 h-28">
         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
           <circle
@@ -185,7 +185,7 @@ function EngagementArc({ value = 0 }) {
             cy="50"
             r={r}
             fill="none"
-            stroke="#1e293b"
+            stroke="rgba(22,37,79,0.6)"
             strokeWidth="8"
           />
           <circle
@@ -231,18 +231,18 @@ function ConcentrationBars({ high = 0, medium = 0, low = 0 }) {
     },
   ];
   return (
-    <div className="glass rounded-2xl p-4">
-      <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
-        <Brain size={12} /> Concentration
+    <div className="rounded-2xl p-4 border border-[#667D9D]/20" style={{ background: 'rgba(22,37,79,0.45)', backdropFilter: 'blur(14px)' }}>
+      <p className="text-xs font-medium mb-3 flex items-center gap-1.5 text-[#ACBBC6]">
+        <Brain size={12} className="text-[#667D9D]" /> Concentration
       </p>
       <div className="space-y-2.5">
         {bars.map((b) => (
           <div key={b.label}>
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-400">{b.label}</span>
-              <span className="text-slate-500">{b.value} students</span>
+              <span className="text-[#ACBBC6]">{b.label}</span>
+              <span className="text-[#667D9D]">{b.value} students</span>
             </div>
-            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-[#060817]/60 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${b.color} transition-all duration-700`}
                 style={{ width: `${b.pct}%` }}
@@ -300,7 +300,7 @@ function StudentRow({ student }) {
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40">
-      <div className="w-8 h-8 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
+      <div className="w-8 h-8 rounded-full bg-[#667D9D]/20 text-[#ACBBC6] flex items-center justify-center text-xs font-bold shrink-0">
         {initials}
       </div>
       <div className="flex-1 min-w-0">
@@ -573,11 +573,14 @@ export default function LecturerLiveSession() {
               });
               const n = people.length || 1;
               const avgConc = totalConc / n;
-              const posEmotions = (counts.happy ?? 0) + (counts.surprised ?? 0);
+              const weightedPositive =
+                (counts.happy ?? 0) +
+                (counts.surprised ?? 0) +
+                (counts.neutral ?? 0) * 0.5;
               const totalEmotions =
                 Object.values(counts).reduce((s, v) => s + v, 0) || 1;
-              const engagementScore =
-                (posEmotions / totalEmotions + avgConc) / 2;
+              const emotionEngagement = weightedPositive / totalEmotions;
+              const engagementScore = (emotionEngagement + avgConc) / 2;
 
               const dominant =
                 Object.keys(counts).length > 0
@@ -734,8 +737,8 @@ export default function LecturerLiveSession() {
       <LecturerLayout>
         <div className="max-w-lg mx-auto mt-10">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-11 h-11 rounded-xl bg-violet-500/15 flex items-center justify-center">
-              <Video size={20} className="text-violet-400" />
+            <div className="w-11 h-11 rounded-xl bg-[#667D9D]/15 flex items-center justify-center">
+              <Video size={20} className="text-[#667D9D]" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">
@@ -843,7 +846,7 @@ export default function LecturerLiveSession() {
               <button
                 type="submit"
                 disabled={starting || loadingCourses}
-                className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-2"
+                className="w-full py-3 rounded-xl bg-[#16254F] hover:bg-[#667D9D] disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-2"
               >
                 {starting ? (
                   "Starting…"
@@ -974,20 +977,23 @@ export default function LecturerLiveSession() {
 
         <div className="lg:col-span-3 flex flex-col gap-4">
           <div className="grid grid-cols-3 gap-3">
-            <StatCard
-              icon={Users}
-              label="Students"
-              value={studentCount}
-              sub="detected"
-              color="blue"
-            />
+            <div className="rounded-2xl p-4 flex items-center gap-3 border border-[#667D9D]/25" style={{ background: 'rgba(22,37,79,0.35)', backdropFilter: 'blur(14px)' }}>
+              <div className="w-10 h-10 rounded-xl bg-[#667D9D]/20 flex items-center justify-center shrink-0">
+                <Users size={18} className="text-[#ACBBC6]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-[#667D9D] font-medium">Students</p>
+                <p className="text-xl font-bold text-[#ECECEC] leading-tight">{studentCount ?? "—"}</p>
+                <p className="text-xs text-[#667D9D] mt-0.5">detected</p>
+              </div>
+            </div>
             <EngagementArc value={engagement} />
             <div
-              className={`glass rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 ${emoMeta.bg}`}
+              className={`glass rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 border-t-2 border-[#667D9D]/40 ${emoMeta.bg}`}
             >
-              <p className="text-xs text-slate-500 font-medium">Mood</p>
+              <p className="text-xs text-[#ACBBC6] font-medium">Mood</p>
               <span
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${emoMeta.dot} opacity-80`}
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${emoMeta.dot}`}
               />
               <span className={`text-sm font-semibold ${emoMeta.color}`}>
                 {emoMeta.label}
@@ -996,13 +1002,13 @@ export default function LecturerLiveSession() {
           </div>
 
           {/* Detected Students */}
-          <div className="glass rounded-2xl p-4">
+          <div className="glass rounded-2xl p-4 border-l-2 border-[#667D9D]/50">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
-                <Users size={12} /> Detected Students
+              <p className="text-xs text-[#ACBBC6] font-medium flex items-center gap-1.5">
+                <Users size={12} className="text-[#667D9D]" /> Detected Students
               </p>
               {detectedStudents.size > 0 && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-medium">
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#667D9D]/20 text-[#ACBBC6] font-medium">
                   {detectedStudents.size}
                 </span>
               )}
@@ -1022,9 +1028,9 @@ export default function LecturerLiveSession() {
           </div>
 
           {snapshot?.studentSnapshots?.length > 0 && (
-            <div className="glass rounded-2xl p-4">
-              <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
-                <Activity size={12} /> Emotion Distribution
+            <div className="glass rounded-2xl p-4 border-l-2 border-[#ACBBC6]/40">
+              <p className="text-xs text-[#ACBBC6] font-medium mb-3 flex items-center gap-1.5">
+                <Activity size={12} className="text-[#667D9D]" /> Emotion Distribution
               </p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(
@@ -1056,9 +1062,9 @@ export default function LecturerLiveSession() {
             </div>
           )}
 
-          <div className="glass rounded-2xl p-4 flex-1 min-h-0">
-            <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
-              <AlertTriangle size={12} /> Live Alerts
+          <div className="glass rounded-2xl p-4 flex-1 min-h-0 border-l-2 border-rose-500/30">
+            <p className="text-xs text-[#ACBBC6] font-medium mb-3 flex items-center gap-1.5">
+              <AlertTriangle size={12} className="text-rose-400" /> Live Alerts
               {alerts.length > 0 && (
                 <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
                   {alerts.length}

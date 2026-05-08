@@ -22,9 +22,9 @@ const EMOTION_META = {
   },
   sad: {
     label: "Sad",
-    dot: "bg-blue-400",
-    color: "text-blue-400",
-    bg: "bg-blue-500/15",
+    dot: "bg-[#667D9D]",
+    color: "text-[#667D9D]",
+    bg: "bg-[#667D9D]/15",
   },
   surprised: {
     label: "Surprised",
@@ -46,9 +46,9 @@ const EMOTION_META = {
   },
   disgusted: {
     label: "Disgusted",
-    dot: "bg-purple-400",
-    color: "text-purple-400",
-    bg: "bg-purple-500/15",
+    dot: "bg-[#667D9D]",
+    color: "text-[#667D9D]",
+    bg: "bg-[#667D9D]/15",
   },
   engaged: {
     label: "Engaged",
@@ -111,10 +111,10 @@ export default function LiveMoodGauge({ mood }) {
         </div>
         <div className="rounded-xl bg-slate-800/60 p-3">
           <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
-            <Brain size={11} className="text-blue-400" />
+            <Brain size={11} className="text-[#667D9D]" />
             Concentration
           </div>
-          <p className="text-xl font-bold text-blue-400 tabular-nums">
+          <p className="text-xl font-bold text-[#667D9D] tabular-nums">
             {concentration}%
           </p>
         </div>

@@ -72,7 +72,7 @@ export default function StudentAnalytics() {
     <StudentLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-          <BarChart3 size={22} className="text-violet-400" /> Analytics
+          <BarChart3 size={22} className="text-[#667D9D]" /> Analytics
         </h1>
         <p className="text-sm text-slate-500 mt-1">Your learning performance over time</p>
       </div>
@@ -91,9 +91,9 @@ export default function StudentAnalytics() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
           {[
-            { icon: Brain,     color: 'text-blue-400',   bg: 'bg-blue-500/10',   label: 'Avg Concentration', value: stats?.avgConcentration != null ? `${Math.round(stats.avgConcentration * 100)}%` : '—' },
+            { icon: Brain,     color: 'text-[#667D9D]',   bg: 'bg-[#667D9D]/10',   label: 'Avg Concentration', value: stats?.avgConcentration != null ? `${Math.round(stats.avgConcentration * 100)}%` : '—' },
             { icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: 'Avg Attentiveness', value: stats?.avgAttentiveness != null ? `${Math.round(stats.avgAttentiveness * 100)}%` : '—' },
-            { icon: Zap,        color: 'text-violet-400',  bg: 'bg-violet-500/10',  label: 'Sessions Recorded', value: summaries.length },
+            { icon: Zap,        color: 'text-[#667D9D]',  bg: 'bg-[#667D9D]/10',  label: 'Sessions Recorded', value: summaries.length },
           ].map(({ icon: Icon, color, bg, label, value }) => (
             <div key={label} className="glass rounded-2xl p-4 flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
@@ -111,7 +111,7 @@ export default function StudentAnalytics() {
       {/* Concentration trend */}
       <div className="glass rounded-2xl p-5 mb-5">
         <h2 className="font-semibold text-white flex items-center gap-2 mb-5">
-          <Brain size={16} className="text-blue-400" /> Concentration Over Time
+          <Brain size={16} className="text-[#667D9D]" /> Concentration Over Time
         </h2>
         {loading ? <Skeleton className="h-56" /> : concentrationData.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-slate-600 text-sm">No session data yet</div>
@@ -136,7 +136,7 @@ export default function StudentAnalytics() {
         {/* Emotion breakdown */}
         <div className="glass rounded-2xl p-5">
           <h2 className="font-semibold text-white flex items-center gap-2 mb-4">
-            <Zap size={16} className="text-violet-400" /> Emotion Breakdown
+            <Zap size={16} className="text-[#667D9D]" /> Emotion Breakdown
           </h2>
           {loading ? <Skeleton className="h-52" /> : emotionPie.length === 0 ? (
             <div className="flex items-center justify-center h-40 text-slate-600 text-sm">No emotion data yet</div>

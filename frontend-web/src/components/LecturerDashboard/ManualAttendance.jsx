@@ -134,11 +134,11 @@ export default function ManualAttendance() {
 
   const getStatusBadge = (status, isManual = false) => {
     if (status === 'present') {
-      return <span className={`px-2 py-1 rounded-full text-xs ${isManual ? 'bg-purple-600 text-white' : 'bg-green-600 text-white'}`}>
+      return <span className={`px-2 py-1 rounded-full text-xs ${isManual ? 'bg-[#16254F] text-white' : 'bg-green-600 text-white'}`}>
         {isManual ? '✓ Manual Present' : '✓ Present'}
       </span>;
     } else if (status === 'excused') {
-      return <span className="px-2 py-1 rounded-full text-xs bg-blue-600 text-white">📝 Excused</span>;
+      return <span className="px-2 py-1 rounded-full text-xs bg-[#16254F] text-white">📝 Excused</span>;
     } else {
       return <span className="px-2 py-1 rounded-full text-xs bg-red-600 text-white">✗ Absent</span>;
     }
@@ -151,7 +151,7 @@ export default function ManualAttendance() {
       <LecturerLayout>
         <div className="text-center py-12 text-red-400">
           <p>{error}</p>
-          <button onClick={() => navigate('/lecturer/courses')} className="mt-4 px-4 py-2 bg-purple-600 rounded-lg text-white">
+          <button onClick={() => navigate('/lecturer/courses')} className="mt-4 px-4 py-2 bg-[#16254F] rounded-lg text-white">
             Back to Courses
           </button>
         </div>
@@ -229,7 +229,7 @@ export default function ManualAttendance() {
                           <option value="excused">📝 Mark Excused</option>
                         </select>
                         {student.isManuallyModified && (
-                          <div className="text-xs text-purple-400 mt-1">⚠️ Will override current status</div>
+                          <div className="text-xs text-[#667D9D] mt-1">⚠️ Will override current status</div>
                         )}
                       </td>
                       <td className="px-4 py-3 text-white">
@@ -248,7 +248,7 @@ export default function ManualAttendance() {
               <button
                 onClick={saveAttendance}
                 disabled={saving}
-                className="flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white rounded-lg font-semibold transition"
+                className="flex items-center gap-2 px-6 py-3 bg-[#16254F] hover:bg-[#16254F] disabled:opacity-50 text-white rounded-lg font-semibold transition"
               >
                 <Save size={18} />
                 {saving ? 'Saving...' : 'Save Manual Attendance'}

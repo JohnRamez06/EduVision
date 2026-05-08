@@ -11,7 +11,7 @@ export default function CameraConfigManagement() {
 
   return (
     <div className="glass rounded-2xl p-5">
-      <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><Camera size={16} className="text-violet-400" /> Camera Configurations</h3>
+      <h3 className="font-semibold text-white mb-4 flex items-center gap-2"><Camera size={16} className="text-[#667D9D]" /> Camera Configurations</h3>
       <div className="space-y-2">
         {configs.length === 0 ? <div className="text-sm text-slate-600 py-8 text-center">No camera configurations available.</div> : configs.map((config) => (
           <div key={config.id} className="rounded-xl bg-navy-900/50 border border-slate-800/60 p-3">
