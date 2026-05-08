@@ -35,6 +35,7 @@ public class SessionService {
     private final UserRepository userRepository;
     private final SingletonGuardService singletonGuardService;
     private final EntityManager entityManager;
+    private final ReportService reportService;
 
     public SessionService(
             SessionRepository sessionRepository,
@@ -42,13 +43,15 @@ public class SessionService {
             SessionRegistryRepository registryRepository,
             UserRepository userRepository,
             SingletonGuardService singletonGuardService,
-            EntityManager entityManager) {
+            EntityManager entityManager,
+            ReportService reportService) {
         this.sessionRepository = sessionRepository;
         this.attendanceRepository = attendanceRepository;
         this.registryRepository = registryRepository;
         this.userRepository = userRepository;
         this.singletonGuardService = singletonGuardService;
         this.entityManager = entityManager;
+        this.reportService = reportService;
     }
 
     public SessionStatusDTO startSession(SessionStartRequest request) {
@@ -104,6 +107,10 @@ public class SessionService {
                     registry.setLastDeactivatedAt(LocalDateTime.now());
                     registryRepository.save(registry);
                 });
+
+        // Automatically compute student analytics in the background.
+        // Runs asynchronously so the lecturer's response is instant.
+        reportService.computeStudentSummariesAsync(sessionId);
 
         return buildStatus(session);
     }

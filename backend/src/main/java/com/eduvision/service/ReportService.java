@@ -8,8 +8,11 @@ import com.eduvision.model.WeeklyPeriods;
 import com.eduvision.repository.ReportRepository;
 import com.eduvision.repository.UserRepository;
 import com.eduvision.repository.WeeklyPeriodsRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +25,8 @@ import java.util.UUID;
 
 @Service
 public class ReportService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReportService.class);
 
     private static final String OUTPUT_BASE =
         Paths.get(System.getProperty("user.dir")).getParent().resolve("analytics-r/output").toString();
@@ -95,6 +100,25 @@ public class ReportService {
             throw new RuntimeException("R summary computation failed for session: " + sessionId);
         }
         return true;
+    }
+
+    /**
+     * Fire-and-forget version — called automatically when a session ends.
+     * Runs in a background thread so the lecturer's "End Session" response is instant.
+     */
+    @Async
+    public void computeStudentSummariesAsync(String sessionId) {
+        log.info("[ReportService] Auto-computing student summaries for session {}", sessionId);
+        try {
+            boolean ok = rScriptExecutor.execute("scripts/compute_student_summaries.R", sessionId);
+            if (ok) {
+                log.info("[ReportService] Student summaries computed successfully for session {}", sessionId);
+            } else {
+                log.warn("[ReportService] R script returned non-zero exit for session {}", sessionId);
+            }
+        } catch (Exception e) {
+            log.error("[ReportService] Failed to compute summaries for session {}: {}", sessionId, e.getMessage());
+        }
     }
 
     /**
