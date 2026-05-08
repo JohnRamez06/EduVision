@@ -65,44 +65,99 @@ public class AttendanceService {
     // EXIT / RETURN LOGS
     // ============================================================
 
-    @Transactional
-    public void recordExit(ExitRecordRequest req) {
-        Integer studentExists = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM students WHERE student_id = ?",
-                Integer.class, req.getStudentId());
-        if (studentExists == null || studentExists == 0)
-            throw new ResourceNotFoundException("Student not found: " + req.getStudentId());
-
-        Integer sessionExists = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM lecture_sessions WHERE session_id = ?",
-                Integer.class, req.getSessionId());
-        if (sessionExists == null || sessionExists == 0)
-            throw new ResourceNotFoundException("Session not found: " + req.getSessionId());
-
-        String id = UUID.randomUUID().toString();
-        jdbc.update(
-                "INSERT INTO session_exit_logs (exit_log_id, student_id, session_id, exit_time, exit_type) " +
-                "VALUES (?, ?, ?, ?, ?)",
-                id, req.getStudentId(), req.getSessionId(),
-                LocalDateTime.now(), req.getExitType());
+    /**
+ * Record student exit (when camera loses student for >60 seconds)
+ */
+@Transactional
+public void recordExit(String sessionId, String studentId, String studentName) {
+    try {
+        // Check if there's an open exit without return
+        String checkSql = """
+            SELECT id FROM session_exit_logs 
+            WHERE session_id = ? AND student_id = ? AND return_time IS NULL
+        """;
+        
+        List<String> existing = jdbc.queryForList(checkSql, String.class, sessionId, studentId);
+        
+        if (existing.isEmpty()) {
+            String sql = """
+                INSERT INTO session_exit_logs (id, session_id, student_id, exit_time, exit_type, detected_by)
+                VALUES (UUID(), ?, ?, NOW(), 'camera_loss', 'camera')
+            """;
+            jdbc.update(sql, sessionId, studentId);
+            logger.info("🚪 Exit recorded for student {} in session {}", studentId, sessionId);
+        }
+        
+        // Update session_attendance left_at
+        String updateSql = """
+            UPDATE session_attendance 
+            SET left_at = NOW()
+            WHERE session_id = ? AND student_id = ? AND left_at IS NULL
+        """;
+        jdbc.update(updateSql, sessionId, studentId);
+        
+    } catch (Exception e) {
+        logger.error("Error recording exit: {}", e.getMessage());
     }
+}
 
-    @Transactional
-    public void recordReturn(ReturnRecordRequest req) {
-        List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT exit_log_id FROM session_exit_logs " +
-                "WHERE student_id = ? AND session_id = ? AND return_time IS NULL " +
-                "ORDER BY exit_time DESC LIMIT 1",
-                req.getStudentId(), req.getSessionId());
-
-        if (rows.isEmpty())
-            throw new ResourceNotFoundException("No open exit found for student " + req.getStudentId());
-
-        String exitLogId = (String) rows.get(0).get("exit_log_id");
-        jdbc.update(
-                "UPDATE session_exit_logs SET return_time = ? WHERE exit_log_id = ?",
-                LocalDateTime.now(), exitLogId);
+/**
+ * Record student return
+ */
+@Transactional
+public void recordReturn(String sessionId, String studentId) {
+    try {
+        // Update the most recent exit log
+        String sql = """
+            UPDATE session_exit_logs 
+            SET return_time = NOW(),
+                exit_duration_minutes = TIMESTAMPDIFF(MINUTE, exit_time, NOW())
+            WHERE session_id = ? AND student_id = ? AND return_time IS NULL
+            ORDER BY exit_time DESC
+            LIMIT 1
+        """;
+        
+        jdbc.update(sql, sessionId, studentId);
+        logger.info("🔄 Return recorded for student {} in session {}", studentId, sessionId);
+        
+        // Update session_attendance
+        String updateSql = """
+            UPDATE session_attendance 
+            SET left_at = NULL
+            WHERE session_id = ? AND student_id = ?
+        """;
+        jdbc.update(updateSql, sessionId, studentId);
+        
+    } catch (Exception e) {
+        logger.error("Error recording return: {}", e.getMessage());
     }
+}
+
+/**
+ * Get presence summary for a session
+ */
+public List<Map<String, Object>> getPresenceSummary(String sessionId) {
+    String sql = """
+        SELECT 
+            sa.student_id,
+            s.student_number,
+            CONCAT(u.first_name, ' ', u.last_name) as student_name,
+            sa.joined_at,
+            sa.left_at,
+            sa.recorded_at as first_detected,
+            COUNT(el.id) as exit_count,
+            SUM(el.exit_duration_minutes) as total_away_minutes
+        FROM session_attendance sa
+        JOIN students s ON s.user_id = sa.student_id
+        JOIN users u ON u.id = s.user_id
+        LEFT JOIN session_exit_logs el ON el.session_id = sa.session_id AND el.student_id = sa.student_id
+        WHERE sa.session_id = ?
+        GROUP BY sa.student_id, s.student_number, u.first_name, u.last_name, sa.joined_at, sa.left_at, sa.recorded_at
+        ORDER BY sa.joined_at
+    """;
+    
+    return jdbc.queryForList(sql, sessionId);
+}
 
     public List<ExitLogDTO> getSessionExits(String sessionId) {
         return jdbc.query(

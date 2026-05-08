@@ -1,4 +1,8 @@
-# analytics-r/generators/generate_student_weekly.R
+
+## **Updated generate_student_weekly.R (with presence data)**
+
+```r
+# C:\Users\john\Desktop\eduvision\analytics-r\generators\generate_student_weekly.R
 # Usage: Rscript generate_student_weekly.R <student_id> <week_id>
 args <- commandArgs(trailingOnly = TRUE)
 if (length(args) < 2) {
@@ -86,6 +90,24 @@ concentration_trends <- dbGetQuery(conn, sprintf("
   GROUP BY DATE(ses.captured_at) ORDER BY date DESC LIMIT 30
 ", student_id))
 
+# NEW: Get presence/join-leave data for this student
+presence_data <- dbGetQuery(conn, sprintf("
+  SELECT 
+      ls.title as session_title,
+      ls.scheduled_start,
+      sa.joined_at,
+      sa.left_at,
+      COUNT(el.id) as times_away,
+      SUM(COALESCE(el.exit_duration_minutes, 0)) as total_away_minutes
+  FROM session_attendance sa
+  JOIN lecture_sessions ls ON ls.id = sa.session_id
+  LEFT JOIN session_exit_logs el ON el.session_id = sa.session_id AND el.student_id = sa.student_id
+  WHERE sa.student_id = '%s'
+    AND ls.scheduled_start BETWEEN '%s' AND '%s'
+  GROUP BY ls.id, ls.title, ls.scheduled_start, sa.joined_at, sa.left_at
+  ORDER BY ls.scheduled_start
+", student_id, week_info$start_date[1], week_info$end_date[1]))
+
 # Java ReportService expects: analytics-r/output/student/student_<studentId>_week_<weekId>.pdf
 output_file <- file.path(OUTPUT_DIRS$student,
                          sprintf("student_%s_week_%s.pdf", student_id, week_id))
@@ -106,7 +128,8 @@ rmarkdown::render(
     week_end             = as.character(week_info$end_date[1]),
     weekly_attendance    = weekly_attendance,
     emotion_trends       = emotion_trends,
-    concentration_trends = concentration_trends
+    concentration_trends = concentration_trends,
+    presence_data        = presence_data
   ),
   quiet = TRUE
 )

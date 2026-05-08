@@ -30,18 +30,6 @@ public class AttendanceController {
         this.jdbc = jdbc;
     }
 
-    @PostMapping("/exit")
-    public ResponseEntity<?> recordExit(@RequestBody ExitRecordRequest request) {
-        attendanceService.recordExit(request);
-        return ResponseEntity.ok().build();
-    }
-
-    @PostMapping("/return")
-    public ResponseEntity<?> recordReturn(@RequestBody ReturnRecordRequest request) {
-        attendanceService.recordReturn(request);
-        return ResponseEntity.ok().build();
-    }
-
     @GetMapping("/session/{sessionId}/exits")
     public ResponseEntity<List<ExitLogDTO>> getSessionExits(@PathVariable String sessionId) {
         return ResponseEntity.ok(attendanceService.getSessionExits(sessionId));
@@ -163,4 +151,108 @@ public class AttendanceController {
             return "19b98b4d-b8fd-4af7-9328-a7a801cda18c"; // Fallback to lecturer@gmail.com
         }
     }
+
+    /**
+ * Get presence summary for a session (join/leave times)
+ */
+@GetMapping("/session/{sessionId}/presence-summary")
+public ResponseEntity<List<Map<String, Object>>> getPresenceSummary(@PathVariable String sessionId) {
+    return ResponseEntity.ok(attendanceService.getPresenceSummary(sessionId));
+}
+
+/**
+ * Manually record student exit (e.g., student leaves to bathroom)
+ */
+@PostMapping("/session/{sessionId}/manual-exit")
+public ResponseEntity<?> manualExit(
+        @PathVariable String sessionId,
+        @RequestBody Map<String, String> request) {
+    
+    String studentId = request.get("studentId");
+    String reason = request.getOrDefault("reason", "manual");
+    
+    attendanceService.recordExit(sessionId, studentId, reason);
+    return ResponseEntity.ok(Map.of("message", "Exit recorded"));
+}
+
+/**
+ * Manually record student return
+ */
+@PostMapping("/session/{sessionId}/manual-return")
+public ResponseEntity<?> manualReturn(
+        @PathVariable String sessionId,
+        @RequestBody Map<String, String> request) {
+    
+    String studentId = request.get("studentId");
+    
+    attendanceService.recordReturn(sessionId, studentId);
+    return ResponseEntity.ok(Map.of("message", "Return recorded"));
+}
+
+@PostMapping("/record-with-presence")
+public ResponseEntity<?> recordAttendanceWithPresence(@RequestBody Map<String, Object> request) {
+    String sessionId = (String) request.get("sessionId");
+    String studentId = (String) request.get("studentId");
+    String presenceEvent = (String) request.get("presenceEvent");
+
+    logger.info("📥 Presence event: {} for student {} in session {}", presenceEvent, studentId, sessionId);
+
+    try {
+        if ("joined".equals(presenceEvent)) {
+            String sql = """
+                INSERT INTO session_attendance (id, session_id, student_id, status, joined_at, recorded_at)
+                VALUES (UUID(), ?, ?, 'present', NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    joined_at = COALESCE(joined_at, NOW()),
+                    recorded_at = NOW()
+            """;
+            jdbc.update(sql, sessionId, studentId);
+            logger.info("✅ JOIN recorded");
+        }
+        else if ("returned".equals(presenceEvent)) {
+            String sql = """
+                UPDATE session_attendance
+                SET left_at = NULL, recorded_at = NOW()
+                WHERE session_id = ? AND student_id = ?
+            """;
+            jdbc.update(sql, sessionId, studentId);
+            logger.info("🔄 RETURN recorded");
+        }
+        else if ("left".equals(presenceEvent)) {
+            // 1. Update session_attendance – set left_at if it's currently NULL
+            String updateSql = """
+                UPDATE session_attendance
+                SET left_at = NOW()
+                WHERE session_id = ? AND student_id = ? AND left_at IS NULL
+            """;
+            int updated = jdbc.update(updateSql, sessionId, studentId);
+
+            // 2. Insert exit log (only if the update succeeded)
+            if (updated > 0) {
+                String exitSql = """
+                    INSERT INTO session_exit_logs (id, session_id, student_id, exit_time, exit_type, detected_by)
+                    VALUES (UUID(), ?, ?, NOW(), 'camera_loss', 'camera')
+                """;
+                jdbc.update(exitSql, sessionId, studentId);
+                logger.info("🚪 LEFT recorded");
+            } else {
+                logger.warn("No row updated for left event – student may not have been joined or already left");
+            }
+        }
+        else {
+            // regular presence – ensure a row exists
+            String sql = """
+                INSERT INTO session_attendance (id, session_id, student_id, status, recorded_at)
+                VALUES (UUID(), ?, ?, 'present', NOW())
+                ON DUPLICATE KEY UPDATE recorded_at = NOW()
+            """;
+            jdbc.update(sql, sessionId, studentId);
+        }
+        return ResponseEntity.ok(Map.of("message", "Attendance with presence recorded"));
+    }
+    catch (Exception e) {
+        logger.error("Error recording presence: {}", e.getMessage(), e);
+        return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+    }
+}
 }
