@@ -86,14 +86,17 @@ export default function StudentAnalytics() {
     : []
 
   // Attendance per course bar
-  const attendanceBar = (dashboard?.enrolledCourses ?? []).map(c => ({
-    name: c.code ?? c.title ?? 'Course',
-    attended: Number(c.attendedSessions ?? 0),
-    total: Number(c.totalSessions ?? 0),
-    pct: Number(c.totalSessions ?? 0) > 0
-      ? Math.round((Number(c.attendedSessions ?? 0) / Number(c.totalSessions ?? 0)) * 100)
-      : 0,
-  }))
+  const attendanceBar = (dashboard?.enrolledCourses ?? []).map(c => {
+    const attended = Number(c.attendedSessions ?? 0)
+    const total = Number(c.totalSessions ?? 0)
+
+    return {
+      name: c.code ?? c.title ?? c.id ?? 'Unknown Course',
+      attended,
+      total,
+      pct: total > 0 ? Math.round((attended / total) * 100) : 0,
+    }
+  })
 
   const stats = dashboard?.overallStats
 
