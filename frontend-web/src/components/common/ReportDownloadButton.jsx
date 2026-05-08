@@ -47,7 +47,7 @@ export default function ReportDownloadButton({ reportType, id, weekId, label = '
     <div className="inline-flex flex-col gap-2">
       {status === 'idle' && (
         <button onClick={handleGenerate}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors">
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16254F] hover:bg-[#667D9D] text-white text-sm font-medium transition-colors">
           📄 {label}
         </button>
       )}

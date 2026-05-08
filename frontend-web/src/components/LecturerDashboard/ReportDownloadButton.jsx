@@ -26,7 +26,7 @@ export default function ReportDownloadButton({ reportId, label = 'Download Repor
 			type="button"
 			onClick={handleDownload}
 			disabled={loading || !reportId}
-			className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+			className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#16254F] hover:bg-[#667D9D] text-white text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 		>
 			<Download size={14} />
 			{loading ? 'Downloading…' : label}

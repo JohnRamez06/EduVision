@@ -58,7 +58,7 @@ export default function LecturerSessions() {
     <LecturerLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <Clock size={22} className="text-violet-400" /> Session History
+          <Clock size={22} className="text-[#667D9D]" /> Session History
         </h1>
         <p className="text-sm text-slate-500 mt-1">Your completed lecture sessions</p>
       </div>
@@ -84,7 +84,7 @@ export default function LecturerSessions() {
             <div key={s.sessionId}>
               <button
                 onClick={() => openSession(s)}
-                className="w-full glass rounded-2xl p-5 flex items-center gap-5 hover:border-violet-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 transition-all text-left group"
+                className="w-full glass rounded-2xl p-5 flex items-center gap-5 hover:border-[#667D9D]/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#667D9D]/60 transition-all text-left group"
               >
                 {/* Date block */}
                 <div className="w-14 text-center shrink-0">

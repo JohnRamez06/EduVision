@@ -49,12 +49,12 @@ export default function StudentLayout({ children, unread = 0 }) {
     <aside className={`sidebar flex flex-col h-full border-r transition-colors duration-200 border-slate-200/80 dark:border-slate-800/50 ${mobile ? 'w-full' : 'w-60'}`}>
       {/* Logo */}
       <div className="flex items-center gap-3 px-5 py-[18px] border-b border-slate-200/80 dark:border-slate-800/50">
-        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shrink-0 shadow-lg shadow-violet-500/20">
+        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center shrink-0 shadow-lg shadow-[#667D9D]/20">
           <GraduationCap size={16} className="text-white" />
         </div>
         <div>
           <span className="font-bold tracking-tight text-sm block leading-none text-slate-900 dark:text-white">EduVision</span>
-          <span className="text-[10px] font-medium tracking-wide uppercase mt-0.5 block text-violet-600/80 dark:text-violet-400/80">Student</span>
+          <span className="text-[10px] font-medium tracking-wide uppercase mt-0.5 block text-[#667D9D]/80 dark:text-[#667D9D]/80">Student</span>
         </div>
       </div>
 
@@ -69,7 +69,7 @@ export default function StudentLayout({ children, unread = 0 }) {
             className={({ isActive }) =>
               `group flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer ${
                 isActive
-                  ? 'bg-violet-50 dark:bg-violet-500/12 text-violet-700 dark:text-violet-300 border border-violet-200/80 dark:border-violet-500/20 shadow-sm'
+                  ? 'bg-[#ECECEC] dark:bg-[#667D9D]/12 text-[#16254F] dark:text-[#ACBBC6] border border-[#ACBBC6]/80 dark:border-[#667D9D]/20 shadow-sm'
                   : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800/60 border border-transparent'
               }`
             }
@@ -78,13 +78,13 @@ export default function StudentLayout({ children, unread = 0 }) {
               <>
                 <span className={`shrink-0 transition-colors duration-150 ${
                   isActive
-                    ? 'text-violet-600 dark:text-violet-400'
+                    ? 'text-[#667D9D] dark:text-[#667D9D]'
                     : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
                 }`}>
                   <Icon size={16} />
                 </span>
                 <span className="flex-1">{label}</span>
-                {isActive && <ChevronRight size={12} className="text-violet-400/70 dark:text-violet-500/60 shrink-0" />}
+                {isActive && <ChevronRight size={12} className="text-[#667D9D]/70 dark:text-[#667D9D]/60 shrink-0" />}
               </>
             )}
           </NavLink>
@@ -94,7 +94,7 @@ export default function StudentLayout({ children, unread = 0 }) {
       {/* User */}
       <div className="px-2.5 pt-3 pb-4 border-t border-slate-200/80 dark:border-slate-800/50 space-y-1">
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800/30">
-          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white shrink-0 ring-2 ring-violet-500/20">
+          <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center text-[10px] font-bold text-white shrink-0 ring-2 ring-[#667D9D]/20">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
@@ -153,7 +153,7 @@ export default function StudentLayout({ children, unread = 0 }) {
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-rose-500" />
               )}
             </button>
-            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-[11px] font-bold text-white ring-2 ring-transparent hover:ring-violet-500/30 transition-all cursor-pointer">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#16254F] to-[#667D9D] flex items-center justify-center text-[11px] font-bold text-white ring-2 ring-transparent hover:ring-[#667D9D]/30 transition-all cursor-pointer">
               {initials}
             </div>
           </div>

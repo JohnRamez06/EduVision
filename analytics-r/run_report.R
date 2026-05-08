@@ -1,3 +1,4 @@
+# C:\Users\john\Desktop\eduvision\analytics-r\run_report.R
 # Get student ID from command line argument
 args <- commandArgs(trailingOnly = TRUE)
 student_id <- if (length(args) > 0) args[1] else "st0020-0000-0000-0000-000000000001"
@@ -65,6 +66,30 @@ negative_emotions <- dbGetQuery(conn, sprintf("
     WHERE student_id = '%s'
 ", student_id))
 
+# NEW: Get presence/join-leave data for recent sessions
+presence_data <- dbGetQuery(conn, sprintf("
+    SELECT 
+        ls.title as session_title,
+        ls.scheduled_start,
+        sa.joined_at,
+        sa.left_at,
+        sa.recorded_at as first_detected,
+        COUNT(el.id) as times_away,
+        SUM(COALESCE(el.exit_duration_minutes, 0)) as total_away_minutes,
+        CASE 
+            WHEN sa.left_at IS NULL THEN 'In Progress'
+            WHEN sa.joined_at IS NOT NULL THEN 'Completed'
+            ELSE 'No Data'
+        END as session_status
+    FROM session_attendance sa
+    JOIN lecture_sessions ls ON ls.id = sa.session_id
+    LEFT JOIN session_exit_logs el ON el.session_id = sa.session_id AND el.student_id = sa.student_id
+    WHERE sa.student_id = '%s'
+    GROUP BY ls.id, ls.title, ls.scheduled_start, sa.joined_at, sa.left_at, sa.recorded_at
+    ORDER BY ls.scheduled_start DESC
+    LIMIT 5
+", student_id))
+
 dbDisconnect(conn)
 
 # Create output directory
@@ -119,7 +144,7 @@ html_content <- paste0(
     <title>Student Report - ', student$name[1], '</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { color: #2c3e50; border-bottom: 3px solid #3498db; padding-bottom: 10px; }
         h2 { color: #34495e; margin-top: 30px; }
         table { width: 100%; border-collapse: collapse; margin: 20px 0; }
@@ -142,14 +167,14 @@ html_content <- paste0(
 <body>
 <div class="container">
 
-<h1>📊 Student Weekly Report</h1>
+<h1>📊 Student Report</h1>
 
 <h2>👤 Student Information</h2>
 <p><strong>Name:</strong> ', student$name[1], '</p>
 <p><strong>Student ID:</strong> ', student$student_number[1], '</p>
 
 <h2>📚 Weekly Attendance Status</h2>
-<table>
+</tr>
     <tr><th>Course</th><th>Status</th><th>Sessions Attended</th><th>Total Sessions</th></tr>')
 
 if (nrow(attendance) > 0) {
@@ -172,11 +197,42 @@ if (nrow(attendance) > 0) {
     </tr>')
   }
 } else {
-  html_content <- paste0(html_content, '<tr><td colspan="4">No data available</td><tr')
+  html_content <- paste0(html_content, '<tr><td colspan="4">No data available</td></tr>')
 }
 
 html_content <- paste0(html_content, '
 </table>
+
+<h2>⏱️ Session Join/Leave Times</h2>
+<table>
+    <thead>
+        <tr><th>Session</th><th>Date</th><th>Join Time</th><th>Leave Time</th><th>Times Away</th><th>Away Minutes</th></tr>
+    </thead>
+    <tbody>')
+
+if (nrow(presence_data) > 0) {
+  for(i in 1:nrow(presence_data)) {
+    join_time <- ifelse(is.na(presence_data$joined_at[i]), "N/A", 
+                        format(as.POSIXct(presence_data$joined_at[i]), "%H:%M:%S"))
+    leave_time <- ifelse(is.na(presence_data$left_at[i]), "Still Present", 
+                         format(as.POSIXct(presence_data$left_at[i]), "%H:%M:%S"))
+    html_content <- paste0(html_content, '
+    <tr>
+        <td>', presence_data$session_title[i], '</td>
+        <td>', as.Date(presence_data$scheduled_start[i]), '</td>
+        <td>', join_time, '</td>
+        <td>', leave_time, '</td>
+        <td>', presence_data$times_away[i], '</td>
+        <td>', presence_data$total_away_minutes[i], ' min</td>
+    </tr>')
+  }
+} else {
+  html_content <- paste0(html_content, '<tr><td colspan="6">No session presence data available</td></tr>')
+}
+
+html_content <- paste0(html_content, '
+    </tbody>
+</td>
 
 <h2>📈 Engagement Metrics</h2>
 <div style="text-align: center; margin: 20px 0;">
@@ -192,11 +248,10 @@ html_content <- paste0(html_content, '
 
 <h2>😊 Emotion Distribution</h2>
 <table>
-    <tr>
-        <th>Emotion</th>
-        <th>Count</th>
-        <th>Distribution</th>
-    </tr>')
+    <thead>
+        <tr><th>Emotion</th><th>Count</th><th>Distribution</th></tr>
+    </thead>
+    <tbody>')
 
 if (nrow(emotions) > 0) {
   max_count <- max(emotions$count)
@@ -211,14 +266,15 @@ if (nrow(emotions) > 0) {
             <div class="bar-container">
                 <div class="bar" style="width: ', percent, '%;">', round(percent, 1), '%</div>
             </div>
-        </td>
+         </td>
     </tr>')
   }
 } else {
-  html_content <- paste0(html_content, '<tr><td colspan="3">No data available</td><tr')
+  html_content <- paste0(html_content, '<tr><td colspan="3">No data available</td></tr>')
 }
 
 html_content <- paste0(html_content, '
+    </tbody>
 </table>
 
 <h2>💡 Recommendations</h2>
@@ -251,7 +307,7 @@ html_content <- paste0(html_content, '
 
 <div class="footer">
     Report generated by EduVision System on ', Sys.Date(), '<br>
-    <small>Based on weekly attendance and facial emotion analysis.</small>
+    <small>Based on weekly attendance, facial emotion analysis, and session presence tracking.</small>
 </div>
 
 </div>

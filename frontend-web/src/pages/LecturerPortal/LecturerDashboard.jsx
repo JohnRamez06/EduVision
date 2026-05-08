@@ -21,10 +21,10 @@ const greet = name => {
 
 const StatCard = ({ icon: Icon, label, value, sub, color = 'emerald' }) => {
   const colors = {
-    violet:  { bg: 'bg-violet-500/12',  text: 'text-violet-400',  ring: 'group-hover:ring-violet-500/20'  },
+    violet:  { bg: 'bg-[#667D9D]/12',  text: 'text-[#667D9D]',  ring: 'group-hover:ring-[#667D9D]/20'  },
     emerald: { bg: 'bg-emerald-500/12', text: 'text-emerald-400', ring: 'group-hover:ring-emerald-500/20' },
     teal:    { bg: 'bg-teal-500/12',    text: 'text-teal-400',    ring: 'group-hover:ring-teal-500/20'    },
-    blue:    { bg: 'bg-blue-500/12',    text: 'text-blue-400',    ring: 'group-hover:ring-blue-500/20'    },
+    blue:    { bg: 'bg-[#667D9D]/12',    text: 'text-[#667D9D]',    ring: 'group-hover:ring-[#667D9D]/20'    },
     amber:   { bg: 'bg-amber-500/12',   text: 'text-amber-400',   ring: 'group-hover:ring-amber-500/20'   },
   }
   const c = colors[color]
@@ -131,7 +131,7 @@ export default function LecturerDashboard() {
         <div className="lg:col-span-2 glass rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-white flex items-center gap-2">
-              <BookOpen size={16} className="text-violet-400" /> My Courses
+              <BookOpen size={16} className="text-[#667D9D]" /> My Courses
             </h2>
             <span className="text-xs text-slate-500">{courses.length} courses</span>
           </div>
@@ -147,11 +147,11 @@ export default function LecturerDashboard() {
             <div className="space-y-3">
               {courses.map(c => (
                 <div key={c.courseId} onClick={() => navigate('/lecturer/courses')} className="flex items-start gap-3 p-3.5 rounded-xl bg-slate-100 dark:bg-slate-800/50 hover:bg-slate-200 dark:hover:bg-slate-800/80 transition-colors group cursor-pointer">
-                  <div className="w-9 h-9 rounded-lg bg-violet-500/10 flex items-center justify-center shrink-0 mt-0.5">
-                    <BookOpen size={15} className="text-violet-400" />
+                  <div className="w-9 h-9 rounded-lg bg-[#667D9D]/10 flex items-center justify-center shrink-0 mt-0.5">
+                    <BookOpen size={15} className="text-[#667D9D]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs font-mono text-violet-400 mb-0.5">{c.code}</p>
+                    <p className="text-xs font-mono text-[#667D9D] mb-0.5">{c.code}</p>
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{c.title}</p>
                     <div className="flex items-center gap-3 mt-1">
                       <span className="text-xs text-slate-500">{c.totalSessions} sessions</span>
@@ -163,7 +163,7 @@ export default function LecturerDashboard() {
                       )}
                     </div>
                   </div>
-                  <ChevronRight size={14} className="text-slate-600 group-hover:text-violet-400 shrink-0 transition-colors mt-1" />
+                  <ChevronRight size={14} className="text-slate-600 group-hover:text-[#667D9D] shrink-0 transition-colors mt-1" />
                 </div>
               ))}
             </div>
@@ -173,7 +173,7 @@ export default function LecturerDashboard() {
         {/* Recent sessions table */}
         <div className="lg:col-span-3 glass rounded-2xl p-5">
           <h2 className="font-semibold text-white flex items-center gap-2 mb-4">
-            <Clock size={16} className="text-violet-400" /> Recent Sessions
+            <Clock size={16} className="text-[#667D9D]" /> Recent Sessions
           </h2>
 
           {loading ? (

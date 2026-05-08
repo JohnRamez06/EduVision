@@ -40,9 +40,9 @@ const Skeleton = ({ className = '' }) => (
 // ── Stat card ─────────────────────────────────────────────────────────────────
 const StatCard = ({ icon: Icon, label, value, sub, color = 'blue' }) => {
   const colors = {
-    blue:    { bg: 'bg-blue-500/12',    text: 'text-blue-400',    ring: 'group-hover:ring-blue-500/20'    },
+    blue:    { bg: 'bg-[#667D9D]/12',    text: 'text-[#667D9D]',    ring: 'group-hover:ring-[#667D9D]/20'    },
     emerald: { bg: 'bg-emerald-500/12', text: 'text-emerald-400', ring: 'group-hover:ring-emerald-500/20' },
-    violet:  { bg: 'bg-violet-500/12',  text: 'text-violet-400',  ring: 'group-hover:ring-violet-500/20'  },
+    violet:  { bg: 'bg-[#667D9D]/12',  text: 'text-[#667D9D]',  ring: 'group-hover:ring-[#667D9D]/20'  },
     amber:   { bg: 'bg-amber-500/12',   text: 'text-amber-400',   ring: 'group-hover:ring-amber-500/20'   },
   }
   const c = colors[color]
@@ -159,7 +159,7 @@ export default function StudentDashboard() {
         <div className="lg:col-span-2 glass rounded-2xl p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-semibold text-white flex items-center gap-2">
-              <BookOpen size={16} className="text-violet-400" /> Enrolled Courses
+              <BookOpen size={16} className="text-[#667D9D]" /> Enrolled Courses
             </h2>
             <span className="text-xs text-slate-500">{data?.enrolledCourses?.length ?? 0} courses</span>
           </div>
@@ -176,8 +176,8 @@ export default function StudentDashboard() {
                   : 0
                 return (
                   <div key={c.courseId} onClick={() => navigate('/student/courses')} className="flex items-center gap-4 p-3.5 rounded-xl bg-slate-800/50 hover:bg-slate-800/80 transition-colors group cursor-pointer">
-                    <div className="w-10 h-10 rounded-lg bg-violet-500/15 flex items-center justify-center shrink-0">
-                      <BookOpen size={16} className="text-violet-400" />
+                    <div className="w-10 h-10 rounded-lg bg-[#667D9D]/15 flex items-center justify-center shrink-0">
+                      <BookOpen size={16} className="text-[#667D9D]" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
@@ -187,7 +187,7 @@ export default function StudentDashboard() {
                       <div className="flex items-center gap-2">
                         <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
                           <div
-                            className="h-full rounded-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all"
+                            className="h-full rounded-full bg-gradient-to-r from-[#16254F] to-[#667D9D] transition-all"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -208,7 +208,7 @@ export default function StudentDashboard() {
         {/* Emotion Breakdown */}
         <div className="glass rounded-2xl p-5">
           <h2 className="font-semibold text-white flex items-center gap-2 mb-4">
-            <Zap size={16} className="text-violet-400" /> Emotion Breakdown
+            <Zap size={16} className="text-[#667D9D]" /> Emotion Breakdown
           </h2>
           {loading ? (
             <Skeleton className="h-48" />

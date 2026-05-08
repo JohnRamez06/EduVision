@@ -10,7 +10,7 @@ export default function AlertBanner({ alert }) {
 		? 'border-rose-500/30 bg-rose-500/10 text-rose-300'
 		: alert.severity === 'warning'
 			? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-			: 'border-blue-500/30 bg-blue-500/10 text-blue-300'
+			: 'border-[#667D9D]/30 bg-[#667D9D]/10 text-[#ACBBC6]'
 
 	const Icon = alert.severity === 'critical'
 		? ShieldAlert

@@ -51,7 +51,9 @@ try:
 except Exception as e:
     logger.warning(f"Database schema warning: {e}")
 
+# Create processor and give it an HTTP client so it can send leave events
 processor = FrameProcessor()
+processor.spring_client = httpx.Client(timeout=5.0)
 
 # Pre-load face embeddings at startup
 from models.face_recognizer import face_recognizer as _fr
@@ -65,41 +67,31 @@ except Exception as _e:
 last_flush = {}
 current_session_id = None
 
-
 def should_mark_attendance(session_id: str, student_id: str, similarity: float) -> bool:
     """Determine if a student should be marked as present"""
     global student_appearances, student_confidence
-    
     if similarity < SIMILARITY_THRESHOLD:
         logger.debug(f"⏭️ Skipping {student_id[:8]}... similarity too low: {similarity:.3f}")
         return False
-    
     student_appearances[session_id][student_id] += 1
     student_confidence[session_id][student_id].append(similarity)
-    
     appearances = student_appearances[session_id][student_id]
     logger.debug(f"📊 {student_id[:8]}... appearances: {appearances}/{ATTENDANCE_THRESHOLD}")
-    
     if appearances >= ATTENDANCE_THRESHOLD:
         avg_confidence = sum(student_confidence[session_id][student_id]) / len(student_confidence[session_id][student_id])
         logger.info(f"✅ QUALIFIED: {student_id[:8]}... with {appearances} appearances (avg sim: {avg_confidence:.3f})")
         student_appearances[session_id][student_id] = 0
         return True
-    
     return False
 
-
 def cleanup_session_data(session_id: str):
-    """Clean up tracking data when session ends"""
     if session_id in student_appearances:
         del student_appearances[session_id]
     if session_id in student_confidence:
         del student_confidence[session_id]
     logger.info(f"🧹 Cleaned up tracking data for session {session_id[:8]}...")
 
-
 def convert_concentration_to_float(concentration):
-    """Convert concentration from string/dict to float"""
     if isinstance(concentration, (int, float)):
         return float(concentration)
     elif isinstance(concentration, str):
@@ -110,9 +102,7 @@ def convert_concentration_to_float(concentration):
         return convert_concentration_to_float(level)
     return 0.5
 
-
 def convert_concentration_to_string(concentration):
-    """Convert concentration from float to string"""
     float_val = convert_concentration_to_float(concentration)
     if float_val >= 0.7:
         return "high"
@@ -120,13 +110,8 @@ def convert_concentration_to_string(concentration):
         return "medium"
     return "low"
 
-
 def check_and_send_alerts(session_id: str, emotion_counts: dict, total_students: int, engagement_score: float, client: httpx.Client):
-    """Check for alert conditions and send notifications"""
-    
     logger.info(f"🔍 Checking alerts: total_students={total_students}, emotions={emotion_counts}, engagement={engagement_score:.2f}")
-    
-    # Alert 1: High confusion (>30%)
     confused_count = emotion_counts.get('confused', 0)
     if total_students > 0:
         confusion_ratio = confused_count / total_students
@@ -144,8 +129,6 @@ def check_and_send_alerts(session_id: str, emotion_counts: dict, total_students:
                     logger.warning(f"🚨 ALERT SENT: High Confusion Detected")
             except Exception as e:
                 logger.error(f"Error sending confusion alert: {e}")
-    
-    # Alert 2: Very low engagement (<20%)
     if total_students > 0 and engagement_score < 0.5:
         alert_payload = {
             "sessionId": session_id,
@@ -161,11 +144,41 @@ def check_and_send_alerts(session_id: str, emotion_counts: dict, total_students:
         except Exception as e:
             logger.error(f"Error sending engagement alert: {e}")
 
+def record_attendance_with_presence(client: httpx.Client, session_id: str, student_id: str, student_name: str, presence_event: str):
+    try:
+        attendance_payload = {
+            "sessionId": session_id,
+            "studentId": student_id,
+            "status": "present",
+            "presenceEvent": presence_event if presence_event else "present"
+        }
+        logger.info(f"📤 Sending presence: {student_name} -> event: {presence_event}")
+        response = client.post(
+            f"{ATTENDANCE_URL}/record-with-presence",
+            json=attendance_payload,
+            timeout=5.0
+        )
+        if response.status_code in [200, 201]:
+            if presence_event == "joined":
+                logger.info(f"✅ JOINED: {student_name}")
+            elif presence_event == "returned":
+                logger.info(f"🔄 RETURNED: {student_name}")
+            elif presence_event == "left":
+                logger.info(f"🚪 LEFT: {student_name}")
+            else:
+                logger.info(f"📝 Present: {student_name}")
+            return True
+        else:
+            logger.warning(f"Attendance failed: {response.status_code}")
+            return False
+    except Exception as e:
+        logger.error(f"Attendance error: {e}")
+        return False
 
 def send_to_spring_boot(session_id: str, result):
     """Send detection data to Spring Boot with enrollment check and smart attendance"""
     global student_appearances, student_confidence, enrollment_cache
-    
+
     # Handle both dict and list formats
     if isinstance(result, list):
         people = result
@@ -199,81 +212,67 @@ def send_to_spring_boot(session_id: str, result):
         emotion_counts = result_dict.get("emotion_counts", {})
         student_count = result_dict.get("student_count", len(people))
         engagement_score = result_dict.get("engagement_score", 0.5)
-    
-    dominant_emotion = result_dict.get("dominant_emotion", "neutral")
-    if not dominant_emotion and emotion_counts:
-        dominant_emotion = max(emotion_counts, key=emotion_counts.get)
-    
+        avg_concentration = result_dict.get("avg_concentration", 0.5)
+        dominant_emotion = result_dict.get("dominant_emotion", "neutral")
+        if not dominant_emotion and emotion_counts:
+            dominant_emotion = max(emotion_counts, key=emotion_counts.get)
+
+    # 🔥 FIX: ensure no None values slip through
+    if emotion_counts is None:
+        emotion_counts = {}
+    if engagement_score is None:
+        engagement_score = 0.5
+    if avg_concentration is None:
+        avg_concentration = 0.5
+    if dominant_emotion is None:
+        dominant_emotion = "neutral"
+
     payload = {
         "sessionId": session_id,
         "seqIndex": int(time.time() * 1000) % 1000000,
         "capturedAt": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
         "studentCount": student_count,
-        "engagementScore": round(float(result_dict.get("engagement_score", 0.5)), 3),
+        "engagementScore": round(float(engagement_score), 3),
         "dominantEmotion": dominant_emotion,
-        "avgConcentration": round(float(result_dict.get("avg_concentration", 0.5)), 3),
+        "avgConcentration": round(float(avg_concentration), 3),
     }
-    
+
     try:
         with httpx.Client(timeout=10.0) as client:
-            # Send class snapshot
             response = client.post(f"{SPRING_BOOT_URL}/class-snapshot", json=payload)
-            
             if response.status_code in [200, 201]:
                 snapshot_data = response.json()
                 snapshot_id = snapshot_data.get("snapshotId")
                 logger.info(f"✅ Class snapshot sent! Students: {student_count}")
                 
-                # Check for alerts
                 if student_count > 0:
                     check_and_send_alerts(session_id, emotion_counts, student_count, engagement_score, client)
                 
                 if people and snapshot_id:
                     student_payload = []
                     recognized_names = []
-                    
                     for person in people:
                         student_id = person.get("student_id")
                         student_name = person.get("student_name", "Unknown")
                         similarity = person.get("similarity", 0.5)
-                        
+                        presence_event = person.get("presence_event")
                         if not student_id:
                             continue
-                        
-                        # 🔥 SYNCHRONOUS ENROLLMENT CHECK - FIXED
+                        # enrollment check
                         is_enrolled = check_enrollment_sync(session_id, student_id)
-                        
                         if not is_enrolled:
-                            logger.warning(f"🚫 UNWANTED STUDENT: {student_name} NOT enrolled with this lecturer - SKIPPING attendance")
-                            # Still add to recognized for display
+                            logger.warning(f"🚫 UNWANTED STUDENT: {student_name} NOT enrolled - SKIPPING attendance")
                             recognized_names.append(student_name)
-                            continue  # Skip attendance marking
-                        
+                            continue
                         recognized_names.append(student_name)
-                        
-                        # Smart attendance (only for enrolled students)
-                        if should_mark_attendance(session_id, student_id, similarity):
-                            try:
-                                attendance_payload = {
-                                    "sessionId": session_id,
-                                    "studentId": student_id,
-                                    "status": "present"
-                                }
-                                att_response = client.post(f"{ATTENDANCE_URL}/record", json=attendance_payload)
-                                if att_response.status_code in [200, 201]:
-                                    logger.info(f"📝 MARKED PRESENT: {student_name}")
-                            except Exception as e:
-                                logger.error(f"Attendance error: {e}")
-                        
+                        record_attendance_with_presence(client, session_id, student_id, student_name, presence_event)
                         concentration_str = convert_concentration_to_string(person.get("concentration", 0.5))
-                        
                         confidence = person.get("emotion_confidence", person.get("confidence", 0.5))
                         if isinstance(confidence, str):
                             try:
                                 confidence = float(confidence)
                             except:
                                 confidence = 0.5
-                        
                         student_payload.append({
                             "snapshotId": snapshot_id,
                             "sessionId": session_id,
@@ -284,11 +283,9 @@ def send_to_spring_boot(session_id: str, result):
                             "capturedAt": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
                             "anonymised": False,
                         })
-                    
                     if recognized_names:
                         unique = list(set(recognized_names))
                         logger.info(f"👤 Recognized: {', '.join(unique[:5])}")
-                    
                     if student_payload:
                         student_response = client.post(
                             f"{SPRING_BOOT_URL}/student-snapshots?snapshotId={snapshot_id}",
@@ -301,20 +298,15 @@ def send_to_spring_boot(session_id: str, result):
     except Exception as e:
         logger.error(f"❌ Error sending to Spring Boot: {e}")
 
+        
 def check_enrollment_sync(session_id: str, student_id: str) -> bool:
-    """Synchronous version of enrollment check (for use in threads)"""
     cache_key = f"{session_id}:{student_id}"
-    
     logger.info(f"🔍 ENROLLMENT CHECK (sync): student={student_id}, session={session_id}")
-    
-    # Check cache
     if cache_key in enrollment_cache:
         cached_time, enrolled = enrollment_cache[cache_key]
         if time.time() - cached_time < ENROLLMENT_CACHE_TTL:
             logger.info(f"📦 CACHE HIT: enrolled={enrolled}")
             return enrolled
-    
-    # Check enrollment via Spring Boot (synchronous)
     try:
         with httpx.Client(timeout=3.0) as client:
             response = client.get(
@@ -329,14 +321,10 @@ def check_enrollment_sync(session_id: str, student_id: str) -> bool:
     except Exception as e:
         logger.error(f"Enrollment check error: {e}")
         enrolled = False
-    
     enrollment_cache[cache_key] = (time.time(), enrolled)
-    
     logger.info(f"📊 ENROLLMENT RESULT: {enrolled}")
-    
     if not enrolled:
         logger.warning(f"🚫 UNWANTED STUDENT: Student {student_id} NOT enrolled with this lecturer!")
-    
     return enrolled
 
 @app.get("/health")
@@ -348,13 +336,11 @@ async def health():
         "service": "EduVision Vision Engine"
     }
 
-
 @app.post("/reload-embeddings")
 async def reload_embeddings():
     from models.face_recognizer import face_recognizer
     face_recognizer.reload()
     return {"enrolled": len(face_recognizer._db)}
-
 
 @app.post("/analyze/frame")
 async def analyze_frame(
@@ -363,20 +349,15 @@ async def analyze_frame(
     file: UploadFile = File(...)
 ):
     global current_session_id
-    
     try:
         data = await file.read()
         nparr = np.frombuffer(data, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        
         if frame is None:
             return {"error": "Invalid image", "success": False}
-        
         processor.current_session_id = session_id
         current_session_id = session_id
-        
         result = processor.process(frame)
-        
         if store:
             try:
                 ensure_session(session_id)
@@ -385,70 +366,37 @@ async def analyze_frame(
                     insert_detection(session_id, people_list)
             except Exception as e:
                 logger.warning(f"Database store error: {e}")
-        
         now = time.time()
         if session_id not in last_flush or (now - last_flush[session_id]) > 10:
             last_flush[session_id] = now
             thread = threading.Thread(target=send_to_spring_boot, args=(session_id, result))
             thread.daemon = True
             thread.start()
-        
         return {
             "success": True,
             "session_id": session_id,
             "student_count": result.get("student_count", 0),
             "people": result.get("people", [])
         }
-        
     except Exception as e:
         logger.error(f"Error processing frame: {e}")
         return {"error": str(e), "success": False}
-
 
 @app.post("/session/end")
 async def end_session(session_id: str = Form(...)):
     global current_session_id
     logger.info(f"🏁 Session ended: {session_id}")
     current_session_id = None
-    
     if session_id in last_flush:
         del last_flush[session_id]
-    
     cleanup_session_data(session_id)
-    
+    processor.clear_session_presence()
     keys_to_delete = [k for k in enrollment_cache.keys() if k.startswith(f"{session_id}:")]
     for key in keys_to_delete:
         del enrollment_cache[key]
-    
     return {"success": True, "message": f"Session {session_id} ended"}
 
-async def check_enrollment_with_cache(session_id: str, student_id: str) -> bool:
-    """Check enrollment with caching"""
-    cache_key = f"{session_id}:{student_id}"
-    
-    # 🔥 DEBUG: Log what we're checking
-    logger.info(f"🔍 ENROLLMENT CHECK: student={student_id}, session={session_id}")
-    
-    # Check cache
-    if cache_key in enrollment_cache:
-        cached_time, enrolled = enrollment_cache[cache_key]
-        if time.time() - cached_time < ENROLLMENT_CACHE_TTL:
-            logger.info(f"📦 CACHE HIT: enrolled={enrolled}")
-            return enrolled
-    
-    # Check enrollment via Spring Boot
-    enrolled = await is_student_enrolled(session_id, student_id)
-    enrollment_cache[cache_key] = (time.time(), enrolled)
-    
-    logger.info(f"📊 ENROLLMENT RESULT: {enrolled} for student {student_id}")
-    
-    if not enrolled:
-        logger.warning(f"🚫 UNWANTED STUDENT: Student {student_id} NOT enrolled with this lecturer!")
-    
-    return enrolled
-
 async def is_student_enrolled(session_id: str, student_id: str) -> bool:
-    """Check if student is enrolled in the course for this session"""
     try:
         async with httpx.AsyncClient(timeout=3.0) as client:
             response = await client.get(
@@ -461,13 +409,11 @@ async def is_student_enrolled(session_id: str, student_id: str) -> bool:
         logger.debug(f"Enrollment check failed: {e}")
     return False
 
-
 @app.on_event("startup")
 async def startup_event():
     logger.info("🚀 EduVision Vision Engine Started")
     logger.info("   Listening on: http://localhost:8000")
     logger.info("   CORS enabled for: http://localhost:3000")
-
 
 if __name__ == "__main__":
     import uvicorn

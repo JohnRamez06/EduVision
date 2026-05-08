@@ -107,7 +107,7 @@ export default function NotificationBell() {
           <div className="p-2 border-t border-slate-700/50">
             <button
               onClick={() => { setShowDropdown(false); navigate('/notifications') }}
-              className="w-full text-center text-xs text-blue-400 hover:text-blue-300 py-1.5 transition-colors"
+              className="w-full text-center text-xs text-[#667D9D] hover:text-[#ACBBC6] py-1.5 transition-colors"
             >
               View All
             </button>

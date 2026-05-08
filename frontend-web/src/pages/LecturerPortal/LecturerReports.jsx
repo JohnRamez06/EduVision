@@ -161,7 +161,7 @@ function WeeklyTab({ lecturerId }) {
             'Course comparison for the selected week',
           ].map(item => (
             <li key={item} className="flex items-center gap-2">
-              <span className="w-1 h-1 rounded-full bg-violet-500 shrink-0" />
+              <span className="w-1 h-1 rounded-full bg-[#667D9D] shrink-0" />
               {item}
             </li>
           ))}
@@ -383,7 +383,7 @@ export default function LecturerReports() {
     <LecturerLayout>
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-          <FileText size={22} className="text-violet-400" /> Reports
+          <FileText size={22} className="text-[#667D9D]" /> Reports
         </h1>
         <p className="text-sm text-slate-500 mt-1">Generate and download PDF analytics reports</p>
       </div>
@@ -396,9 +396,9 @@ export default function LecturerReports() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-150 cursor-pointer ${
               tab === t
-                ? 'bg-violet-600 text-white force-white shadow-sm shadow-violet-500/30 border border-violet-500/30'
+                ? 'bg-[#16254F] text-white force-white shadow-sm shadow-[#667D9D]/30 border border-[#667D9D]/30'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800/50'
-            } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60`}
+            } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#667D9D]/60`}
           >
             {t}
           </button>

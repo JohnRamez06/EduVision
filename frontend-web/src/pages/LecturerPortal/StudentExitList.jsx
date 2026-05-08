@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import attendanceService from '../../services/attendanceService'
 
 const EXIT_TYPE_STYLES = {
-  bathroom_break: 'bg-blue-500/20 text-blue-400',
+  bathroom_break: 'bg-[#667D9D]/20 text-[#667D9D]',
   left_early: 'bg-rose-500/20 text-rose-400',
   technical_issue: 'bg-amber-500/20 text-amber-400',
   unknown: 'bg-slate-500/20 text-slate-400',

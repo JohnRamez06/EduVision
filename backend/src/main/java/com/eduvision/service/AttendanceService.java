@@ -554,4 +554,62 @@ public void saveManualAttendance(String courseId, String weekId, List<Map<String
                     studentId, status, weeklyStatus);
     }
 }
+
+@Transactional
+public void recordAttendanceWithPresence(String sessionId, String studentId, String event, LocalDateTime joinedWhen, LocalDateTime leftWhen) {
+    try {
+        boolean isEnrolled = isStudentEnrolledInSession(sessionId, studentId);
+        if (!isEnrolled) {
+            logger.warn("⚠️ Student {} not enrolled in session {} - skipping presence record", studentId, sessionId);
+            return;
+        }
+
+        String normalizedEvent = event == null ? "present" : event.trim().toLowerCase();
+        if (!"present".equals(normalizedEvent) && !"left".equals(normalizedEvent)) {
+            normalizedEvent = "present";
+        }
+
+        Integer count = jdbc.queryForObject(
+                "SELECT COUNT(*) FROM session_attendance WHERE session_id = ? AND student_id = ?",
+                Integer.class, sessionId, studentId);
+
+        if (count == null || count == 0) {
+            LocalDateTime effectiveJoined = joinedWhen != null ? joinedWhen : LocalDateTime.now();
+            LocalDateTime effectiveLeft = "left".equals(normalizedEvent)
+                    ? (leftWhen != null ? leftWhen : LocalDateTime.now())
+                    : null;
+
+            String insertSql = """
+                INSERT INTO session_attendance (id, session_id, student_id, status, joined_at, left_at, recorded_at)
+                VALUES (UUID(), ?, ?, 'present', ?, ?, NOW())
+            """;
+            jdbc.update(insertSql, sessionId, studentId, effectiveJoined, effectiveLeft);
+            return;
+        }
+
+        if ("left".equals(normalizedEvent)) {
+            String updateSql = """
+                UPDATE session_attendance
+                SET status = 'present',
+                    left_at = ?,
+                    recorded_at = NOW()
+                WHERE session_id = ? AND student_id = ?
+            """;
+            jdbc.update(updateSql, leftWhen != null ? leftWhen : LocalDateTime.now(), sessionId, studentId);
+        } else {
+            String updateSql = """
+                UPDATE session_attendance
+                SET status = 'present',
+                    joined_at = COALESCE(joined_at, ?, NOW()),
+                    left_at = NULL,
+                    recorded_at = NOW()
+                WHERE session_id = ? AND student_id = ?
+            """;
+            jdbc.update(updateSql, joinedWhen, sessionId, studentId);
+        }
+    } catch (Exception e) {
+        logger.error("Failed to record attendance with presence: {}", e.getMessage());
+        throw new RuntimeException("Failed to record attendance with presence", e);
+    }
+}
 }

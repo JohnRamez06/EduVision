@@ -78,7 +78,7 @@ const AlertBell = () => {
         switch (severity) {
             case 'critical': return 'border-red-500 bg-red-500/10 text-red-400';
             case 'warning': return 'border-yellow-500 bg-yellow-500/10 text-yellow-400';
-            default: return 'border-blue-500 bg-blue-500/10 text-blue-400';
+            default: return 'border-[#667D9D] bg-[#667D9D]/10 text-[#667D9D]';
         }
     };
 
@@ -116,9 +116,9 @@ const AlertBell = () => {
                 onClick={() => setShowDropdown(!showDropdown)}
                 aria-expanded={showDropdown}
                 aria-label="Notifications"
-                className={`relative p-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 ${
+                className={`relative p-2 rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#667D9D]/60 ${
                     showDropdown
-                        ? 'bg-violet-500/15 text-violet-400 ring-1 ring-violet-500/40'
+                        ? 'bg-[#667D9D]/15 text-[#667D9D] ring-1 ring-[#667D9D]/40'
                         : 'text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-200/70 dark:hover:bg-slate-800/70'
                 }`}
             >
@@ -146,7 +146,7 @@ const AlertBell = () => {
                         {unreadCount > 0 && (
                             <button
                                 onClick={handleMarkAllRead}
-                                className="text-xs font-medium text-violet-500 hover:text-violet-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 rounded"
+                                className="text-xs font-medium text-[#667D9D] hover:text-[#667D9D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#667D9D]/60 rounded"
                             >
                                 Mark all read
                             </button>
@@ -161,7 +161,7 @@ const AlertBell = () => {
                             notifications.map(notif => (
                                 <div
                                     key={notif.id}
-                                    className={`p-3 border-b border-slate-200/80 dark:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors ${!notif.is_read ? 'bg-violet-500/8' : ''}`}
+                                    className={`p-3 border-b border-slate-200/80 dark:border-slate-700 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors ${!notif.is_read ? 'bg-[#667D9D]/8' : ''}`}
                                 >
                                     <div className="flex items-start gap-2">
                                         <div className={`mt-0.5 ${getSeverityColor(notif.type)}`}>
@@ -181,7 +181,7 @@ const AlertBell = () => {
                                         {!notif.is_read && (
                                             <button
                                                 onClick={() => handleMarkRead(notif.id)}
-                                                className="text-xs text-violet-500 hover:text-violet-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/60 rounded"
+                                                className="text-xs text-[#667D9D] hover:text-[#667D9D] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#667D9D]/60 rounded"
                                             >
                                                 Mark read
                                             </button>

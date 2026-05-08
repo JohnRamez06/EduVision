@@ -5,78 +5,79 @@
 /* ─────────────────────────────────────────────────────────────
    THEME TOKENS
 ───────────────────────────────────────────────────────────── */
+/* Palette: #060817 · #16254F · #667D9D · #ACBBC6 · #ECECEC */
 :root {
-  /* Colors */
-  --primary: #3B82F6;
-  --primary-dark: #1E40AF;
-  --secondary: #6366F1;
+  /* Brand */
+  --primary: #667D9D;
+  --primary-dark: #16254F;
+  --secondary: #ACBBC6;
   --success: #10B981;
   --warning: #F59E0B;
   --danger: #EF4444;
-  --info: #0EA5E9;
+  --info: #667D9D;
 
   /* Depth */
-  --elev-1: rgba(15, 23, 42, 0.55);
-  --elev-2: rgba(15, 23, 42, 0.72);
-  --elev-3: rgba(15, 23, 42, 0.90);
+  --elev-1: rgba(22, 37, 79, 0.55);
+  --elev-2: rgba(22, 37, 79, 0.72);
+  --elev-3: rgba(22, 37, 79, 0.90);
 
   /* Background */
-  --bg-app: #060A13;
-  --bg-sidebar: #0B1220;
-  --bg-sidebar-border: rgba(255,255,255,0.05);
-  --bg-header: rgba(15, 23, 42, 0.90);
+  --bg-app: #060817;
+  --bg-sidebar: #16254F;
+  --bg-sidebar-border: rgba(102, 125, 157, 0.20);
+  --bg-header: rgba(6, 8, 23, 0.92);
 
   /* Glass */
-  --glass-border: rgba(148, 163, 184, 0.18);
-  --glass-border-hover: rgba(148, 163, 184, 0.30);
+  --glass-border: rgba(102, 125, 157, 0.20);
+  --glass-border-hover: rgba(172, 187, 198, 0.32);
 
   /* Surface */
-  --surface-bg: rgba(15, 23, 42, 0.68);
-  --row-border: rgba(148, 163, 184, 0.16);
-  --row-hover: rgba(71, 85, 105, 0.18);
+  --surface-bg: rgba(22, 37, 79, 0.68);
+  --row-border: rgba(102, 125, 157, 0.16);
+  --row-hover: rgba(102, 125, 157, 0.15);
 
   /* Text */
-  --text-body: #F1F5F9;
-  --text-muted: #94A3B8;
+  --text-body: #ECECEC;
+  --text-muted: #ACBBC6;
 
   /* Inputs */
-  --input-bg: rgba(15, 23, 42, 0.72);
-  --input-border: rgba(148, 163, 184, 0.25);
-  --input-focus-border: rgba(96, 165, 250, 0.72);
-  --input-focus-ring: rgba(59, 130, 246, 0.18);
+  --input-bg: rgba(22, 37, 79, 0.72);
+  --input-border: rgba(102, 125, 157, 0.28);
+  --input-focus-border: rgba(102, 125, 157, 0.75);
+  --input-focus-ring: rgba(102, 125, 157, 0.18);
 
   /* Scroll */
-  --scrollbar-track: #0F172A;
-  --scrollbar-thumb: #64748B;
-  --scrollbar-thumb-h: #94A3B8;
+  --scrollbar-track: #060817;
+  --scrollbar-thumb: #667D9D;
+  --scrollbar-thumb-h: #ACBBC6;
 }
 
 /* LIGHT MODE */
 html.light {
-  --bg-app: #F3F6FB;
-  --bg-sidebar: #FFFFFF;
-  --bg-sidebar-border: rgba(15,23,42,0.10);
-  --bg-header: rgba(255,255,255,0.92);
+  --bg-app: #ECECEC;
+  --bg-sidebar: rgba(172, 187, 198, 0.35);
+  --bg-sidebar-border: rgba(102, 125, 157, 0.20);
+  --bg-header: rgba(236, 236, 236, 0.95);
 
-  --elev-1: rgba(255,255,255,0.92);
-  --elev-2: rgba(255,255,255,0.98);
-  --elev-3: #FFFFFF;
-  --glass-border: rgba(15, 23, 42, 0.14);
-  --glass-border-hover: rgba(15, 23, 42, 0.24);
+  --elev-1: rgba(236, 236, 236, 0.88);
+  --elev-2: rgba(236, 236, 236, 0.96);
+  --elev-3: #ECECEC;
+  --glass-border: rgba(102, 125, 157, 0.22);
+  --glass-border-hover: rgba(102, 125, 157, 0.38);
 
-  --text-body: #0F172A;
-  --text-muted: #475569;
+  --text-body: #060817;
+  --text-muted: #667D9D;
 
-  --input-bg: #FFFFFF;
-  --input-border: rgba(15,23,42,0.22);
-  --input-focus-border: rgba(37, 99, 235, 0.72);
-  --input-focus-ring: rgba(37, 99, 235, 0.14);
+  --input-bg: rgba(236, 236, 236, 0.85);
+  --input-border: rgba(102, 125, 157, 0.32);
+  --input-focus-border: rgba(22, 37, 79, 0.72);
+  --input-focus-ring: rgba(22, 37, 79, 0.12);
 
-  --surface-bg: #FFFFFF;
-  --row-hover: rgba(148, 163, 184, 0.16);
-  --scrollbar-track: #E2E8F0;
-  --scrollbar-thumb: #94A3B8;
-  --scrollbar-thumb-h: #64748B;
+  --surface-bg: rgba(236, 236, 236, 0.85);
+  --row-hover: rgba(172, 187, 198, 0.22);
+  --scrollbar-track: #ACBBC6;
+  --scrollbar-thumb: #667D9D;
+  --scrollbar-thumb-h: #16254F;
 }
 
 /* BASE */
@@ -89,8 +90,8 @@ html.light {
 
   body {
     background:
-      radial-gradient(circle at 20% 20%, rgba(59,130,246,0.08), transparent 40%),
-      radial-gradient(circle at 80% 0%, rgba(139,92,246,0.08), transparent 40%),
+      radial-gradient(circle at 20% 20%, rgba(22,37,79,0.18), transparent 40%),
+      radial-gradient(circle at 80% 0%, rgba(102,125,157,0.10), transparent 40%),
       var(--bg-app);
 
     color: var(--text-body);
@@ -156,14 +157,14 @@ html.light {
   /* BUTTON */
   .btn-primary {
     @apply px-6 py-2.5 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2;
-    background: linear-gradient(135deg, #3B82F6, #6366F1);
-    box-shadow: 0 6px 20px rgba(59,130,246,0.3);
+    background: linear-gradient(135deg, #16254F, #667D9D);
+    box-shadow: 0 6px 20px rgba(22,37,79,0.35);
     transition: all 0.2s;
   }
 
   .btn-primary:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 30px rgba(59,130,246,0.4);
+    box-shadow: 0 10px 30px rgba(22,37,79,0.45);
   }
 
   /* INPUT */
@@ -268,33 +269,33 @@ html.light {
 
 /* LIGHT MODE CONTRAST SAFETY OVERRIDES */
 html.light [class*="bg-navy-"] {
-  background-color: #FFFFFF !important;
+  background-color: #ECECEC !important;
 }
 
 html.light .glass,
 html.light .card {
-  color: #0F172A;
+  color: #060817;
 }
 
 html.light .text-white:not(.btn-primary):not(.btn-primary *):not(.force-white):not(.force-white *) {
-  color: #0F172A !important;
+  color: #060817 !important;
 }
 
-/* Keep initials/letters white on purple gradient circles in light mode */
-html.light .from-violet-500.to-purple-600.text-white {
-  color: #FFFFFF !important;
+/* Keep initials/letters white on colored gradient circles in light mode */
+html.light .from-\[#16254F\].to-\[#667D9D\].text-white {
+  color: #ECECEC !important;
 }
 
-html.light .text-slate-100 { color: #0F172A !important; }
-html.light .text-slate-200 { color: #1E293B !important; }
-html.light .text-slate-300 { color: #334155 !important; }
-html.light .text-slate-400 { color: #475569 !important; }
-html.light .text-slate-500 { color: #334155 !important; }
-html.light .text-slate-600 { color: #1E293B !important; }
+html.light .text-slate-100 { color: #060817 !important; }
+html.light .text-slate-200 { color: #16254F !important; }
+html.light .text-slate-300 { color: #667D9D !important; }
+html.light .text-slate-400 { color: #667D9D !important; }
+html.light .text-slate-500 { color: #667D9D !important; }
+html.light .text-slate-600 { color: #ACBBC6 !important; }
 
 html.light th,
 html.light td {
-  border-color: rgba(15, 23, 42, 0.10);
+  border-color: rgba(102, 125, 157, 0.18);
 }
 
 /* SCROLLBAR */

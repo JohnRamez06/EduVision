@@ -1,106 +1,203 @@
-import React, { useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import { useLocation } from "react-router-dom";
 import {
-  Video, VideoOff, StopCircle, Users, Zap, Brain, AlertTriangle,
-  CheckCircle, ChevronDown, Wifi, WifiOff, MapPin, BookOpen, Clock,
-  Activity, Camera,
-} from 'lucide-react'
-import LecturerLayout from '../../layouts/LecturerLayout'
-import { AuthContext } from '../../context/AuthContext'
-import lecturerService from '../../services/lecturerService'
-import sessionService from '../../services/sessionService'
-import emotionService from '../../services/emotionService'
-import { createSessionClient } from '../../services/websocket'
-import alertService from '../../services/alertService'
+  Video,
+  VideoOff,
+  StopCircle,
+  Users,
+  Zap,
+  Brain,
+  AlertTriangle,
+  CheckCircle,
+  ChevronDown,
+  Wifi,
+  WifiOff,
+  MapPin,
+  BookOpen,
+  Clock,
+  Activity,
+  Camera,
+} from "lucide-react";
+import LecturerLayout from "../../layouts/LecturerLayout";
+import { AuthContext } from "../../context/AuthContext";
+import lecturerService from "../../services/lecturerService";
+import sessionService from "../../services/sessionService";
+import emotionService from "../../services/emotionService";
+import { createSessionClient } from "../../services/websocket";
+import alertService from "../../services/alertService";
 
 // Constants
-const FRAME_INTERVAL_MS = 3000
-const SNAPSHOT_POLL_MS = 10000
+const FRAME_INTERVAL_MS = 3000;
+const SNAPSHOT_POLL_MS = 10000;
 
 const EMOTION_META = {
-  happy:     { label: 'Happy',     color: 'text-emerald-400', bg: 'bg-emerald-500/15', emoji: '😊' },
-  engaged:   { label: 'Engaged',   color: 'text-violet-400',  bg: 'bg-violet-500/15',  emoji: '🎯' },
-  neutral:   { label: 'Neutral',   color: 'text-slate-300',   bg: 'bg-slate-700/40',   emoji: '😐' },
-  confused:  { label: 'Confused',  color: 'text-amber-400',   bg: 'bg-amber-500/15',   emoji: '🤔' },
-  surprised: { label: 'Surprised', color: 'text-teal-400',    bg: 'bg-teal-500/15',    emoji: '😮' },
-  sad:       { label: 'Sad',       color: 'text-blue-400',    bg: 'bg-blue-500/15',    emoji: '😔' },
-  angry:     { label: 'Angry',     color: 'text-rose-400',    bg: 'bg-rose-500/15',    emoji: '😠' },
-  fearful:   { label: 'Fearful',   color: 'text-orange-400',  bg: 'bg-orange-500/15',  emoji: '😨' },
-  disgusted: { label: 'Disgusted', color: 'text-pink-400',    bg: 'bg-pink-500/15',    emoji: '🤢' },
-}
+  happy: {
+    label: "Happy",
+    color: "text-emerald-400",
+    bg: "bg-emerald-500/15",
+    dot: "bg-emerald-400",
+    emoji: "😊",
+  },
+  engaged: {
+    label: "Engaged",
+    color: "text-[#667D9D]",
+    bg: "bg-[#667D9D]/15",
+    dot: "bg-[#667D9D]",
+    emoji: "🎯",
+  },
+  neutral: {
+    label: "Neutral",
+    color: "text-slate-300",
+    bg: "bg-slate-700/40",
+    dot: "bg-slate-500",
+    emoji: "😐",
+  },
+  confused: {
+    label: "Confused",
+    color: "text-amber-400",
+    bg: "bg-amber-500/15",
+    dot: "bg-amber-400",
+    emoji: "🤔",
+  },
+  surprised: {
+    label: "Surprised",
+    color: "text-teal-400",
+    bg: "bg-teal-500/15",
+    dot: "bg-teal-400",
+    emoji: "😮",
+  },
+  sad: {
+    label: "Sad",
+    color: "text-[#667D9D]",
+    bg: "bg-[#667D9D]/15",
+    dot: "bg-[#667D9D]",
+    emoji: "😔",
+  },
+  angry: {
+    label: "Angry",
+    color: "text-rose-400",
+    bg: "bg-rose-500/15",
+    dot: "bg-rose-400",
+    emoji: "😠",
+  },
+  fearful: {
+    label: "Fearful",
+    color: "text-orange-400",
+    bg: "bg-orange-500/15",
+    dot: "bg-orange-400",
+    emoji: "😨",
+  },
+  disgusted: {
+    label: "Disgusted",
+    color: "text-pink-400",
+    bg: "bg-pink-500/15",
+    dot: "bg-pink-400",
+    emoji: "🤢",
+  },
+};
 
 const SEVERITY_STYLES = {
-  critical: 'border-rose-500/40 bg-rose-500/10 text-rose-300',
-  warning: 'border-amber-500/40 bg-amber-500/10 text-amber-300',
-  info: 'border-blue-500/40 bg-blue-500/10 text-blue-300',
-}
+  critical: "border-rose-500/40 bg-rose-500/10 text-rose-300",
+  warning: "border-amber-500/40 bg-amber-500/10 text-amber-300",
+  info: "border-[#667D9D]/40 bg-[#667D9D]/10 text-[#ACBBC6]",
+};
 
 // Helper function to convert concentration to level string
 const getConcentrationLevel = (concentration) => {
-  if (typeof concentration === 'number') {
-    if (concentration >= 0.7) return 'high'
-    if (concentration >= 0.4) return 'medium'
-    return 'low'
+  if (typeof concentration === "number") {
+    if (concentration >= 0.7) return "high";
+    if (concentration >= 0.4) return "medium";
+    return "low";
   }
-  if (typeof concentration === 'string') {
-    return concentration.toLowerCase()
+  if (typeof concentration === "string") {
+    return concentration.toLowerCase();
   }
-  return 'medium'
-}
+  return "medium";
+};
 
 const CONCENTRATION_STYLE = {
-  high:       'bg-emerald-500/20 text-emerald-300',
-  medium:     'bg-amber-500/20   text-amber-300',
-  low:        'bg-rose-500/20    text-rose-300',
-  distracted: 'bg-rose-500/20    text-rose-300',
-}
+  high: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
+  medium: "bg-amber-500/20   text-amber-300 border-amber-500/30",
+  low: "bg-rose-500/20    text-rose-300 border-rose-500/30",
+  distracted: "bg-rose-500/20    text-rose-300 border-rose-500/30",
+};
 
 // Sub-components
-const Skeleton = ({ className = '' }) => (
+const Skeleton = ({ className = "" }) => (
   <div className={`animate-pulse rounded-xl bg-slate-800/60 ${className}`} />
-)
+);
 
-function StatCard({ icon: Icon, label, value, sub, color = 'emerald', large = false }) {
+function StatCard({
+  icon: Icon,
+  label,
+  value,
+  sub,
+  color = "emerald",
+  large = false,
+}) {
   const colors = {
-    emerald: 'bg-emerald-500/15 text-emerald-400',
-    violet: 'bg-violet-500/15 text-violet-400',
-    blue: 'bg-blue-500/15 text-blue-400',
-    amber: 'bg-amber-500/15 text-amber-400',
-    rose: 'bg-rose-500/15 text-rose-400',
-  }
+    emerald: "bg-emerald-500/15 text-emerald-400",
+    violet: "bg-[#667D9D]/15 text-[#667D9D]",
+    blue: "bg-[#667D9D]/15 text-[#667D9D]",
+    amber: "bg-amber-500/15 text-amber-400",
+    rose: "bg-rose-500/15 text-rose-400",
+  };
   return (
     <div className="glass rounded-2xl p-4 flex items-center gap-3">
-      <div className={`rounded-xl flex items-center justify-center shrink-0 ${large ? 'w-12 h-12' : 'w-10 h-10'} ${colors[color]}`}>
+      <div
+        className={`rounded-xl flex items-center justify-center shrink-0 ${large ? "w-12 h-12" : "w-10 h-10"} ${colors[color]}`}
+      >
         <Icon size={large ? 22 : 18} />
       </div>
       <div className="min-w-0">
         <p className="text-xs text-slate-500 font-medium">{label}</p>
-        <p className={`font-bold text-white leading-tight ${large ? 'text-2xl' : 'text-xl'}`}>{value ?? '—'}</p>
+        <p
+          className={`font-bold text-white leading-tight ${large ? "text-2xl" : "text-xl"}`}
+        >
+          {value ?? "—"}
+        </p>
         {sub && <p className="text-xs text-slate-500 mt-0.5">{sub}</p>}
       </div>
     </div>
-  )
+  );
 }
 
 function EngagementArc({ value = 0 }) {
-  const pct = Math.min(100, Math.max(0, Math.round(value * 100)))
-  const color = pct >= 70 ? '#10b981' : pct >= 45 ? '#f59e0b' : '#f43f5e'
-  const r = 44
-  const circ = 2 * Math.PI * r
-  const dash = (pct / 100) * circ
+  const pct = Math.min(100, Math.max(0, Math.round(value * 100)));
+  const color = pct >= 70 ? "#10b981" : pct >= 45 ? "#f59e0b" : "#f43f5e";
+  const r = 44;
+  const circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
 
   return (
-    <div className="glass rounded-2xl p-5 flex flex-col items-center justify-center gap-2">
-      <p className="text-xs text-slate-500 font-medium">Engagement</p>
+    <div className="glass rounded-2xl p-5 flex flex-col items-center justify-center gap-2 border-t-2 border-[#16254F]/60">
+      <p className="text-xs text-[#ACBBC6] font-medium">Engagement</p>
       <div className="relative w-28 h-28">
         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-          <circle cx="50" cy="50" r={r} fill="none" stroke="#1e293b" strokeWidth="8" />
           <circle
-            cx="50" cy="50" r={r} fill="none"
-            stroke={color} strokeWidth="8"
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke="rgba(22,37,79,0.6)"
+            strokeWidth="8"
+          />
+          <circle
+            cx="50"
+            cy="50"
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="8"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${circ}`}
-            style={{ transition: 'stroke-dasharray 0.6s ease' }}
+            style={{ transition: "stroke-dasharray 0.6s ease" }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
@@ -108,29 +205,44 @@ function EngagementArc({ value = 0 }) {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function ConcentrationBars({ high = 0, medium = 0, low = 0 }) {
-  const total = high + medium + low || 1
+  const total = high + medium + low || 1;
   const bars = [
-    { label: 'High', value: high, pct: Math.round((high / total) * 100), color: 'bg-emerald-500' },
-    { label: 'Medium', value: medium, pct: Math.round((medium / total) * 100), color: 'bg-amber-500' },
-    { label: 'Low', value: low, pct: Math.round((low / total) * 100), color: 'bg-rose-500' },
-  ]
+    {
+      label: "High",
+      value: high,
+      pct: Math.round((high / total) * 100),
+      color: "bg-emerald-500",
+    },
+    {
+      label: "Medium",
+      value: medium,
+      pct: Math.round((medium / total) * 100),
+      color: "bg-amber-500",
+    },
+    {
+      label: "Low",
+      value: low,
+      pct: Math.round((low / total) * 100),
+      color: "bg-rose-500",
+    },
+  ];
   return (
-    <div className="glass rounded-2xl p-4">
-      <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
-        <Brain size={12} /> Concentration
+    <div className="rounded-2xl p-4 border border-[#667D9D]/20" style={{ background: 'rgba(22,37,79,0.45)', backdropFilter: 'blur(14px)' }}>
+      <p className="text-xs font-medium mb-3 flex items-center gap-1.5 text-[#ACBBC6]">
+        <Brain size={12} className="text-[#667D9D]" /> Concentration
       </p>
       <div className="space-y-2.5">
-        {bars.map(b => (
+        {bars.map((b) => (
           <div key={b.label}>
             <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-400">{b.label}</span>
-              <span className="text-slate-500">{b.value} students</span>
+              <span className="text-[#ACBBC6]">{b.label}</span>
+              <span className="text-[#667D9D]">{b.value} students</span>
             </div>
-            <div className="h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-[#060817]/60 rounded-full overflow-hidden">
               <div
                 className={`h-full rounded-full ${b.color} transition-all duration-700`}
                 style={{ width: `${b.pct}%` }}
@@ -140,356 +252,475 @@ function ConcentrationBars({ high = 0, medium = 0, low = 0 }) {
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 function AlertItem({ alert }) {
-  const style = SEVERITY_STYLES[alert.severity] ?? SEVERITY_STYLES.info
-  const Icon = alert.severity === 'critical' ? AlertTriangle
-    : alert.severity === 'warning' ? AlertTriangle
-      : CheckCircle
+  const style = SEVERITY_STYLES[alert.severity] ?? SEVERITY_STYLES.info;
+  const Icon =
+    alert.severity === "critical"
+      ? AlertTriangle
+      : alert.severity === "warning"
+        ? AlertTriangle
+        : CheckCircle;
   return (
-    <div className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-sm ${style}`}>
+    <div
+      className={`flex items-start gap-2.5 px-3 py-2.5 rounded-xl border text-sm ${style}`}
+    >
       <Icon size={14} className="shrink-0 mt-0.5" />
       <div className="min-w-0">
         <p className="font-medium text-xs leading-none mb-0.5">{alert.title}</p>
         <p className="text-xs opacity-80 leading-snug">{alert.message}</p>
       </div>
       <span className="text-xs opacity-50 shrink-0 ml-auto">
-        {alert.timestamp ? new Date(alert.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+        {alert.timestamp
+          ? new Date(alert.timestamp).toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : ""}
       </span>
     </div>
-  )
+  );
 }
 
 function StudentRow({ student }) {
-  const meta = EMOTION_META[student.emotion?.toLowerCase()] ?? EMOTION_META.neutral
-  const concentrationLevel = getConcentrationLevel(student.concentration)
-  const concStyle = CONCENTRATION_STYLE[concentrationLevel] ?? 'bg-slate-500/20 text-slate-300'
-  const initials = (student.studentName ?? '?')
-    .split(' ').map(p => p[0]).join('').toUpperCase().slice(0, 2)
+  const meta =
+    EMOTION_META[student.emotion?.toLowerCase()] ?? EMOTION_META.neutral;
+  const concentrationLevel = getConcentrationLevel(student.concentration);
+  const concStyle =
+    CONCENTRATION_STYLE[concentrationLevel] ??
+    "bg-slate-500/20 text-slate-300 border-slate-500/30";
+  const initials = (student.studentName ?? "?")
+    .split(" ")
+    .map((p) => p[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   return (
     <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40">
-      <div className="w-8 h-8 rounded-full bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs font-bold shrink-0">
+      <div className="w-8 h-8 rounded-full bg-[#667D9D]/20 text-[#ACBBC6] flex items-center justify-center text-xs font-bold shrink-0">
         {initials}
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-200 truncate">{student.studentName}</p>
-        <span className={`inline-flex items-center gap-1.5 text-xs mt-0.5 ${meta.color}`}>
+        <p className="text-sm font-medium text-slate-200 truncate">
+          {student.studentName}
+        </p>
+        <span
+          className={`inline-flex items-center gap-1.5 text-xs mt-0.5 ${meta.color}`}
+        >
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
           <span>{meta.label}</span>
         </span>
       </div>
-      <span className={`text-xs px-2.5 py-0.5 rounded-full capitalize shrink-0 border font-semibold ${concStyle}`}>
+      <span
+        className={`text-xs px-2.5 py-0.5 rounded-full capitalize shrink-0 border font-semibold ${concStyle}`}
+      >
         {concentrationLevel}
       </span>
     </div>
-  )
+  );
 }
 
 // Duration hook
 function useDuration(startTime) {
-  const [elapsed, setElapsed] = useState(0)
+  const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
-    if (!startTime) return
-    const tick = () => setElapsed(Math.floor((Date.now() - new Date(startTime).getTime()) / 1000))
-    tick()
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [startTime])
-  const h = String(Math.floor(elapsed / 3600)).padStart(2, '0')
-  const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, '0')
-  const s = String(elapsed % 60).padStart(2, '0')
-  return `${h}:${m}:${s}`
+    if (!startTime) return;
+    const tick = () =>
+      setElapsed(
+        Math.floor((Date.now() - new Date(startTime).getTime()) / 1000),
+      );
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [startTime]);
+  const h = String(Math.floor(elapsed / 3600)).padStart(2, "0");
+  const m = String(Math.floor((elapsed % 3600) / 60)).padStart(2, "0");
+  const s = String(elapsed % 60).padStart(2, "0");
+  return `${h}:${m}:${s}`;
 }
 
 // Main component
 export default function LecturerLiveSession() {
-  const location = useLocation()
-  const { user } = useContext(AuthContext)
-  const cameraConfig = location.state?.camera
+  const location = useLocation();
+  const { user } = useContext(AuthContext);
+  const cameraConfig = location.state?.camera;
 
-  const [courses, setCourses] = useState([])
-  const [loadingCourses, setLoadingCourses] = useState(true)
-  const [form, setForm] = useState({ courseId: '', room: '', duration: '2' })
-  const [starting, setStarting] = useState(false)
-  const [setupError, setSetupError] = useState('')
+  const [courses, setCourses] = useState([]);
+  const [loadingCourses, setLoadingCourses] = useState(true);
+  const [form, setForm] = useState({ courseId: "", room: "", duration: "2" });
+  const [starting, setStarting] = useState(false);
+  const [setupError, setSetupError] = useState("");
 
-  const [session, setSession] = useState(null)
-  const [checkingActive, setCheckingActive] = useState(true)
+  const [session, setSession] = useState(null);
+  const [checkingActive, setCheckingActive] = useState(true);
 
-  const [mood, setMood] = useState(null)
-  const [alerts, setAlerts] = useState([])
-  const [snapshot, setSnapshot] = useState(null)
-  const [detectedStudents, setDetectedStudents] = useState(new Map())
+  const [mood, setMood] = useState(null);
+  const [alerts, setAlerts] = useState([]);
+  const [snapshot, setSnapshot] = useState(null);
+  const [detectedStudents, setDetectedStudents] = useState(new Map());
 
-  const [cameraOn, setCameraOn] = useState(false)
-  const [cameraError, setCameraError] = useState('')
-  const [wsConnected, setWsConnected] = useState(false)
-  const [availableCameras, setAvailableCameras] = useState([])
-  const [showCameraSelector, setShowCameraSelector] = useState(false)
+  const [cameraOn, setCameraOn] = useState(false);
+  const [cameraError, setCameraError] = useState("");
+  const [wsConnected, setWsConnected] = useState(false);
+  const [availableCameras, setAvailableCameras] = useState([]);
+  const [showCameraSelector, setShowCameraSelector] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
 
-  const videoRef = useRef(null)
-  const streamRef = useRef(null)
-  const wsClientRef = useRef(null)
-  const frameTimer = useRef(null)
-  const pollTimer = useRef(null)
+  const videoRef = useRef(null);
+  const streamRef = useRef(null);
+  const wsClientRef = useRef(null);
+  const frameTimer = useRef(null);
+  const pollTimer = useRef(null);
 
-  const duration = useDuration(session?.startTime)
+  const duration = useDuration(session?.startTime);
 
   // Load available cameras
   useEffect(() => {
     const loadCameras = async () => {
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices()
-        const videoDevices = devices.filter(device => device.kind === 'videoinput')
-        setAvailableCameras(videoDevices)
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(
+          (device) => device.kind === "videoinput",
+        );
+        setAvailableCameras(videoDevices);
       } catch (err) {
-        console.error('Error loading cameras:', err)
+        console.error("Error loading cameras:", err);
       }
-    }
-    loadCameras()
-  }, [])
+    };
+    loadCameras();
+  }, []);
 
   // Start camera with selected config
-  const startCamera = useCallback(async (deviceId = null) => {
-    setCameraError('')
-    try {
-      let constraints = {
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
-        audio: false,
-      }
-
-      if (cameraConfig && cameraConfig.deviceId) {
-        constraints = {
+  const startCamera = useCallback(
+    async (deviceId = null) => {
+      setCameraError("");
+      try {
+        let constraints = {
           video: {
-            deviceId: { exact: cameraConfig.deviceId },
-            width: { ideal: parseInt(cameraConfig.resolution?.split('x')[0]) || 1280 },
-            height: { ideal: parseInt(cameraConfig.resolution?.split('x')[1]) || 720 },
-            frameRate: { ideal: cameraConfig.fps || 30 }
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: "user",
           },
           audio: false,
-        }
-      } else if (deviceId) {
-        constraints = {
-          video: { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } },
-          audio: false,
-        }
-      }
+        };
 
-      const stream = await navigator.mediaDevices.getUserMedia(constraints)
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.play().catch(() => { })
+        if (cameraConfig && cameraConfig.deviceId) {
+          constraints = {
+            video: {
+              deviceId: { exact: cameraConfig.deviceId },
+              width: {
+                ideal: parseInt(cameraConfig.resolution?.split("x")[0]) || 1280,
+              },
+              height: {
+                ideal: parseInt(cameraConfig.resolution?.split("x")[1]) || 720,
+              },
+              frameRate: { ideal: cameraConfig.fps || 30 },
+            },
+            audio: false,
+          };
+        } else if (deviceId) {
+          constraints = {
+            video: {
+              deviceId: { exact: deviceId },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+            audio: false,
+          };
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        streamRef.current = stream;
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+        setCameraOn(true);
+        setShowCameraSelector(false);
+      } catch (e) {
+        console.error("Camera error:", e);
+        setCameraError("Camera access denied — frame capture disabled.");
+        setCameraOn(false);
       }
-      setCameraOn(true)
-      setShowCameraSelector(false)
-    } catch (e) {
-      setCameraError('Camera access denied — frame capture disabled.')
-      setCameraOn(false)
+    },
+    [cameraConfig],
+  );
+
+  // 🔥 FIX: Start camera with delay to ensure DOM is ready
+  useEffect(() => {
+    if (session && !cameraOn && !cameraError) {
+      const timer = setTimeout(() => {
+        startCamera();
+      }, 500);
+      return () => clearTimeout(timer);
     }
-  }, [cameraConfig])
+  }, [session, cameraOn, cameraError, startCamera]);
 
   // Switch camera
   const switchCamera = async (deviceId) => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop())
+      streamRef.current.getTracks().forEach((track) => track.stop());
     }
-    await startCamera(deviceId)
-  }
+    await startCamera(deviceId);
+  };
 
   // On mount
   useEffect(() => {
-    lecturerService.getDashboard()
-      .then(d => setCourses(d.courses ?? []))
-      .catch(() => { })
-      .finally(() => setLoadingCourses(false))
+    lecturerService
+      .getDashboard()
+      .then((d) => setCourses(d.courses ?? []))
+      .catch(() => {})
+      .finally(() => setLoadingCourses(false));
 
-    sessionService.getActive()
-      .then(list => { if (list?.length > 0) activateSession(list[0]) })
-      .catch(() => { })
-      .finally(() => setCheckingActive(false))
+    sessionService
+      .getActive()
+      .then((list) => {
+        if (list?.length > 0) activateSession(list[0]);
+      })
+      .catch(() => {})
+      .finally(() => setCheckingActive(false));
 
-    return () => cleanup()
-  }, [])
+    return () => cleanup();
+  }, []);
 
-  const activateSession = useCallback((sess) => {
-    setSession(sess)
-    startCamera()
-    connectWebSocket(sess.sessionId)
-    startSnapshotPoll(sess.sessionId)
-  }, [startCamera])
+  const activateSession = useCallback(
+    (sess) => {
+      setSession(sess);
+      // 🔥 FIX: Add delay before starting camera
+      setTimeout(() => {
+        startCamera();
+        // connectWebSocket(sess.sessionId)
+        startSnapshotPoll(sess.sessionId);
+      }, 300);
+    },
+    [startCamera],
+  );
 
   const cleanup = () => {
-    clearInterval(frameTimer.current)
-    clearInterval(pollTimer.current)
-    wsClientRef.current?.deactivate()
+    clearInterval(frameTimer.current);
+    clearInterval(pollTimer.current);
+    wsClientRef.current?.deactivate();
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(t => t.stop())
-      streamRef.current = null
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
     }
-  }
+  };
 
   const connectWebSocket = (sessionId) => {
     const client = createSessionClient({
       sessionId,
       onMood: (data) => setMood(data),
-      onAlert: (data) => setAlerts(prev => [data, ...prev].slice(0, 20)),
+      onAlert: (data) => setAlerts((prev) => [data, ...prev].slice(0, 20)),
       onConnect: () => setWsConnected(true),
       onDisconnect: () => setWsConnected(false),
-    })
-    wsClientRef.current = client
-  }
+    });
+    wsClientRef.current = client;
+  };
 
   const parseConcentration = (concentration) => {
-    if (typeof concentration === 'number') return concentration
-    if (typeof concentration === 'string') {
-      const map = { low: 0.3, medium: 0.6, high: 0.9 }
-      return map[concentration.toLowerCase()] || 0.6
+    if (typeof concentration === "number") return concentration;
+    if (typeof concentration === "string") {
+      const map = { low: 0.3, medium: 0.6, high: 0.9 };
+      return map[concentration.toLowerCase()] || 0.6;
     }
-    if (typeof concentration === 'object' && concentration?.level) {
-      return parseConcentration(concentration.level)
+    if (typeof concentration === "object" && concentration?.level) {
+      return parseConcentration(concentration.level);
     }
-    return 0.6
-  }
+    return 0.6;
+  };
 
   // Frame capture loop
   const startFrameCapture = useCallback((sessionId) => {
-    clearInterval(frameTimer.current)
+    clearInterval(frameTimer.current);
     frameTimer.current = setInterval(() => {
-      const video = videoRef.current
-      if (!video || !video.videoWidth) return
-      const canvas = document.createElement('canvas')
-      canvas.width = video.videoWidth
-      canvas.height = video.videoHeight
-      canvas.getContext('2d').drawImage(video, 0, 0)
-      canvas.toBlob(blob => {
-        if (!blob) return
-        const formData = new FormData()
-        formData.append('session_id', sessionId)
-        formData.append('store', 'true')
-        formData.append('file', blob, 'frame.jpg')
+      const video = videoRef.current;
+      if (!video || !video.videoWidth) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext("2d").drawImage(video, 0, 0);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return;
+          const formData = new FormData();
+          formData.append("session_id", sessionId);
+          formData.append("store", "true");
+          formData.append("file", blob, "frame.jpg");
 
-        fetch('http://localhost:8000/analyze/frame', {
-          method: 'POST',
-          body: formData,
-        })
-          .then(r => r.ok ? r.json() : Promise.reject(r.status))
-          .then(data => {
-            const counts = data.emotion_counts ?? {}
-            const dominant = Object.keys(counts).length > 0
-              ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
-              : 'neutral'
-            setMood({
-              studentCount: data.student_count ?? 0,
-              engagementScore: data.engagement_score ?? 0,
-              dominantEmotion: dominant,
-              concentration: 0.5,
-            })
-
-            const recognized = (data.people ?? []).filter(p => p.student_id)
-            const physicalCount = data.student_count ?? 0
-
-            if (recognized.length > 0) {
-              setDetectedStudents(prev => {
-                if (physicalCount === 1 && prev.size >= 1) {
-                  const locked = [...prev.values()][0]
-                  const latest = recognized[0]
-                  const next = new Map()
-                  next.set(locked.studentId, {
-                    ...locked,
-                    emotion: latest.dominant_emotion ?? locked.emotion,
-                    concentration: parseConcentration(latest.concentration),
-                    lastSeen: Date.now(),
-                  })
-                  return next
-                }
-
-                const next = new Map(prev)
-                recognized.forEach(p => {
-                  next.set(p.student_id, {
-                    studentId: p.student_id,
-                    studentName: p.student_name ?? p.student_id,
-                    emotion: p.dominant_emotion ?? 'neutral',
-                    concentration: parseConcentration(p.concentration),
-                    lastSeen: Date.now(),
-                  })
-                })
-                return next
-              })
-            }
+          fetch("http://localhost:8000/analyze/frame", {
+            method: "POST",
+            body: formData,
           })
-          .catch(err => console.error('Frame send error:', err))
-      }, 'image/jpeg', 0.8)
-    }, FRAME_INTERVAL_MS)
-  }, [])
+            .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+            .then((data) => {
+              const people = data.people ?? [];
+
+              // Build emotion counts from people array (Python omits emotion_counts from response)
+              const counts = {};
+              let totalConc = 0;
+              people.forEach((p) => {
+                const e = (
+                  p.dominant_emotion ??
+                  p.emotion ??
+                  "neutral"
+                ).toLowerCase();
+                counts[e] = (counts[e] ?? 0) + 1;
+                totalConc +=
+                  typeof p.concentration === "number" ? p.concentration : 0.5;
+              });
+              const n = people.length || 1;
+              const avgConc = totalConc / n;
+              const weightedPositive =
+                (counts.happy ?? 0) +
+                (counts.surprised ?? 0) +
+                (counts.neutral ?? 0) * 0.5;
+              const totalEmotions =
+                Object.values(counts).reduce((s, v) => s + v, 0) || 1;
+              const emotionEngagement = weightedPositive / totalEmotions;
+              const engagementScore = (emotionEngagement + avgConc) / 2;
+
+              const dominant =
+                Object.keys(counts).length > 0
+                  ? Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0]
+                  : "neutral";
+              setMood({
+                studentCount: data.student_count ?? 0,
+                engagementScore,
+                dominantEmotion: dominant,
+                concentration: avgConc,
+              });
+
+              const recognized = (data.people ?? []).filter(
+                (p) => p.student_id,
+              );
+              const physicalCount = data.student_count ?? 0;
+
+              if (recognized.length > 0) {
+                setDetectedStudents((prev) => {
+                  if (physicalCount === 1 && prev.size >= 1) {
+                    const locked = [...prev.values()][0];
+                    const latest = recognized[0];
+                    const next = new Map();
+                    next.set(locked.studentId, {
+                      ...locked,
+                      emotion: latest.dominant_emotion ?? locked.emotion,
+                      concentration: parseConcentration(latest.concentration),
+                      lastSeen: Date.now(),
+                    });
+                    return next;
+                  }
+
+                  const next = new Map(prev);
+                  recognized.forEach((p) => {
+                    next.set(p.student_id, {
+                      studentId: p.student_id,
+                      studentName: p.student_name ?? p.student_id,
+                      emotion: p.dominant_emotion ?? "neutral",
+                      concentration: parseConcentration(p.concentration),
+                      lastSeen: Date.now(),
+                    });
+                  });
+                  return next;
+                });
+              }
+            })
+            .catch((err) => console.error("Frame send error:", err));
+        },
+        "image/jpeg",
+        0.8,
+      );
+    }, FRAME_INTERVAL_MS);
+  }, []);
 
   const startSnapshotPoll = (sessionId) => {
-    clearInterval(pollTimer.current)
+    clearInterval(pollTimer.current);
     const poll = () =>
-      emotionService.getLatest(sessionId)
+      emotionService
+        .getLatest(sessionId)
         .then(setSnapshot)
-        .catch(() => { })
-    poll()
-    pollTimer.current = setInterval(poll, SNAPSHOT_POLL_MS)
-  }
+        .catch(() => {});
+    poll();
+    pollTimer.current = setInterval(poll, SNAPSHOT_POLL_MS);
+  };
 
   useEffect(() => {
-    if (session && cameraOn) startFrameCapture(session.sessionId)
-    return () => clearInterval(frameTimer.current)
-  }, [session, cameraOn, startFrameCapture])
+    if (session && cameraOn) startFrameCapture(session.sessionId);
+    return () => clearInterval(frameTimer.current);
+  }, [session, cameraOn, startFrameCapture]);
 
-  const handleStart = async e => {
-    e.preventDefault()
-    if (!form.courseId) { setSetupError('Please select a course.'); return }
-    if (!form.room) { setSetupError('Please enter a room location.'); return }
-    setStarting(true)
-    setSetupError('')
-    const now = new Date()
-    const end = new Date(now.getTime() + Number(form.duration) * 60 * 60 * 1000)
+  const handleStart = async (e) => {
+    e.preventDefault();
+    if (!form.courseId) {
+      setSetupError("Please select a course.");
+      return;
+    }
+    if (!form.room) {
+      setSetupError("Please enter a room location.");
+      return;
+    }
+    setStarting(true);
+    setSetupError("");
+    const now = new Date();
+    const end = new Date(
+      now.getTime() + Number(form.duration) * 60 * 60 * 1000,
+    );
     try {
       const sess = await sessionService.start({
         courseId: form.courseId,
         roomLocation: form.room,
-        cameraType: 'webcam',
+        cameraType: "webcam",
         scheduledStart: now.toISOString().slice(0, 19),
         scheduledEnd: end.toISOString().slice(0, 19),
-      })
-      activateSession(sess)
+      });
+      activateSession(sess);
     } catch (e) {
-      setSetupError(e.response?.data?.message ?? 'Failed to start session.')
+      setSetupError(e.response?.data?.message ?? "Failed to start session.");
     } finally {
-      setStarting(false)
+      setStarting(false);
     }
-  }
+  };
 
   const handleEnd = async () => {
-    try { await sessionService.end(session.sessionId) } catch { }
-    cleanup()
-    setSession(null)
-    setCameraOn(false)
-    setWsConnected(false)
-    setMood(null)
-    setAlerts([])
-    setSnapshot(null)
-    setDetectedStudents(new Map())
-  }
+    try {
+      await sessionService.end(session.sessionId);
+    } catch {}
+    cleanup();
+    setSession(null);
+    setCameraOn(false);
+    setWsConnected(false);
+    setMood(null);
+    setAlerts([]);
+    setSnapshot(null);
+    setDetectedStudents(new Map());
+  };
 
-  const engagement = mood?.engagementScore ?? snapshot?.classSnapshot?.engagementScore ?? 0
-  const dominantEmotion = mood?.dominantEmotion ?? snapshot?.classSnapshot?.dominantEmotion ?? 'neutral'
-  const studentCount = mood?.studentCount ?? session?.studentCount ?? 0
-  const emoMeta = EMOTION_META[dominantEmotion?.toLowerCase()] ?? EMOTION_META.neutral
+  const engagement =
+    mood?.engagementScore ?? snapshot?.classSnapshot?.engagementScore ?? 0;
+  const dominantEmotion =
+    mood?.dominantEmotion ??
+    snapshot?.classSnapshot?.dominantEmotion ??
+    "neutral";
+  const studentCount = mood?.studentCount ?? session?.studentCount ?? 0;
+  const emoMeta =
+    EMOTION_META[dominantEmotion?.toLowerCase()] ?? EMOTION_META.neutral;
 
   const concCounts = (() => {
-    const students = snapshot?.studentSnapshots ?? []
+    const students = snapshot?.studentSnapshots ?? [];
     return {
-      high: students.filter(s => getConcentrationLevel(s.concentration) === 'high').length,
-      medium: students.filter(s => getConcentrationLevel(s.concentration) === 'medium').length,
-      low: students.filter(s => getConcentrationLevel(s.concentration) === 'low').length,
-    }
-  })()
+      high: students.filter(
+        (s) => getConcentrationLevel(s.concentration) === "high",
+      ).length,
+      medium: students.filter(
+        (s) => getConcentrationLevel(s.concentration) === "medium",
+      ).length,
+      low: students.filter(
+        (s) => getConcentrationLevel(s.concentration) === "low",
+      ).length,
+    };
+  })();
 
   if (checkingActive) {
     return (
@@ -498,7 +729,7 @@ export default function LecturerLiveSession() {
           Checking for active sessions…
         </div>
       </LecturerLayout>
-    )
+    );
   }
 
   if (!session) {
@@ -506,12 +737,16 @@ export default function LecturerLiveSession() {
       <LecturerLayout>
         <div className="max-w-lg mx-auto mt-10">
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-11 h-11 rounded-xl bg-violet-500/15 flex items-center justify-center">
-              <Video size={20} className="text-violet-400" />
+            <div className="w-11 h-11 rounded-xl bg-[#667D9D]/15 flex items-center justify-center">
+              <Video size={20} className="text-[#667D9D]" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white">Start Live Session</h1>
-              <p className="text-sm text-slate-500 mt-0.5">Open camera and begin real-time emotion detection</p>
+              <h1 className="text-2xl font-bold text-white">
+                Start Live Session
+              </h1>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Open camera and begin real-time emotion detection
+              </p>
             </div>
           </div>
 
@@ -524,37 +759,54 @@ export default function LecturerLiveSession() {
 
             <form onSubmit={handleStart} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Course</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  Course
+                </label>
                 {loadingCourses ? (
                   <Skeleton className="h-10" />
                 ) : (
                   <div className="relative">
-                    <BookOpen size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    <BookOpen
+                      size={14}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                    />
                     <select
                       value={form.courseId}
-                      onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, courseId: e.target.value }))
+                      }
                       required
                       className="input-field w-full pl-9 pr-8 py-2.5 text-sm appearance-none"
                     >
                       <option value="">Select a course…</option>
-                      {courses.map(c => (
+                      {courses.map((c) => (
                         <option key={c.courseId} value={c.courseId}>
                           {c.code} — {c.title}
                         </option>
                       ))}
                     </select>
-                    <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                    <ChevronDown
+                      size={13}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                    />
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Room / Location</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  Room / Location
+                </label>
                 <div className="relative">
-                  <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                  <MapPin
+                    size={14}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                  />
                   <input
                     value={form.room}
-                    onChange={e => setForm(f => ({ ...f, room: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, room: e.target.value }))
+                    }
                     placeholder="e.g. Hall B, Lab 3…"
                     required
                     className="input-field w-full pl-9 pr-4 py-2.5 text-sm placeholder-slate-600"
@@ -563,39 +815,57 @@ export default function LecturerLiveSession() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-400 mb-1.5">Planned Duration</label>
+                <label className="block text-xs font-medium text-slate-400 mb-1.5">
+                  Planned Duration
+                </label>
                 <div className="relative">
-                  <Clock size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                  <Clock
+                    size={14}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                  />
                   <select
                     value={form.duration}
-                    onChange={e => setForm(f => ({ ...f, duration: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, duration: e.target.value }))
+                    }
                     className="input-field w-full pl-9 pr-8 py-2.5 text-sm appearance-none"
                   >
-                    {[1, 1.5, 2, 2.5, 3].map(h => (
-                      <option key={h} value={h}>{h} {h === 1 ? 'hour' : 'hours'}</option>
+                    {[1, 1.5, 2, 2.5, 3].map((h) => (
+                      <option key={h} value={h}>
+                        {h} {h === 1 ? "hour" : "hours"}
+                      </option>
                     ))}
                   </select>
-                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+                  <ChevronDown
+                    size={13}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none"
+                  />
                 </div>
               </div>
 
               <button
                 type="submit"
                 disabled={starting || loadingCourses}
-                className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-2"
+                className="w-full py-3 rounded-xl bg-[#16254F] hover:bg-[#667D9D] disabled:opacity-60 text-white font-semibold text-sm transition-colors flex items-center justify-center gap-2 mt-2"
               >
-                {starting ? 'Starting…' : <><Video size={15} /> Start Live Session</>}
+                {starting ? (
+                  "Starting…"
+                ) : (
+                  <>
+                    <Video size={15} /> Start Live Session
+                  </>
+                )}
               </button>
             </form>
           </div>
 
           <p className="text-xs text-slate-600 text-center mt-4">
-            Your browser camera will be used to detect student emotions in real time.
-            Frames are analyzed every {FRAME_INTERVAL_MS / 1000}s.
+            Your browser camera will be used to detect student emotions in real
+            time. Frames are analyzed every {FRAME_INTERVAL_MS / 1000}s.
           </p>
         </div>
       </LecturerLayout>
-    )
+    );
   }
 
   return (
@@ -607,14 +877,27 @@ export default function LecturerLiveSession() {
             <span className="text-xs font-semibold text-rose-400">LIVE</span>
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg font-bold text-white truncate">{session.courseName ?? 'Live Session'}</h1>
+            <h1 className="text-lg font-bold text-white truncate">
+              {session.courseName ?? "Live Session"}
+            </h1>
             <div className="flex items-center gap-3 text-xs text-slate-500 mt-0.5">
-              <span className="flex items-center gap-1"><Clock size={11} /> {duration}</span>
-              {wsConnected
-                ? <span className="flex items-center gap-1 text-emerald-500"><Wifi size={11} /> Connected</span>
-                : <span className="flex items-center gap-1 text-slate-600"><WifiOff size={11} /> Reconnecting…</span>
-              }
-              {cameraError && <span className="flex items-center gap-1 text-amber-500"><VideoOff size={11} /> {cameraError}</span>}
+              <span className="flex items-center gap-1">
+                <Clock size={11} /> {duration}
+              </span>
+              {wsConnected ? (
+                <span className="flex items-center gap-1 text-emerald-500">
+                  <Wifi size={11} /> Connected
+                </span>
+              ) : (
+                <span className="flex items-center gap-1 text-slate-600">
+                  <WifiOff size={11} /> Disconnected
+                </span>
+              )}
+              {cameraError && (
+                <span className="flex items-center gap-1 text-amber-500">
+                  <VideoOff size={11} /> {cameraError}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -645,7 +928,7 @@ export default function LecturerLiveSession() {
                 <button
                   key={camera.deviceId}
                   onClick={() => {
-                    switchCamera(camera.deviceId)
+                    switchCamera(camera.deviceId);
                   }}
                   className="w-full p-3 text-left bg-slate-700 hover:bg-slate-600 rounded-lg text-white transition"
                 >
@@ -672,6 +955,7 @@ export default function LecturerLiveSession() {
                 autoPlay
                 muted
                 playsInline
+                onCanPlay={() => setVideoReady(true)}
                 className="w-full h-full object-cover scale-x-[-1]"
               />
             ) : (
@@ -693,29 +977,38 @@ export default function LecturerLiveSession() {
 
         <div className="lg:col-span-3 flex flex-col gap-4">
           <div className="grid grid-cols-3 gap-3">
-            <StatCard
-              icon={Users}
-              label="Students"
-              value={studentCount}
-              sub="detected"
-              color="blue"
-            />
+            <div className="rounded-2xl p-4 flex items-center gap-3 border border-[#667D9D]/25" style={{ background: 'rgba(22,37,79,0.35)', backdropFilter: 'blur(14px)' }}>
+              <div className="w-10 h-10 rounded-xl bg-[#667D9D]/20 flex items-center justify-center shrink-0">
+                <Users size={18} className="text-[#ACBBC6]" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-[#667D9D] font-medium">Students</p>
+                <p className="text-xl font-bold text-[#ECECEC] leading-tight">{studentCount ?? "—"}</p>
+                <p className="text-xs text-[#667D9D] mt-0.5">detected</p>
+              </div>
+            </div>
             <EngagementArc value={engagement} />
-            <div className={`glass rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 ${emoMeta.bg}`}>
-              <p className="text-xs text-slate-500 font-medium">Mood</p>
-              <span className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${emoMeta.dot} opacity-80`} />
-              <span className={`text-sm font-semibold ${emoMeta.color}`}>{emoMeta.label}</span>
+            <div
+              className={`glass rounded-2xl p-4 flex flex-col items-center justify-center gap-1.5 border-t-2 border-[#667D9D]/40 ${emoMeta.bg}`}
+            >
+              <p className="text-xs text-[#ACBBC6] font-medium">Mood</p>
+              <span
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${emoMeta.dot}`}
+              />
+              <span className={`text-sm font-semibold ${emoMeta.color}`}>
+                {emoMeta.label}
+              </span>
             </div>
           </div>
 
           {/* Detected Students */}
-          <div className="glass rounded-2xl p-4">
+          <div className="glass rounded-2xl p-4 border-l-2 border-[#667D9D]/50">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-slate-500 font-medium flex items-center gap-1.5">
-                <Users size={12} /> Detected Students
+              <p className="text-xs text-[#ACBBC6] font-medium flex items-center gap-1.5">
+                <Users size={12} className="text-[#667D9D]" /> Detected Students
               </p>
               {detectedStudents.size > 0 && (
-                <span className="text-xs px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-300 font-medium">
+                <span className="text-xs px-1.5 py-0.5 rounded-full bg-[#667D9D]/20 text-[#ACBBC6] font-medium">
                   {detectedStudents.size}
                 </span>
               )}
@@ -727,7 +1020,7 @@ export default function LecturerLiveSession() {
               </div>
             ) : (
               <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {[...detectedStudents.values()].map(s => (
+                {[...detectedStudents.values()].map((s) => (
                   <StudentRow key={s.studentId} student={s} />
                 ))}
               </div>
@@ -735,38 +1028,47 @@ export default function LecturerLiveSession() {
           </div>
 
           {snapshot?.studentSnapshots?.length > 0 && (
-            <div className="glass rounded-2xl p-4">
-              <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
-                <Activity size={12} /> Emotion Distribution
+            <div className="glass rounded-2xl p-4 border-l-2 border-[#ACBBC6]/40">
+              <p className="text-xs text-[#ACBBC6] font-medium mb-3 flex items-center gap-1.5">
+                <Activity size={12} className="text-[#667D9D]" /> Emotion Distribution
               </p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(
                   snapshot.studentSnapshots.reduce((acc, s) => {
-                    const k = s.emotion?.toLowerCase() ?? 'neutral'
-                    acc[k] = (acc[k] ?? 0) + 1
-                    return acc
-                  }, {})
+                    const k = s.emotion?.toLowerCase() ?? "neutral";
+                    acc[k] = (acc[k] ?? 0) + 1;
+                    return acc;
+                  }, {}),
                 )
                   .sort(([, a], [, b]) => b - a)
                   .map(([emotion, count]) => {
-                    const m = EMOTION_META[emotion] ?? EMOTION_META.neutral
+                    const m = EMOTION_META[emotion] ?? EMOTION_META.neutral;
                     return (
-                      <div key={emotion} className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${m.bg}`}>
-                        <span className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`} />
-                        <span className={`text-xs font-medium ${m.color}`}>{m.label}</span>
+                      <div
+                        key={emotion}
+                        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl ${m.bg}`}
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full shrink-0 ${m.dot}`}
+                        />
+                        <span className={`text-xs font-medium ${m.color}`}>
+                          {m.label}
+                        </span>
                         <span className="text-xs text-slate-500">{count}</span>
                       </div>
-                    )
+                    );
                   })}
               </div>
             </div>
           )}
 
-          <div className="glass rounded-2xl p-4 flex-1 min-h-0">
-            <p className="text-xs text-slate-500 font-medium mb-3 flex items-center gap-1.5">
-              <AlertTriangle size={12} /> Live Alerts
+          <div className="glass rounded-2xl p-4 flex-1 min-h-0 border-l-2 border-rose-500/30">
+            <p className="text-xs text-[#ACBBC6] font-medium mb-3 flex items-center gap-1.5">
+              <AlertTriangle size={12} className="text-rose-400" /> Live Alerts
               {alerts.length > 0 && (
-                <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400">{alerts.length}</span>
+                <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400">
+                  {alerts.length}
+                </span>
               )}
             </p>
             {alerts.length === 0 ? (
@@ -776,12 +1078,14 @@ export default function LecturerLiveSession() {
               </div>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-                {alerts.map((a, i) => <AlertItem key={i} alert={a} />)}
+                {alerts.map((a, i) => (
+                  <AlertItem key={i} alert={a} />
+                ))}
               </div>
             )}
           </div>
         </div>
       </div>
     </LecturerLayout>
-  )
+  );
 }
