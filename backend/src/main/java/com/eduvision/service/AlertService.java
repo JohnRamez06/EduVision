@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -24,11 +25,13 @@ public class AlertService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    @Transactional
+    // REQUIRES_NEW = runs in its own transaction so a failure here never
+    // marks the caller's transaction (e.g. recordExit) as rollback-only.
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public Map<String, Object> createAlert(String sessionId, String title, String message, String severity, String alertType) {
         String alertId = UUID.randomUUID().toString();
-        
-        // Get course_id from session
+
+        // Get course_id from session (required NOT NULL column)
         String courseId = null;
         try {
             courseId = jdbcTemplate.queryForObject(
@@ -38,11 +41,15 @@ public class AlertService {
         } catch (Exception e) {
             logger.warn("Could not find course for session: {}", sessionId);
         }
-        
-        // Insert alert using your existing table structure
+
+        if (courseId == null) {
+            logger.warn("Skipping alert — no course_id found for session {}", sessionId);
+            return Map.of("skipped", true, "reason", "course not found");
+        }
+
         String sql = """
-            INSERT INTO alerts (id, session_id, course_id, title, message, severity, alert_type, status, triggered_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'open', NOW())
+            INSERT INTO alerts (id, session_id, course_id, title, message, severity, status, triggered_at, alert_type)
+            VALUES (?, ?, ?, ?, ?, ?, 'open', NOW(), ?)
         """;
         jdbcTemplate.update(sql, alertId, sessionId, courseId, title, message, severity, alertType);
         
@@ -67,7 +74,7 @@ public class AlertService {
 
     public List<Map<String, Object>> getAlertsForSession(String sessionId) {
         String sql = """
-            SELECT id, session_id, course_id, title, message, severity, alert_type, status, triggered_at
+            SELECT id, session_id, course_id, title, message, severity, status, triggered_at, alert_metadata
             FROM alerts
             WHERE session_id = ?
             ORDER BY triggered_at DESC
@@ -83,7 +90,7 @@ public class AlertService {
 
     public List<Map<String, Object>> getPendingAlertsForLecturer(String email) {
         String sql = """
-            SELECT a.id, a.session_id, a.course_id, a.title, a.message, a.severity, a.alert_type, a.status, a.triggered_at
+            SELECT a.id, a.session_id, a.course_id, a.title, a.message, a.severity, a.status, a.triggered_at, a.alert_metadata
             FROM alerts a
             JOIN lecture_sessions ls ON ls.id = a.session_id
             JOIN course_lecturers cl ON cl.course_id = ls.course_id
@@ -189,7 +196,7 @@ public class AlertService {
         }
     }
     
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createNotificationForLecturers(String alertId, String sessionId, String title, String message) {
         try {
             // Get all lecturers for this session's course

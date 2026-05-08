@@ -18,8 +18,13 @@ const attendanceService = {
   saveManualAttendance: async (payload) => {
     const response = await api.post('/attendance/manual/save', payload);
     return response.data;
-  }
-  
+  },
+
+  // Get all exit logs for a session (used by StudentExitList)
+  getSessionExits: async (sessionId) => {
+    const response = await api.get(`/attendance/session/${sessionId}/exits`);
+    return response.data;
+  },
 };
 
 export default attendanceService;

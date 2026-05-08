@@ -163,6 +163,19 @@ def record_attendance_with_presence(client: httpx.Client, session_id: str, stude
                 logger.info(f"✅ JOINED: {student_name}")
             elif presence_event == "returned":
                 logger.info(f"🔄 RETURNED: {student_name}")
+                # Also close the open exit log so return_time gets set
+                try:
+                    ret_resp = client.post(
+                        f"{ATTENDANCE_URL}/return",
+                        json={"sessionId": session_id, "studentId": student_id},
+                        timeout=5.0
+                    )
+                    if ret_resp.status_code in [200, 201]:
+                        logger.info(f"✅ Exit log closed for {student_name}")
+                    else:
+                        logger.warning(f"Exit log close failed: {ret_resp.status_code}")
+                except Exception as re:
+                    logger.warning(f"Could not close exit log: {re}")
             elif presence_event == "left":
                 logger.info(f"🚪 LEFT: {student_name}")
             else:

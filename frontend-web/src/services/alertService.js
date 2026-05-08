@@ -33,7 +33,13 @@ const alertService = {
     getSessionAlerts: async (sessionId) => {
         const response = await api.get(`${API_BASE}/session/${sessionId}`);
         return response.data;
-    }
+    },
+
+    // Alias used by AlertBanner component
+    acknowledge: async (alertId) => {
+        const response = await api.post(`${API_BASE}/${alertId}/acknowledge`);
+        return response.data;
+    },
 };
 
 export default alertService;

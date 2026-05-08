@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -19,6 +20,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 
 @Configuration
+@EnableMethodSecurity
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
@@ -30,57 +32,49 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
+                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth
                 // PUBLIC ENDPOINTS (no authentication needed)
                 .requestMatchers(
                         "/api/v1/auth/**",
                         "/ws/**",
                         "/actuator/health"
                 ).permitAll()
-
                 // 🔥 Allow Python to POST emotion data and attendance
                 .requestMatchers(HttpMethod.POST, "/api/v1/emotion-data/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/attendance/record").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/attendance/weekly/calculate").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/attendance/**").permitAll()
-
                 // 🔥 ADD THIS - Allow Python to POST alerts (no authentication required)
                 .requestMatchers(HttpMethod.POST, "/api/v1/alerts/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/v1/alerts/**").permitAll()
-
                 // DEAN ENDPOINTS
                 .requestMatchers("/api/v1/dean/**").hasRole("DEAN")
                 .requestMatchers("/api/v1/facade/dean/**").hasRole("DEAN")
-
                 // ADMIN ENDPOINTS
                 .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/v1/face-enrollment/**").hasRole("ADMIN")
-
                 // LECTURER ENDPOINTS
                 .requestMatchers("/api/v1/lecturer/**").hasRole("LECTURER")
                 .requestMatchers("/api/v1/facade/lecturer/**").hasRole("LECTURER")
                 .requestMatchers(HttpMethod.POST, "/api/v1/sessions/start").hasRole("LECTURER")
                 .requestMatchers(HttpMethod.POST, "/api/v1/sessions/*/end").hasRole("LECTURER")
-
                 // STUDENT ENDPOINTS
                 .requestMatchers("/api/v1/student/**").hasRole("STUDENT")
                 .requestMatchers("/api/v1/facade/student/**").hasRole("STUDENT")
                 .requestMatchers("/api/v1/consent/**").hasRole("STUDENT")
-
                 // SHARED ENDPOINTS
                 .requestMatchers("/api/v1/reports/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/emotion-data/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/sessions/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
                 .requestMatchers("/api/v1/attendance/**").permitAll()
                 .requestMatchers("/api/v1/camera/**").hasRole("ADMIN")
-
                 // Everything else requires authentication
                 .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                )
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
     }
@@ -89,15 +83,15 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(Arrays.asList(
-            "http://localhost:3000",
-            "http://127.0.0.1:3000",
-            "http://localhost:8000"
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:8000"
         ));
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
         configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         source.registerCorsConfiguration("/api/v1/**", configuration);

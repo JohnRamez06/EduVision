@@ -13,6 +13,10 @@ const PRIORITY = {
   LOW:    { label: 'Low',    cls: 'bg-slate-700/40 text-slate-400 border-slate-700',     icon: Info },
 }
 
+const normalizeRecommendations = (value) => (
+  Array.isArray(value) ? value.filter(r => r && typeof r === 'object') : []
+)
+
 function RecommendationCard({ rec }) {
   const [open, setOpen] = useState(false)
   const p = PRIORITY[rec.priority] ?? PRIORITY.LOW
@@ -51,11 +55,33 @@ export default function StudentRecommendations() {
   const [error, setError]     = useState('')
 
   useEffect(() => {
-    studentService.getRecommendations()
-      .catch(() => studentService.getDashboard().then(d => d.recommendations ?? []))
-      .then(setRecs)
-      .catch(e => setError(e.response?.data?.message ?? 'Failed to load recommendations.'))
-      .finally(() => setLoading(false))
+    let active = true
+
+    const loadRecommendations = async () => {
+      setError('')
+      setLoading(true)
+
+      try {
+        const dedicatedRecommendations = await studentService.getRecommendations()
+        if (active) setRecs(normalizeRecommendations(dedicatedRecommendations))
+      } catch (dedicatedError) {
+        console.warn('StudentRecommendations: dedicated endpoint failed, trying dashboard fallback.', dedicatedError)
+        try {
+          const dashboard = await studentService.getDashboard()
+          if (active) setRecs(normalizeRecommendations(dashboard?.recommendations))
+        } catch (fallbackError) {
+          if (!active) return
+          setRecs([])
+          setError(fallbackError.response?.data?.message ?? 'Failed to load recommendations.')
+        }
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    loadRecommendations()
+
+    return () => { active = false }
   }, [])
 
   const visible = filter === 'ALL' ? recs : recs.filter(r => r.priority === filter)

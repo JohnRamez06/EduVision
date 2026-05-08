@@ -32,9 +32,11 @@ public class AttendanceService {
 
     private static final Logger logger = LoggerFactory.getLogger(AttendanceService.class);
     private final JdbcTemplate jdbc;
+    private final AlertService alertService;
 
-    public AttendanceService(JdbcTemplate jdbc) {
+    public AttendanceService(JdbcTemplate jdbc, AlertService alertService) {
         this.jdbc = jdbc;
+        this.alertService = alertService;
     }
     // ============================================================
     // SESSION ATTENDANCE SUMMARY
@@ -67,41 +69,83 @@ public class AttendanceService {
 
     @Transactional
     public void recordExit(ExitRecordRequest req) {
-        Integer studentExists = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM students WHERE student_id = ?",
-                Integer.class, req.getStudentId());
-        if (studentExists == null || studentExists == 0)
-            throw new ResourceNotFoundException("Student not found: " + req.getStudentId());
+        // Resolve attendance_id (required NOT NULL FK → session_attendance.id)
+        List<String> attIds = jdbc.queryForList(
+                "SELECT id FROM session_attendance WHERE session_id = ? AND student_id = ? LIMIT 1",
+                String.class, req.getSessionId(), req.getStudentId());
 
-        Integer sessionExists = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM lecture_sessions WHERE session_id = ?",
-                Integer.class, req.getSessionId());
-        if (sessionExists == null || sessionExists == 0)
-            throw new ResourceNotFoundException("Session not found: " + req.getSessionId());
+        String attendanceId;
+        if (!attIds.isEmpty()) {
+            attendanceId = attIds.get(0);
+        } else {
+            // Student not in session_attendance yet — create a minimal row so the FK is satisfied
+            attendanceId = UUID.randomUUID().toString();
+            jdbc.update(
+                    "INSERT INTO session_attendance (id, session_id, student_id, status, recorded_at) " +
+                    "VALUES (?, ?, ?, 'present', NOW())",
+                    attendanceId, req.getSessionId(), req.getStudentId());
+            logger.info("Created attendance row for exit: student={}", req.getStudentId());
+        }
+
+        // Map free-form exitType to the allowed ENUM values
+        String exitTypeEnum = mapExitType(req.getExitType());
 
         String id = UUID.randomUUID().toString();
+        LocalDateTime now = LocalDateTime.now();
         jdbc.update(
-                "INSERT INTO session_exit_logs (exit_log_id, student_id, session_id, exit_time, exit_type) " +
-                "VALUES (?, ?, ?, ?, ?)",
-                id, req.getStudentId(), req.getSessionId(),
-                LocalDateTime.now(), req.getExitType());
+                "INSERT INTO session_exit_logs (id, attendance_id, student_id, session_id, exit_time, exit_type, detected_by) " +
+                "VALUES (?, ?, ?, ?, ?, ?, 'camera')",
+                id, attendanceId, req.getStudentId(), req.getSessionId(), now, exitTypeEnum);
+
+        logger.info("Exit log created: student={}, session={}, type={}", req.getStudentId(), req.getSessionId(), exitTypeEnum);
+
+        // Fire a "student left" alert so the lecturer sees it immediately
+        try {
+            String studentName = jdbc.queryForObject(
+                    "SELECT CONCAT(u.first_name, ' ', u.last_name) FROM users u WHERE u.id = ?",
+                    String.class, req.getStudentId());
+            String time = now.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+            alertService.createAlert(
+                    req.getSessionId(),
+                    "🚪 Student Left",
+                    (studentName != null ? studentName : "A student") + " left at " + time,
+                    "warning",
+                    "student_left"
+            );
+        } catch (Exception e) {
+            logger.warn("Could not create student-left alert: {}", e.getMessage());
+        }
+    }
+
+    /** Maps free-form exit type strings to the DB ENUM values. */
+    private static String mapExitType(String raw) {
+        if (raw == null) return "unknown";
+        return switch (raw.toLowerCase().trim()) {
+            case "bathroom_break", "bathroom" -> "bathroom_break";
+            case "left_early", "early"        -> "left_early";
+            case "technical_issue", "technical" -> "technical_issue";
+            default -> "unknown";   // covers "automatic", null, etc.
+        };
     }
 
     @Transactional
     public void recordReturn(ReturnRecordRequest req) {
         List<Map<String, Object>> rows = jdbc.queryForList(
-                "SELECT exit_log_id FROM session_exit_logs " +
+                "SELECT id FROM session_exit_logs " +
                 "WHERE student_id = ? AND session_id = ? AND return_time IS NULL " +
                 "ORDER BY exit_time DESC LIMIT 1",
                 req.getStudentId(), req.getSessionId());
 
-        if (rows.isEmpty())
-            throw new ResourceNotFoundException("No open exit found for student " + req.getStudentId());
+        if (rows.isEmpty()) {
+            logger.warn("No open exit found for student {} in session {}", req.getStudentId(), req.getSessionId());
+            return;  // graceful no-op — don't throw; exit log may not exist yet
+        }
 
-        String exitLogId = (String) rows.get(0).get("exit_log_id");
+        String exitId = (String) rows.get(0).get("id");
         jdbc.update(
-                "UPDATE session_exit_logs SET return_time = ? WHERE exit_log_id = ?",
-                LocalDateTime.now(), exitLogId);
+                "UPDATE session_exit_logs SET return_time = ? WHERE id = ?",
+                LocalDateTime.now(), exitId);
+        logger.info("Return logged: student={}", req.getStudentId());
     }
 
     public List<ExitLogDTO> getSessionExits(String sessionId) {
@@ -109,8 +153,8 @@ public class AttendanceService {
                 "SELECT el.exit_time, el.return_time, el.exit_type, " +
                 "       CONCAT(u.first_name, ' ', u.last_name) AS student_name " +
                 "FROM session_exit_logs el " +
-                "JOIN students s ON s.student_id = el.student_id " +
-                "JOIN users u ON u.user_id = s.user_id " +
+                "JOIN students s ON s.user_id = el.student_id " +
+                "JOIN users u ON u.id = s.user_id " +
                 "WHERE el.session_id = ? " +
                 "ORDER BY el.exit_time DESC",
                 (rs, row) -> {
@@ -410,10 +454,9 @@ public boolean isStudentEnrolledInSession(String sessionId, String studentId) {
         String sql = """
             SELECT COUNT(*) FROM lecture_sessions ls
             JOIN course_students cs ON cs.course_id = ls.course_id
-            WHERE ls.id = ? 
-              AND cs.student_id = ? 
+            WHERE ls.id = ?
+              AND cs.student_id = ?
               AND cs.dropped_at IS NULL
-              AND cs.lecturer_id = ls.lecturer_id
         """;
         
         // 🔥 Use 'jdbc' (not jdbcTemplate)
@@ -472,6 +515,7 @@ public List<Map<String, Object>> getStudentsForManualAttendance(String courseId,
             s.user_id as studentId,
             s.student_number as studentNumber,
             CONCAT(u.first_name, ' ', u.last_name) as studentName,
+            u.profile_picture_url as profilePicture,
             COALESCE(wca.sessions_attended, 0) as sessionsAttended,
             COALESCE(wca.sessions_held, 0) as totalSessions,
             COALESCE(wca.attendance_rate, 0) as attendanceRate,
@@ -490,22 +534,22 @@ public List<Map<String, Object>> getStudentsForManualAttendance(String courseId,
             END as finalStatus,
             CASE WHEN ma.status IS NOT NULL THEN TRUE ELSE FALSE END as isManuallyModified
         FROM course_students cs
+        JOIN course_lecturers cl ON cl.course_id = cs.course_id AND cl.lecturer_id = ?
         JOIN students s ON s.user_id = cs.student_id
         JOIN users u ON u.id = s.user_id
         JOIN courses c ON c.id = cs.course_id
-        LEFT JOIN weekly_course_attendance wca ON wca.student_id = cs.student_id 
-            AND wca.course_id = cs.course_id 
+        LEFT JOIN weekly_course_attendance wca ON wca.student_id = cs.student_id
+            AND wca.course_id = cs.course_id
             AND wca.week_id = ?
-        LEFT JOIN manual_attendance ma ON ma.student_id = cs.student_id 
-            AND ma.course_id = cs.course_id 
+        LEFT JOIN manual_attendance ma ON ma.student_id = cs.student_id
+            AND ma.course_id = cs.course_id
             AND ma.week_id = ?
-        WHERE cs.course_id = ? 
-            AND cs.lecturer_id = ?
+        WHERE cs.course_id = ?
             AND cs.dropped_at IS NULL
         ORDER BY u.last_name, u.first_name
     """;
     
-    return jdbc.queryForList(sql, weekId, weekId, courseId, lecturerId);
+    return jdbc.queryForList(sql, lecturerId, weekId, weekId, courseId);
 }
 // In AttendanceService.java - Replace your saveManualAttendance method with this:
 

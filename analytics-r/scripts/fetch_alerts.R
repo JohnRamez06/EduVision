@@ -16,8 +16,8 @@ if (!exists("%||%"))           source(file.path(ROOT, "scripts", "utils.R"), loc
 fetch_alerts_for_session <- function(session_id) {
   with_connection(function(con) {
     dbGetQuery(con, sqlInterpolate(con,
-      "SELECT id, session_id, triggered_by AS student_id, title AS alert_type,
-              severity, message, status, triggered_at, resolved_at
+      "SELECT id, session_id, triggered_by AS student_id, alert_type,
+              title, severity, message, status, triggered_at, resolved_at
          FROM alerts
         WHERE session_id = ?sess
         ORDER BY triggered_at ASC",

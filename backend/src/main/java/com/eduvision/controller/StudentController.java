@@ -3,8 +3,15 @@ package com.eduvision.controller;
 import com.eduvision.model.User;
 import com.eduvision.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -14,6 +21,28 @@ public class StudentController {
 
     @Autowired
     private UserService userService;
+
+    private static final Path ENROLLMENT_BASE = Paths.get("/Users/cherinehassan/EduVision/face_enrollment");
+
+    /**
+     * Serves the enrollment photo for a given student number.
+     * GET /api/v1/students/{studentNumber}/photo
+     */
+    @GetMapping("/{studentNumber}/photo")
+    public ResponseEntity<byte[]> getStudentPhoto(@PathVariable String studentNumber) {
+        Path photoPath = ENROLLMENT_BASE.resolve(studentNumber).resolve("photo_1.jpg");
+        if (!Files.exists(photoPath)) {
+            return ResponseEntity.notFound().build();
+        }
+        try {
+            byte[] bytes = Files.readAllBytes(photoPath);
+            return ResponseEntity.ok()
+                    .contentType(MediaType.IMAGE_JPEG)
+                    .body(bytes);
+        } catch (IOException e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
 
     @GetMapping
     public List<User> getAllStudents() {

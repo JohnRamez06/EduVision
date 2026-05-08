@@ -112,6 +112,16 @@ public class StudentService {
                 .collect(Collectors.toList());
     }
 
+    public List<LectureSummaryDTO> getCourseAnalytics(String courseId) {
+        User user = getCurrentUser();
+        return summaryRepository
+                .findByStudent_IdAndCourse_IdOrderByGeneratedAtDesc(user.getId(), courseId)
+                .stream()
+                .map(s -> enrichWithAttendance(LectureSummaryDTO.from(s),
+                        user.getId(), s.getSession().getId()))
+                .collect(Collectors.toList());
+    }
+
     public LectureSummaryDTO getLectureSummaryBySession(String sessionId) {
         User user = getCurrentUser();
         StudentLectureSummary summary = summaryRepository
@@ -168,7 +178,11 @@ public class StudentService {
 
         StudentDashboardDTO.OverallStatsDTO stats =
                 new StudentDashboardDTO.OverallStatsDTO();
-        stats.setTotalLecturesAttended(all.size());
+
+        // Count sessions where the student was actually present or late
+        long attended = attendanceRepository.countByStudent_IdAndStatusIn(
+                userId, List.of(AttendanceStatus.present, AttendanceStatus.late));
+        stats.setTotalLecturesAttended(attended > 0 ? attended : all.size());
 
         if (all.isEmpty()) return stats;
 

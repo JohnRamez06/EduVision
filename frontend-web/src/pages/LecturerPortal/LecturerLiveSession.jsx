@@ -31,10 +31,14 @@ import sessionService from "../../services/sessionService";
 import emotionService from "../../services/emotionService";
 import { createSessionClient } from "../../services/websocket";
 import alertService from "../../services/alertService";
+import attendanceService from "../../services/attendanceService";
+import StudentExitList from "./StudentExitList";
 
 // Constants
 const FRAME_INTERVAL_MS = 3000;
 const SNAPSHOT_POLL_MS = 10000;
+const ALERT_POLL_MS = 8000;   // poll for new alerts every 8 s
+const EXIT_POLL_MS = 15000;   // refresh exit list every 15 s
 
 const EMOTION_META = {
   happy: {
@@ -369,11 +373,16 @@ export default function LecturerLiveSession() {
   const [showCameraSelector, setShowCameraSelector] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
 
+  const [exits, setExits] = useState([]);
+  const [seenAlertIds, setSeenAlertIds] = useState(new Set());
+
   const videoRef = useRef(null);
   const streamRef = useRef(null);
   const wsClientRef = useRef(null);
   const frameTimer = useRef(null);
   const pollTimer = useRef(null);
+  const alertTimer = useRef(null);
+  const exitTimer = useRef(null);
 
   const duration = useDuration(session?.startTime);
 
@@ -502,6 +511,8 @@ export default function LecturerLiveSession() {
   const cleanup = () => {
     clearInterval(frameTimer.current);
     clearInterval(pollTimer.current);
+    clearInterval(alertTimer.current);
+    clearInterval(exitTimer.current);
     wsClientRef.current?.deactivate();
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((t) => t.stop());
@@ -636,14 +647,34 @@ export default function LecturerLiveSession() {
   }, []);
 
   const startSnapshotPoll = (sessionId) => {
+    // Emotion snapshot
     clearInterval(pollTimer.current);
-    const poll = () =>
-      emotionService
-        .getLatest(sessionId)
-        .then(setSnapshot)
-        .catch(() => {});
-    poll();
-    pollTimer.current = setInterval(poll, SNAPSHOT_POLL_MS);
+    const pollSnapshot = () =>
+      emotionService.getLatest(sessionId).then(setSnapshot).catch(() => {});
+    pollSnapshot();
+    pollTimer.current = setInterval(pollSnapshot, SNAPSHOT_POLL_MS);
+
+    // Alert polling — only prepend alerts we haven't seen yet
+    clearInterval(alertTimer.current);
+    const pollAlerts = () =>
+      alertService.getSessionAlerts(sessionId).then((fetched) => {
+        if (!Array.isArray(fetched)) return;
+        setAlerts((prev) => {
+          const prevIds = new Set(prev.map((a) => a.id));
+          const fresh = fetched.filter((a) => !prevIds.has(a.id));
+          if (fresh.length === 0) return prev;
+          return [...fresh, ...prev].slice(0, 30);
+        });
+      }).catch(() => {});
+    pollAlerts();
+    alertTimer.current = setInterval(pollAlerts, ALERT_POLL_MS);
+
+    // Exit log polling
+    clearInterval(exitTimer.current);
+    const pollExits = () =>
+      attendanceService.getSessionExits(sessionId).then(setExits).catch(() => {});
+    pollExits();
+    exitTimer.current = setInterval(pollExits, EXIT_POLL_MS);
   };
 
   useEffect(() => {
@@ -695,6 +726,7 @@ export default function LecturerLiveSession() {
     setAlerts([]);
     setSnapshot(null);
     setDetectedStudents(new Map());
+    setExits([]);
   };
 
   const engagement =
@@ -1079,8 +1111,52 @@ export default function LecturerLiveSession() {
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
                 {alerts.map((a, i) => (
-                  <AlertItem key={i} alert={a} />
+                  <AlertItem key={a.id || i} alert={a} />
                 ))}
+              </div>
+            )}
+          </div>
+
+          {/* Student Exits — live-updating via poll */}
+          <div className="glass rounded-2xl p-4 border-l-2 border-amber-500/30">
+            <p className="text-xs text-[#ACBBC6] font-medium mb-3 flex items-center gap-1.5">
+              🚪 Student Exits
+              {exits.length > 0 && (
+                <span className="ml-auto text-xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400">
+                  {exits.length}
+                </span>
+              )}
+            </p>
+            {exits.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-4 text-slate-700">
+                <p className="text-xs">No exits recorded yet</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-500 border-b border-slate-700/50">
+                      <th className="text-left py-2 pr-3">Student</th>
+                      <th className="text-center py-2 px-2">Left at</th>
+                      <th className="text-center py-2 px-2">Returned</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {exits.map((exit, i) => {
+                      const fmt = (dt) => dt ? new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—';
+                      return (
+                        <tr key={i} className={`border-b border-slate-700/30 ${!exit.returnTime ? 'bg-rose-500/5' : ''}`}>
+                          <td className="py-2 pr-3 text-slate-300">
+                            {exit.studentName || 'Unknown'}
+                            {!exit.returnTime && <span className="text-rose-400 ml-1">(still out)</span>}
+                          </td>
+                          <td className="text-center py-2 px-2 text-amber-400">{fmt(exit.exitTime)}</td>
+                          <td className="text-center py-2 px-2 text-emerald-400">{fmt(exit.returnTime)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

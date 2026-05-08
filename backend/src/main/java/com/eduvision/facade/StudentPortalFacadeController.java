@@ -87,4 +87,16 @@ public class StudentPortalFacadeController {
         return ResponseEntity.ok(
                 studentService.getConcentrationTimeline(sessionId));
     }
+
+    /**
+     * GET /api/v1/facade/student/courses/{courseId}/analytics
+     *
+     * Returns per-session concentration and emotion data for one course.
+     * Used to render course-specific trend charts.
+     */
+    @GetMapping("/courses/{courseId}/analytics")
+    public ResponseEntity<List<LectureSummaryDTO>> getCourseAnalytics(
+            @PathVariable String courseId) {
+        return ResponseEntity.ok(studentService.getCourseAnalytics(courseId));
+    }
 }

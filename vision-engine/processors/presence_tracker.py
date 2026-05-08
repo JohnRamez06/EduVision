@@ -39,14 +39,13 @@ class PresenceTracker:
         # Update last seen time
         state.last_seen_at = current_time
         
-        # Check if student was previously marked as away and now returned
-        if state.is_away and time_since_last_seen < self.GRACE_PERIOD_SECONDS:
+        # If student was marked away and is now detected again, they have returned —
+        # regardless of how long they were gone (grace period only governs marking as left)
+        if state.is_away:
             state.is_away = False
             state.return_count += 1
             logger.info(f"🔄 RETURNED: {student_name} (was away for {int(time_since_last_seen)}s)")
             return "returned"
-        elif state.is_away:
-            return "still_away"
         else:
             return "present"
     
