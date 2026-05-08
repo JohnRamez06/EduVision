@@ -14,6 +14,8 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -96,6 +98,37 @@ public class AttendanceController {
         }
     }
 
+    @PostMapping("/record-with-presence")
+    public ResponseEntity<?> recordAttendanceWithPresence(@RequestBody Map<String, Object> request) {
+        String sessionId = asString(request.get("sessionId"));
+        String studentId = asString(request.get("studentId"));
+        String event = firstNonBlank(
+                asString(request.get("event")),
+                asString(request.get("presenceEvent")),
+                asString(request.get("status")),
+                "present"
+        );
+
+        if (sessionId == null || studentId == null) {
+            return ResponseEntity.badRequest().body(Map.of("error", "sessionId and studentId are required"));
+        }
+
+        try {
+            LocalDateTime joinedWhen = parseDateTime(firstPresent(
+                    request, "joinedWhen", "joinedAt", "joined_at", "joined_when", "joinedTime"));
+            LocalDateTime leftWhen = parseDateTime(firstPresent(
+                    request, "leftWhen", "leftAt", "left_at", "left_when", "leftTime"));
+
+            attendanceService.recordAttendanceWithPresence(sessionId, studentId, event, joinedWhen, leftWhen);
+            return ResponseEntity.ok(Map.of("message", "Presence recorded successfully"));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            logger.error("Error recording presence attendance: {}", e.getMessage());
+            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     @GetMapping("/check/{sessionId}")
     public ResponseEntity<?> checkAttendance(@PathVariable String sessionId) {
         Map<String, Object> result = attendanceService.getSessionAttendanceSummary(sessionId);
@@ -162,5 +195,47 @@ public class AttendanceController {
             logger.error("Error getting lecturer ID from email {}: {}", email, e.getMessage());
             return "19b98b4d-b8fd-4af7-9328-a7a801cda18c"; // Fallback to lecturer@gmail.com
         }
+    }
+
+    private static Object firstPresent(Map<String, Object> request, String... keys) {
+        for (String key : keys) {
+            if (request.containsKey(key) && request.get(key) != null) {
+                return request.get(key);
+            }
+        }
+        return null;
+    }
+
+    private static String asString(Object value) {
+        if (value == null) return null;
+        String s = String.valueOf(value).trim();
+        return s.isEmpty() ? null : s;
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) return value;
+        }
+        return null;
+    }
+
+    private static LocalDateTime parseDateTime(Object value) {
+        String text = asString(value);
+        if (text == null) return null;
+
+        try {
+            return LocalDateTime.parse(text);
+        } catch (Exception ignored) {
+        }
+        try {
+            return OffsetDateTime.parse(text).toLocalDateTime();
+        } catch (Exception ignored) {
+        }
+        try {
+            return LocalDateTime.parse(text.replace(" ", "T"));
+        } catch (Exception ignored) {
+        }
+
+        throw new IllegalArgumentException("Invalid datetime format: " + text);
     }
 }
