@@ -22,6 +22,9 @@ const CHART_TOOLTIP = {
   labelStyle:   { color: '#94A3B8' },
 }
 
+const normalizeArray = (value) => (Array.isArray(value) ? value.filter(Boolean) : [])
+const toPercent = (value) => (Number.isFinite(Number(value)) ? Math.round(Number(value) * 100) : null)
+
 export default function StudentAnalytics() {
   const [summaries, setSummaries] = useState([])
   const [dashboard, setDashboard] = useState(null)
@@ -29,42 +32,71 @@ export default function StudentAnalytics() {
   const [error, setError]         = useState('')
 
   useEffect(() => {
-    studentService.getDashboard()
-      .then(d => {
+    let active = true
+
+    const loadAnalytics = async () => {
+      setError('')
+      setLoading(true)
+
+      try {
+        const d = await studentService.getDashboard()
+        if (!active) return
+
         setDashboard(d)
-        // try dedicated endpoint for full history; fall back to dashboard summaries
-        return studentService.getSummaries()
-          .catch(() => d.recentSummaries ?? [])
-      })
-      .then(setSummaries)
-      .catch(e => setError(e.response?.data?.message ?? 'Failed to load analytics.'))
-      .finally(() => setLoading(false))
+
+        // Dedicated endpoint can fail; dashboard summaries are a safe fallback.
+        try {
+          const dedicatedSummaries = await studentService.getSummaries()
+          if (active) setSummaries(normalizeArray(dedicatedSummaries))
+        } catch (dedicatedError) {
+          console.warn('StudentAnalytics: summaries endpoint failed, using dashboard fallback.', dedicatedError)
+          if (active) setSummaries(normalizeArray(d?.recentSummaries))
+        }
+      } catch (caughtError) {
+        if (!active) return
+        setDashboard(null)
+        setSummaries([])
+        setError(caughtError.response?.data?.message ?? 'Failed to load analytics.')
+      } finally {
+        if (active) setLoading(false)
+      }
+    }
+
+    loadAnalytics()
+
+    return () => { active = false }
   }, [])
 
   // Concentration trend — chronological order, last 20 sessions
-  const concentrationData = [...summaries]
+  const concentrationData = [...normalizeArray(summaries)]
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(-20)
     .map(s => ({
       date: s.date ? new Date(s.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—',
-      concentration: s.avgConcentration != null ? Math.round(s.avgConcentration * 100) : null,
-      attentiveness: s.attentivePercentage != null ? Math.round(s.attentivePercentage * 100) : null,
+      concentration: toPercent(s.avgConcentration),
+      attentiveness: toPercent(s.attentivePercentage),
     }))
 
   // Emotion breakdown pie
-  const emotionPie = dashboard?.overallStats?.emotionBreakdown
-    ? Object.entries(dashboard.overallStats.emotionBreakdown)
-        .filter(([, v]) => v > 0)
-        .map(([name, value]) => ({ name, value: Math.round(value * 100), fill: EMOTION_COLOR[name] ?? '#94A3B8' }))
+  const emotionBreakdown = dashboard?.overallStats?.emotionBreakdown
+  const emotionPie = emotionBreakdown && typeof emotionBreakdown === 'object'
+    ? Object.entries(emotionBreakdown)
+        .map(([name, value]) => ({ name, value: toPercent(value), fill: EMOTION_COLOR[name] ?? '#94A3B8' }))
+        .filter(e => e.value > 0)
     : []
 
   // Attendance per course bar
-  const attendanceBar = (dashboard?.enrolledCourses ?? []).map(c => ({
-    name: c.code ?? c.title,
-    attended: c.attendedSessions,
-    total: c.totalSessions,
-    pct: c.totalSessions > 0 ? Math.round((c.attendedSessions / c.totalSessions) * 100) : 0,
-  }))
+  const attendanceBar = (dashboard?.enrolledCourses ?? []).map(c => {
+    const attended = Number(c.attendedSessions ?? 0)
+    const total = Number(c.totalSessions ?? 0)
+
+    return {
+      name: c.code ?? c.title ?? c.id ?? 'Unknown Course',
+      attended,
+      total,
+      pct: total > 0 ? Math.round((attended / total) * 100) : 0,
+    }
+  })
 
   const stats = dashboard?.overallStats
 
