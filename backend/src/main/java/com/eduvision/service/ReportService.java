@@ -1,5 +1,32 @@
 package com.eduvision.service;
 
+/**
+ * ReportService — R analytics pipeline trigger and report file manager.
+ *
+ * <p>This service bridges the Java backend and the R analytics layer.  It has
+ * two distinct roles:
+ *
+ * <ol>
+ *   <li><b>Analytics computation</b> — after a session ends,
+ *       {@link #computeStudentSummariesAsync} fires the R script
+ *       {@code compute_student_summaries.R} which reads raw
+ *       {@code student_emotion_snapshots} and populates
+ *       {@code student_lecture_summaries}.  This is the pipeline that makes
+ *       per-student analytics available on the student dashboard.</li>
+ *
+ *   <li><b>HTML report generation</b> — on-demand methods (weekly student,
+ *       weekly lecturer, dean, session, per-student session) invoke R Markdown
+ *       generator scripts that produce HTML files stored under
+ *       {@code analytics-r/output/}.  Report status (generating / ready / failed)
+ *       is tracked in the {@code reports} table so the frontend can poll for
+ *       completion.</li>
+ * </ol>
+ *
+ * <p>All R invocations go through {@link RScriptExecutor#execute} which spawns
+ * a child process via {@link ProcessBuilder} and streams stdout/stderr to the
+ * Spring Boot log.
+ */
+
 import com.eduvision.model.Report;
 import com.eduvision.model.ReportStatus;
 import com.eduvision.model.ReportType;
@@ -28,6 +55,9 @@ public class ReportService {
 
     private static final Logger log = LoggerFactory.getLogger(ReportService.class);
 
+    // Root output directory where R scripts write their HTML files.
+    // Resolved relative to the Spring Boot working directory's parent
+    // (i.e., the eduvision/ monorepo root), then into analytics-r/output/.
     private static final String OUTPUT_BASE =
         Paths.get(System.getProperty("user.dir")).getParent().resolve("analytics-r/output").toString();
 
@@ -92,8 +122,20 @@ public class ReportService {
     }
 
     /**
-     * Compute and persist student_lecture_summaries for all students in a session.
-     * Must be called after a session ends so the analytics dashboard shows real data.
+     * Synchronously computes and persists {@code student_lecture_summaries} for
+     * every student who has emotion snapshots in the given session.
+     *
+     * <p>Invokes {@code analytics-r/scripts/compute_student_summaries.R} via
+     * {@link RScriptExecutor#execute}, passing the session UUID as a command-line
+     * argument.  The R script reads {@code student_emotion_snapshots}, computes
+     * emotion percentages, concentration scores, attentiveness, and dominant emotion,
+     * then upserts one row per student into {@code student_lecture_summaries}.
+     *
+     * <p>Throws {@link RuntimeException} if the R process exits with a non-zero
+     * code (e.g., database connection failure or missing snapshots).
+     *
+     * @param sessionId UUID of the completed session
+     * @return true on success
      */
     public boolean computeStudentSummaries(String sessionId) {
         boolean ok = rScriptExecutor.execute("scripts/compute_student_summaries.R", sessionId);
@@ -104,8 +146,22 @@ public class ReportService {
     }
 
     /**
-     * Fire-and-forget version — called automatically when a session ends.
-     * Runs in a background thread so the lecturer's "End Session" response is instant.
+     * Fire-and-forget analytics trigger — called automatically when a session ends.
+     *
+     * <p>This method is annotated with {@code @Async} so Spring runs it in a
+     * background thread pool (configured via {@code @EnableAsync} in the application).
+     * This means {@link SessionService#endSession} can return an HTTP response to the
+     * lecturer immediately while R does its work in the background.
+     *
+     * <p>The background thread calls {@link RScriptExecutor#execute} with
+     * {@code compute_student_summaries.R} and logs success or failure.  Any exception
+     * is caught and logged — it does NOT propagate back to the HTTP request thread.
+     *
+     * <p>After this method completes (typically in a few seconds), the
+     * {@code student_lecture_summaries} table will have fresh rows that the student
+     * dashboard can immediately read.
+     *
+     * @param sessionId UUID of the session that just ended
      */
     @Async
     public void computeStudentSummariesAsync(String sessionId) {
@@ -123,7 +179,16 @@ public class ReportService {
     }
 
     /**
-     * Generate a per-student session PDF report for the currently authenticated student.
+     * Generates a per-student HTML session report for the currently authenticated student.
+     *
+     * <p>Delegates to {@link #generateStudentSessionReport} with the caller's user ID.
+     * The returned {@link Report} entity contains the file URL and status; the actual
+     * HTML file is produced by the R script
+     * {@code generators/generate_student_session_report.R} and saved under
+     * {@code analytics-r/output/student/}.
+     *
+     * <p>This report shows the student their own emotion timeline, concentration
+     * breakdown, and attendance detail for a single session.
      */
     public Report generateMySessionReport(String sessionId) {
         User me = currentUser();
@@ -131,7 +196,18 @@ public class ReportService {
     }
 
     /**
-     * Generate a per-student session PDF report visible only to that student.
+     * Generates a per-student HTML session report for an explicit studentId.
+     *
+     * <p>Calls the R script {@code generators/generate_student_session_report.R}
+     * with arguments [studentId, sessionId].  The script queries the DB, renders
+     * an R Markdown document, and writes the output HTML to
+     * {@code analytics-r/output/student/student_<id>_session_<id>.html}.
+     *
+     * <p>The report status (generating → ready or failed) is persisted in the
+     * {@code reports} table so the API can serve polling clients.
+     *
+     * @param studentId UUID of the student
+     * @param sessionId UUID of the session
      */
     public Report generateStudentSessionReport(String studentId, String sessionId) {
         String fileName = "student_" + studentId + "_session_" + sessionId + ".html";
@@ -164,6 +240,7 @@ public class ReportService {
                              String subjectId, String weekId) {
         User requester = currentUser();
 
+        // Create a report record in status "generating" so the frontend can poll
         Report report = new Report();
         report.setId(UUID.randomUUID().toString());
         report.setType(type);
@@ -216,10 +293,17 @@ public class ReportService {
     }
 
     /**
-     * Ensures a weekly_periods row exists for the given academic week number.
-     * Academic weeks start on Saturday; week 1 = SEMESTER_START.
-     * If weekId is numeric, derives the Saturday–Friday date range from SEMESTER_START.
-     * If weekId is a UUID it is assumed to be a direct PK — no auto-creation needed.
+     * Ensures a {@code weekly_periods} row exists for the given academic week number.
+     *
+     * <p>Academic weeks in EduVision run Saturday–Friday starting from
+     * {@code SEMESTER_START} (14 Feb 2026).  If the client passes a plain integer
+     * week number (e.g., "3"), this method computes the corresponding
+     * Saturday–Friday date range and inserts the row if it doesn't exist.
+     *
+     * <p>If {@code weekId} is a UUID (already a direct PK reference), no action is
+     * taken because the row is assumed to exist already.
+     *
+     * @param weekId either a numeric week number string or a UUID primary key
      */
     private void ensureWeeklyPeriod(String weekId) {
         if (weekId == null || !weekId.matches("\\d+")) return;

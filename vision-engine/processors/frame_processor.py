@@ -1,4 +1,26 @@
-# C:\Users\john\Desktop\eduvision\vision-engine\processors\frame_processor.py
+# =============================================================================
+# frame_processor.py — Per-frame face analysis orchestrator
+#
+# This module is the central coordinator for everything that happens each time
+# a video frame arrives from the lecturer's browser.  It chains together three
+# sub-processors:
+#
+#   FaceAnalyzer    — detects faces in the BGR frame and extracts emotion data
+#   PresenceTracker — maintains per-student join/leave/return state
+#   Aggregator      — computes class-level statistics (emotion counts, engagement)
+#
+# DATA FLOW PER FRAME:
+#   raw BGR frame
+#     → FaceAnalyzer.analyze()       → list of detected people (with emotion)
+#     → PresenceTracker.update_presence() per person → presence_event label
+#     → PresenceTracker.check_away_students()         → list of students who left
+#     → POST leave events to Spring Boot (via self.spring_client)
+#     → return aggregated result dict to main.py
+#
+# The result dict is then used by main.py's send_to_spring_boot() to flush
+# a class snapshot + per-student snapshots to Spring Boot every 10 seconds.
+# =============================================================================
+
 import logging
 from datetime import datetime
 from typing import Dict, Any
@@ -11,9 +33,19 @@ logger = logging.getLogger(__name__)
 ATTENDANCE_URL = "http://localhost:8080/api/v1/attendance"
 
 # Minimum cosine similarity required to count a detection as valid presence.
-# Must be higher than the recogniser's own threshold (0.40) so that
-# low-confidence / false-positive matches on covered-camera frames
-# don't reset last_seen_at and prevent the leave timer from firing.
+#
+# WHY HIGHER THAN THE RECOGNIZER THRESHOLD (0.40)?
+# The face recognizer uses 0.40 as its match threshold — below that score a
+# face is considered unknown.  However, a match with a score between 0.40 and
+# 0.55 may be a low-confidence or false-positive match (e.g., when the camera
+# is covered, dark, or pointed at a blank wall and the model still returns
+# someone's name with a marginal score).
+#
+# If we allowed those low-confidence matches to reset last_seen_at in the
+# PresenceTracker, the "time since last seen" counter would never grow large
+# enough to exceed the grace period, so students would never be marked as
+# having left.  By raising the bar to 0.55 here, we ensure that only
+# genuine, confident detections keep a student's presence clock fresh.
 PRESENCE_SIMILARITY_THRESHOLD = 0.55
 
 class FrameProcessor:
@@ -27,6 +59,37 @@ class FrameProcessor:
     # ... (keep _convert_concentration & other helpers as they are) ...
 
     def process(self, frame_bgr) -> Dict[str, Any]:
+        """
+        Orchestrates full face analysis for a single video frame.
+
+        FLOW:
+          1. Detect faces — FaceAnalyzer.analyze() returns a list of people
+             dicts, each containing student_id, student_name, emotion,
+             concentration, similarity, and confidence fields.
+
+          2. Recognize and update presence — For each detected person whose
+             cosine similarity >= PRESENCE_SIMILARITY_THRESHOLD, call
+             PresenceTracker.update_presence().  The tracker returns one of:
+               "joined"   — first time we've seen this student this session
+               "returned" — student was marked away and is now back
+               "present"  — routine detection, no state change
+
+             Only high-confidence matches are counted as real presence so
+             that camera obstructions don't prevent the leave timer from firing.
+
+          3. Detect leaves — PresenceTracker.check_away_students() scans all
+             tracked students and returns those unseen beyond the grace period.
+             For each leaving student, two HTTP calls are made to Spring Boot:
+               a. POST /attendance/record-with-presence (presenceEvent="left")
+                  to set left_at in session_attendance.
+               b. POST /attendance/exit to insert a row in session_exit_logs.
+
+          4. Return aggregated result dict — consumed by main.py to build
+             the class-snapshot + student-snapshot payloads for Spring Boot.
+
+        Returns a dict with keys: people, student_count, emotion_counts,
+        engagement_score, avg_concentration, dominant_emotion.
+        """
         try:
             analysis = self.face_analyzer.analyze(frame_bgr)
             if isinstance(analysis, list):

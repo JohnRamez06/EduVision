@@ -40,7 +40,9 @@ public class SecurityConfig {
                 .requestMatchers(
                         "/api/v1/auth/**",
                         "/ws/**",
-                        "/actuator/health"
+                        "/actuator/health",
+                        "/api/v1/reports/download/**",  // public
+                        "/api/v1/html-reports/**"       // public — IDs in URL, no JWT needed
                 ).permitAll()
                 // 🔥 Allow Python to POST emotion data and attendance
                 .requestMatchers(HttpMethod.POST, "/api/v1/emotion-data/**").permitAll()
@@ -65,9 +67,10 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/student/**").hasRole("STUDENT")
                 .requestMatchers("/api/v1/facade/student/**").hasRole("STUDENT")
                 .requestMatchers("/api/v1/consent/**").hasRole("STUDENT")
-                // SHARED ENDPOINTS
-                .requestMatchers("/api/v1/reports/my/**").hasRole("STUDENT")
-                .requestMatchers("/api/v1/reports/my").hasRole("STUDENT")
+                // SHARED ENDPOINTS — reports accessible by all authenticated roles
+                .requestMatchers("/api/v1/html-reports/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
+                .requestMatchers("/api/v1/reports/my/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
+                .requestMatchers("/api/v1/reports/my").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 .requestMatchers("/api/v1/reports/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/emotion-data/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/sessions/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")

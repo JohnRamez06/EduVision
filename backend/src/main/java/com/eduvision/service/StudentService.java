@@ -1,5 +1,30 @@
 package com.eduvision.service;
 
+/**
+ * StudentService — Student-facing analytics and dashboard data provider.
+ *
+ * <p>This service is the primary read-path for the student Flutter app dashboard.
+ * All data it returns originates from the {@code student_lecture_summaries} table,
+ * which is populated by the R script {@code compute_student_summaries.R} after each
+ * session ends.  The service itself never writes analytics — it only reads and
+ * transforms what R has already computed.
+ *
+ * <p>Key data sources:
+ * <ul>
+ *   <li>{@code student_lecture_summaries} — per-session aggregated analytics
+ *       (concentration, emotion percentages, attentiveness, dominant emotion).
+ *       Written exclusively by the R pipeline via {@link ReportService}.</li>
+ *   <li>{@code student_emotion_snapshots} — raw per-snapshot emotion data used
+ *       to build the concentration timeline chart.</li>
+ *   <li>{@code session_attendance} — join/leave records written by the Python
+ *       vision engine via {@link AttendanceService}.</li>
+ *   <li>{@code course_students} — enrollment records written at registration.</li>
+ * </ul>
+ *
+ * <p>All methods are read-only transactions (the class-level annotation) and
+ * resolve the calling student from the JWT principal via {@link #getCurrentUser()}.
+ */
+
 import com.eduvision.dto.student.*;
 import com.eduvision.exception.ResourceNotFoundException;
 import com.eduvision.model.*;
@@ -38,7 +63,17 @@ public class StudentService {
 
     // ─── CURRENT USER ─────────────────────────────────────────────────────
 
-    /** Resolves the authenticated user from the JWT principal (email). */
+    /**
+     * Resolves the authenticated student from the JWT principal.
+     *
+     * <p>Spring Security places the authenticated principal's name (email) into
+     * the {@link org.springframework.security.core.context.SecurityContext} after
+     * the JWT filter validates the token.  This method reads that email and performs
+     * a DB lookup via {@link UserRepository} to return the full {@link User} entity.
+     *
+     * <p>Throws {@link ResourceNotFoundException} if the email from the JWT does not
+     * match any user in the database (e.g., account was deleted after token was issued).
+     */
     public User getCurrentUser() {
         String email = SecurityContextHolder.getContext()
                 .getAuthentication().getName();
@@ -67,6 +102,23 @@ public class StudentService {
 
     // ─── ENROLLED COURSES ─────────────────────────────────────────────────
 
+    /**
+     * Returns the list of courses the authenticated student is enrolled in,
+     * along with attendance counts for each.
+     *
+     * <p>For each active enrollment (where {@code dropped_at IS NULL}):
+     * <ul>
+     *   <li>{@code totalSessions} — counts all {@code completed} sessions for that
+     *       course by streaming the course's session collection in memory.</li>
+     *   <li>{@code attendedSessions} — calls
+     *       {@link SessionAttendanceRepository#countByStudent_IdAndSession_Course_IdAndStatus}
+     *       which issues a single COUNT query against {@code session_attendance}
+     *       filtered to {@code status = 'present'}.</li>
+     * </ul>
+     *
+     * <p>These two counts power the "X / Y sessions attended" display on the
+     * student dashboard's course cards.
+     */
     public List<StudentDashboardDTO.EnrolledCourseDTO> getEnrolledCourses() {
         User user = getCurrentUser();
 
@@ -134,6 +186,24 @@ public class StudentService {
 
     // ─── CONCENTRATION TIMELINE ───────────────────────────────────────────
 
+    /**
+     * Builds the per-snapshot concentration timeline for a single session.
+     *
+     * <p>Unlike the summary endpoints which read from {@code student_lecture_summaries},
+     * this method reads directly from {@code student_emotion_snapshots} — the raw rows
+     * written by the Python vision engine every 10 seconds during the session.
+     *
+     * <p>The returned {@link ConcentrationTimelineDTO} contains three parallel lists:
+     * <ul>
+     *   <li>{@code timestamps} — ISO-8601 strings of each snapshot's {@code captured_at}</li>
+     *   <li>{@code concentrationScores} — numeric 0.0-1.0 values mapped from the
+     *       {@link ConcentrationLevel} enum via {@link #concentrationToScore}</li>
+     *   <li>{@code emotions} — raw emotion name strings for each snapshot</li>
+     * </ul>
+     *
+     * <p>The Flutter chart widget plots concentrationScores over time to show how
+     * the student's focus evolved during the lecture.
+     */
     public ConcentrationTimelineDTO getConcentrationTimeline(String sessionId) {
         User user = getCurrentUser();
 
@@ -172,6 +242,24 @@ public class StudentService {
 
     // ─── OVERALL STATS ────────────────────────────────────────────────────
 
+    /**
+     * Aggregates all of a student's session summaries into a single set of KPIs
+     * for the main dashboard overview panel.
+     *
+     * <p>All numeric values (avgConcentration, avgAttentiveness, emotion breakdown)
+     * are computed as simple arithmetic means across all {@link StudentLectureSummary}
+     * rows for the given student, using the {@link #avg} helper.
+     *
+     * <p>The {@code emotionBreakdown} map contains average percentages (0.0-1.0) for
+     * each emotion label: happy, sad, angry, confused, neutral, engaged.  The
+     * {@code mostFrequentEmotion} is derived as the key with the highest average.
+     *
+     * <p>{@code totalLecturesAttended} first tries the attendance table for an accurate
+     * count; if no attendance rows exist (e.g., legacy data) it falls back to the
+     * number of summary rows.
+     *
+     * @param userId the user ID of the student (not necessarily the caller)
+     */
     public StudentDashboardDTO.OverallStatsDTO getOverallStats(String userId) {
         List<StudentLectureSummary> all =
                 summaryRepository.findByStudent_IdOrderByGeneratedAtDesc(userId);
@@ -191,7 +279,7 @@ public class StudentService {
         stats.setAvgAttentiveness(
                 avg(all, StudentLectureSummary::getAttentivePercentage));
 
-        // Emotion breakdown map
+        // Emotion breakdown map — average percentage per emotion across all sessions
         Map<String, Double> breakdown = new LinkedHashMap<>();
         breakdown.put("happy",    avg(all, StudentLectureSummary::getPctHappy));
         breakdown.put("sad",      avg(all, StudentLectureSummary::getPctSad));

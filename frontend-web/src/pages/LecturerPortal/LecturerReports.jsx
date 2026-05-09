@@ -3,6 +3,7 @@ import {
   FileText, Download, Loader2, AlertTriangle,
   CheckCircle, Clock, Users, ChevronDown, RefreshCw,
 } from 'lucide-react'
+
 import LecturerLayout from '../../layouts/LecturerLayout'
 import { AuthContext } from '../../context/AuthContext'
 import reportService from '../../services/reportService'
@@ -39,6 +40,11 @@ function ReportButton({ onGenerate, label = 'Generate Report', disabled = false 
     setErr('')
     try {
       const result = await onGenerate()
+      // Java HTML reports: onGenerate opens the tab and returns undefined/null
+      if (result === undefined || result === null) {
+        setState('idle')  // tab already opened, reset button
+        return
+      }
       if (result?.status === 'failed') {
         showError('Report generation failed — check that data exists for this week.')
         return
@@ -58,9 +64,7 @@ function ReportButton({ onGenerate, label = 'Generate Report', disabled = false 
   const openReport = () => {
     if (!fileUrl) return
     const fileName = fileUrl.split('/').pop()
-    // HTML reports open in new tab; user can print-to-PDF from there
-    const fullUrl = `http://localhost:8080/api/v1/reports/download/${fileName}`
-    window.open(fullUrl, '_blank')
+    window.open(`http://localhost:8080/api/v1/reports/download/${fileName}`, '_blank')
   }
 
   if (state === 'idle')
@@ -225,10 +229,10 @@ function SessionsTab() {
             </div>
           </div>
 
-          {/* Action */}
+          {/* Action — opens Java HTML report, no R needed */}
           <ReportButton
             label="Session Report"
-            onGenerate={() => reportService.generateSession(s.sessionId)}
+            onGenerate={() => reportService.openSessionReport(s.sessionId)}
           />
         </div>
       ))}

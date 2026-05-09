@@ -3,6 +3,7 @@ import {
   FileText, Download, RefreshCw, Clock, CheckCircle,
   AlertTriangle, ChevronRight, BookOpen, Loader2,
 } from 'lucide-react'
+
 import StudentLayout from '../../layouts/StudentLayout'
 import studentService from '../../services/studentService'
 
@@ -83,9 +84,9 @@ export default function StudentReports() {
     setError('')
     setSuccess('')
     try {
-      await studentService.generateSessionReport(sessionId)
-      setSuccess(`Report for "${courseName}" is being generated and will appear below.`)
-      setTimeout(loadReports, 3000)
+      // Open the Java-generated HTML report directly — no R or pandoc needed
+      studentService.openSessionReport(sessionId)
+      setSuccess(`Report for "${courseName}" opened in a new tab.`)
     } catch (e) {
       setError(e.response?.data?.message ?? 'Failed to generate report.')
     } finally {
@@ -94,10 +95,15 @@ export default function StudentReports() {
   }
 
   const handleDownload = (report) => {
-    const fileName = report.fileUrl?.split('/').pop()
-    if (!fileName) return
-    // HTML reports open in new tab; user prints to PDF from there
-    window.open(`http://localhost:8080/api/v1/reports/download/${fileName}`, '_blank')
+    // Try to extract session ID from fileUrl and open the Java HTML report
+    const fileUrl = report.fileUrl ?? ''
+    const sessionMatch = fileUrl.match(/session_([^.]+)/)
+    if (sessionMatch) {
+      studentService.openSessionReport(sessionMatch[1])
+    } else {
+      const fileName = fileUrl.split('/').pop()
+      if (fileName) window.open(`http://localhost:8080/api/v1/reports/download/${fileName}`, '_blank')
+    }
   }
 
   // Sessions that don't already have a report

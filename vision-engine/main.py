@@ -1,4 +1,23 @@
-# C:\Users\john\Desktop\eduvision\vision-engine\main.py
+# =============================================================================
+# main.py — EduVision FastAPI Vision Engine
+#
+# This is the Python heart of EduVision's real-time face analysis pipeline.
+# It receives raw video frames captured by the lecturer's browser (via the
+# React frontend), detects and recognizes student faces using Facenet
+# embeddings, tracks presence (joined / left / returned), and pushes
+# attendance + emotion data to the Spring Boot backend every 10 seconds.
+#
+# Data flow:
+#   React browser  --[POST /analyze/frame]--> this service
+#   this service   --[POST /api/v1/...]--->   Spring Boot (port 8080)
+#
+# Key responsibilities:
+#   1. Decode each incoming JPEG frame and run face analysis (FrameProcessor)
+#   2. Guard attendance marking behind a 3-appearance threshold
+#   3. Flush a class-level + per-student snapshot to Spring Boot every 10 s
+#   4. Send confusion/low-engagement alerts to Spring Boot when thresholds exceeded
+#   5. Verify enrollment via Spring Boot before recording any attendance
+# =============================================================================
 
 from fastapi import FastAPI, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,22 +39,32 @@ from processors.frame_processor import FrameProcessor
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Spring Boot URL
+# Spring Boot base URLs — all communication with the Java backend goes through these
 SPRING_BOOT_URL = "http://localhost:8080/api/v1/emotion-data"
 ATTENDANCE_URL = "http://localhost:8080/api/v1/attendance"
 ALERTS_URL = "http://localhost:8080/api/v1/alerts"
 
 app = FastAPI(title="EduVision Vision Engine", version="1.0.0")
 
-# Global tracking variables
+# Per-session counters used by the 3-appearance attendance guard.
+# Key structure: student_appearances[session_id][student_id] = int
+# Key structure: student_confidence[session_id][student_id] = [float, ...]
 student_appearances = defaultdict(lambda: defaultdict(int))
 student_confidence = defaultdict(lambda: defaultdict(list))
+
+# A student must be detected at least ATTENDANCE_THRESHOLD times in a session
+# before attendance is recorded — prevents single-frame false positives.
 ATTENDANCE_THRESHOLD = 3
+
+# Minimum cosine similarity for a detection to count toward the threshold.
 SIMILARITY_THRESHOLD = 0.6
+
+# Cache enrollment results so we don't hit Spring Boot on every frame.
+# TTL is 300 s (5 minutes); stale entries are re-fetched from the API.
 enrollment_cache = {}
 ENROLLMENT_CACHE_TTL = 300
 
-# CORS Configuration
+# CORS Configuration — allows the React dev server and Spring Boot to call this service
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080"],
@@ -63,12 +92,25 @@ try:
 except Exception as _e:
     logger.warning(f"Face embeddings pre-load failed: {_e}")
 
-# Store last flush time per session
+# Tracks the timestamp of the last Spring Boot flush per session.
+# The flush is throttled to once every 10 seconds per session.
 last_flush = {}
 current_session_id = None
 
 def should_mark_attendance(session_id: str, student_id: str, similarity: float) -> bool:
-    """Determine if a student should be marked as present"""
+    """
+    3-appearance threshold guard for attendance marking.
+
+    A student must appear in at least ATTENDANCE_THRESHOLD (3) consecutive
+    frames with a cosine similarity >= SIMILARITY_THRESHOLD before their
+    attendance is recorded.  This prevents a single noisy or partially
+    occluded frame from triggering a false attendance record.
+
+    Once the threshold is reached, the counter resets to zero so repeated
+    detections throughout the session don't cause duplicate records.
+
+    Returns True only when the threshold is crossed; False otherwise.
+    """
     global student_appearances, student_confidence
     if similarity < SIMILARITY_THRESHOLD:
         logger.debug(f"⏭️ Skipping {student_id[:8]}... similarity too low: {similarity:.3f}")
@@ -80,11 +122,19 @@ def should_mark_attendance(session_id: str, student_id: str, similarity: float) 
     if appearances >= ATTENDANCE_THRESHOLD:
         avg_confidence = sum(student_confidence[session_id][student_id]) / len(student_confidence[session_id][student_id])
         logger.info(f"✅ QUALIFIED: {student_id[:8]}... with {appearances} appearances (avg sim: {avg_confidence:.3f})")
+        # Reset counter so the student is not re-marked on every subsequent frame
         student_appearances[session_id][student_id] = 0
         return True
     return False
 
 def cleanup_session_data(session_id: str):
+    """
+    Clears all in-memory tracking dictionaries for a finished session.
+
+    Called when /session/end is received.  Releases the appearance counters
+    and confidence lists held in student_appearances and student_confidence
+    so memory is not leaked across sessions.
+    """
     if session_id in student_appearances:
         del student_appearances[session_id]
     if session_id in student_confidence:
@@ -92,6 +142,18 @@ def cleanup_session_data(session_id: str):
     logger.info(f"🧹 Cleaned up tracking data for session {session_id[:8]}...")
 
 def convert_concentration_to_float(concentration):
+    """
+    Converts a concentration value of any incoming type to a 0.0-1.0 float.
+
+    The vision pipeline can return concentration as:
+      - A raw float (already in 0-1 range) — returned as-is
+      - A string label ("low", "medium", "high", "very_low", "very_high") —
+        mapped to a fixed representative score
+      - A dict with a "level" key — recursively resolved
+
+    Used before computing engagement_score averages and before POSTing
+    numeric values to Spring Boot's class-snapshot endpoint.
+    """
     if isinstance(concentration, (int, float)):
         return float(concentration)
     elif isinstance(concentration, str):
@@ -103,6 +165,16 @@ def convert_concentration_to_float(concentration):
     return 0.5
 
 def convert_concentration_to_string(concentration):
+    """
+    Converts a concentration value (any type) to the Spring Boot enum string.
+
+    Spring Boot's StudentEmotionSnapshot entity expects one of: "high",
+    "medium", or "low".  This function first normalises the value to a float
+    via convert_concentration_to_float(), then maps the range:
+      >= 0.7  → "high"
+      >= 0.4  → "medium"
+      < 0.4   → "low"
+    """
     float_val = convert_concentration_to_float(concentration)
     if float_val >= 0.7:
         return "high"
@@ -111,6 +183,21 @@ def convert_concentration_to_string(concentration):
     return "low"
 
 def check_and_send_alerts(session_id: str, emotion_counts: dict, total_students: int, engagement_score: float, client: httpx.Client):
+    """
+    Triggers real-time alerts to Spring Boot when class-level thresholds are exceeded.
+
+    Two alert types are sent via POST to /api/v1/alerts:
+
+    1. Confusion alert — fired when >1% of detected students show a "confused"
+       emotion.  The lecturer sees this as a critical notification so they can
+       pause and clarify.
+
+    2. Low-engagement alert — fired when the class-wide engagement score drops
+       below 0.5.  Prompts the lecturer to introduce interactive activities.
+
+    Both payloads include sessionId, title, message, severity, and alertType
+    fields consumed by the Spring Boot WebSocket notification system.
+    """
     logger.info(f"🔍 Checking alerts: total_students={total_students}, emotions={emotion_counts}, engagement={engagement_score:.2f}")
     confused_count = emotion_counts.get('confused', 0)
     if total_students > 0:
@@ -145,6 +232,22 @@ def check_and_send_alerts(session_id: str, emotion_counts: dict, total_students:
             logger.error(f"Error sending engagement alert: {e}")
 
 def record_attendance_with_presence(client: httpx.Client, session_id: str, student_id: str, student_name: str, presence_event: str):
+    """
+    Sends a single student's attendance + presence event to Spring Boot.
+
+    HOW PYTHON SENDS ATTENDANCE TO SPRING BOOT:
+      POST /api/v1/attendance/record-with-presence
+      Body: { sessionId, studentId, status: "present", presenceEvent }
+
+    presenceEvent values understood by Spring Boot:
+      "joined"   — first detection of the student in this session
+      "returned" — student re-detected after being marked away
+      "left"     — student disappeared beyond the grace period
+      "present"  — routine detection, no state change
+
+    For "returned" events, a second call is made to POST /attendance/return
+    to close the open exit log row and set its return_time in the database.
+    """
     try:
         attendance_payload = {
             "sessionId": session_id,
@@ -189,7 +292,34 @@ def record_attendance_with_presence(client: httpx.Client, session_id: str, stude
         return False
 
 def send_to_spring_boot(session_id: str, result):
-    """Send detection data to Spring Boot with enrollment check and smart attendance"""
+    """
+    CORE FLUSH FUNCTION — called in a background thread every 10 seconds.
+
+    This is how Python sends the current class snapshot and per-student
+    emotion data to Spring Boot.  It executes three sequential HTTP calls:
+
+    Step 1 — POST class snapshot
+      POST /api/v1/emotion-data/class-snapshot
+      Body includes: sessionId, studentCount, engagementScore,
+                     dominantEmotion, avgConcentration, capturedAt
+      Response includes a snapshotId that links the per-student rows.
+
+    Step 2 — Enrollment check (per student)
+      For each recognized student, calls check_enrollment_sync() to verify
+      that the student is actually enrolled in the course this session belongs
+      to.  Unrecognized or unenrolled students are skipped entirely.
+
+    Step 3 — POST individual student snapshots
+      POST /api/v1/emotion-data/student-snapshots?snapshotId=<id>
+      Body: list of { snapshotId, sessionId, studentId, emotion,
+                      concentration, confidenceScore, capturedAt }
+      These rows are stored in student_emotion_snapshots and later aggregated
+      by the R analytics script (compute_student_summaries.R).
+
+    Between steps 1 and 3, attendance + presence events are also recorded
+    via record_attendance_with_presence() and alerts are checked via
+    check_and_send_alerts().
+    """
     global student_appearances, student_confidence, enrollment_cache
 
     # Handle both dict and list formats
@@ -198,19 +328,19 @@ def send_to_spring_boot(session_id: str, result):
         emotion_counts = {}
         student_count = len(people)
         total_concentration = 0
-        
+
         for person in people:
             emotion = person.get("dominant_emotion", person.get("emotion", "neutral"))
             emotion_counts[emotion] = emotion_counts.get(emotion, 0) + 1
             concentration = convert_concentration_to_float(person.get("concentration", 0.5))
             total_concentration += concentration
-        
+
         avg_concentration = total_concentration / student_count if student_count > 0 else 0.5
         positive_emotions = emotion_counts.get("happy", 0) + emotion_counts.get("surprised", 0)
         total_emotions = sum(emotion_counts.values()) or 1
         engagement_score = (positive_emotions / total_emotions + avg_concentration) / 2
         dominant_emotion = max(emotion_counts, key=emotion_counts.get) if emotion_counts else "neutral"
-        
+
         result_dict = {
             "people": people,
             "student_count": student_count,
@@ -230,7 +360,7 @@ def send_to_spring_boot(session_id: str, result):
         if not dominant_emotion and emotion_counts:
             dominant_emotion = max(emotion_counts, key=emotion_counts.get)
 
-    # 🔥 FIX: ensure no None values slip through
+    # Ensure no None values slip through to the JSON payload
     if emotion_counts is None:
         emotion_counts = {}
     if engagement_score is None:
@@ -252,15 +382,16 @@ def send_to_spring_boot(session_id: str, result):
 
     try:
         with httpx.Client(timeout=10.0) as client:
+            # ── Step 1: POST class-level snapshot ─────────────────────────
             response = client.post(f"{SPRING_BOOT_URL}/class-snapshot", json=payload)
             if response.status_code in [200, 201]:
                 snapshot_data = response.json()
                 snapshot_id = snapshot_data.get("snapshotId")
                 logger.info(f"✅ Class snapshot sent! Students: {student_count}")
-                
+
                 if student_count > 0:
                     check_and_send_alerts(session_id, emotion_counts, student_count, engagement_score, client)
-                
+
                 if people and snapshot_id:
                     student_payload = []
                     recognized_names = []
@@ -271,7 +402,8 @@ def send_to_spring_boot(session_id: str, result):
                         presence_event = person.get("presence_event")
                         if not student_id:
                             continue
-                        # enrollment check
+                        # ── Step 2: Enrollment check ───────────────────────
+                        # Skip any student not enrolled in this session's course
                         is_enrolled = check_enrollment_sync(session_id, student_id)
                         if not is_enrolled:
                             logger.warning(f"🚫 UNWANTED STUDENT: {student_name} NOT enrolled - SKIPPING attendance")
@@ -299,6 +431,7 @@ def send_to_spring_boot(session_id: str, result):
                     if recognized_names:
                         unique = list(set(recognized_names))
                         logger.info(f"👤 Recognized: {', '.join(unique[:5])}")
+                    # ── Step 3: POST individual student snapshots ──────────
                     if student_payload:
                         student_response = client.post(
                             f"{SPRING_BOOT_URL}/student-snapshots?snapshotId={snapshot_id}",
@@ -311,8 +444,22 @@ def send_to_spring_boot(session_id: str, result):
     except Exception as e:
         logger.error(f"❌ Error sending to Spring Boot: {e}")
 
-        
+
 def check_enrollment_sync(session_id: str, student_id: str) -> bool:
+    """
+    Calls Spring Boot to verify a student is enrolled in the course for this session.
+
+    HOW IT WORKS:
+      GET /api/v1/attendance/session/{session_id}/check-student/{student_id}
+      Returns { enrolled: true/false }
+
+    Results are cached in enrollment_cache for ENROLLMENT_CACHE_TTL seconds
+    (5 minutes) so we don't make a round-trip to Spring Boot on every single
+    frame flush.  Stale cache entries are automatically bypassed.
+
+    Returns True if the student is enrolled, False otherwise.  Unenrolled
+    students are never recorded in attendance or student_emotion_snapshots.
+    """
     cache_key = f"{session_id}:{student_id}"
     logger.info(f"🔍 ENROLLMENT CHECK (sync): student={student_id}, session={session_id}")
     if cache_key in enrollment_cache:
@@ -361,6 +508,23 @@ async def analyze_frame(
     store: bool = Form(True),
     file: UploadFile = File(...)
 ):
+    """
+    PRIMARY ENDPOINT — called by the React frontend with each camera frame.
+
+    The React lecturer dashboard captures frames from the browser's webcam
+    and POSTs them here as multipart/form-data every second (or on a
+    configurable interval).  The flow is:
+
+      1. Decode the raw JPEG bytes into an OpenCV BGR frame.
+      2. Run FrameProcessor.process() — detects faces, recognizes students,
+         updates presence state, detects leaves.
+      3. Optionally persist the raw detection to the local SQLite DB (store=True).
+      4. Throttle: if >=10 seconds have elapsed since the last flush for this
+         session, kick off send_to_spring_boot() in a daemon background thread
+         so the HTTP response to the frontend is never blocked.
+
+    Returns: { success, session_id, student_count, people[] }
+    """
     global current_session_id
     try:
         data = await file.read()
@@ -380,6 +544,7 @@ async def analyze_frame(
             except Exception as e:
                 logger.warning(f"Database store error: {e}")
         now = time.time()
+        # Only flush to Spring Boot if 10 seconds have passed since the last flush
         if session_id not in last_flush or (now - last_flush[session_id]) > 10:
             last_flush[session_id] = now
             thread = threading.Thread(target=send_to_spring_boot, args=(session_id, result))
@@ -397,6 +562,19 @@ async def analyze_frame(
 
 @app.post("/session/end")
 async def end_session(session_id: str = Form(...)):
+    """
+    Cleanup endpoint — called by the React frontend when the lecturer ends a session.
+
+    Performs the following cleanup steps:
+      1. Clears current_session_id so no further frames are processed.
+      2. Removes the session's last_flush timestamp.
+      3. Calls cleanup_session_data() to free appearance + confidence counters.
+      4. Calls processor.clear_session_presence() to reset the PresenceTracker.
+      5. Purges all enrollment cache entries for this session.
+
+    Note: the actual session status in Spring Boot is updated separately via
+    SessionService.endSession(), which also triggers R analytics computation.
+    """
     global current_session_id
     logger.info(f"🏁 Session ended: {session_id}")
     current_session_id = None

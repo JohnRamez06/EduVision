@@ -1,21 +1,30 @@
 import api from './api'
 
-// PDF generation via R + LaTeX can take 30–90 s on first run.
-const GENERATE_TIMEOUT = 120_000  // 2 minutes
+const BASE = 'http://localhost:8080/api/v1'
+
+function getUserId() {
+  try {
+    const u = JSON.parse(localStorage.getItem('eduvision.user') || '{}')
+    return u.userId || u.id || ''
+  } catch { return '' }
+}
 
 const reportService = {
-  generateStudent: (studentId, weekId) =>
-    api.post(`/reports/student/${studentId}/weekly/${weekId}`, {}, { timeout: GENERATE_TIMEOUT }).then(r => r.data),
+  // Legacy R-based (may fail if pandoc not installed)
   generateLecturer: (lecturerId, weekId) =>
-    api.post(`/reports/lecturer/${lecturerId}/weekly/${weekId}`, {}, { timeout: GENERATE_TIMEOUT }).then(r => r.data),
-  generateDean: (weekId) =>
-    api.post(`/reports/dean/weekly/${weekId}`, {}, { timeout: GENERATE_TIMEOUT }).then(r => r.data),
-  generateSession: (sessionId) =>
-    api.post(`/reports/session/${sessionId}`, {}, { timeout: GENERATE_TIMEOUT }).then(r => r.data),
-  download: (fileName) =>
-    api.get(`/reports/download/${fileName}`, { responseType: 'blob' }),
-  getMyReports: () =>
-    api.get('/reports/my').then(r => r.data),
+    api.post(`/reports/lecturer/${lecturerId}/weekly/${weekId}`, {}, { timeout: 120000 }).then(r => r.data),
+
+  // Java HTML reports — public URLs, IDs in path, always work
+  openSessionReport:        (sessionId) => {
+    const sid = getUserId()
+    window.open(`${BASE}/html-reports/student/${sid}/session/${sessionId}`, '_blank')
+  },
+  openLecturerCourseReport: (courseId)  => {
+    const lid = getUserId()
+    window.open(`${BASE}/html-reports/lecturer/${lid}/course/${courseId}`, '_blank')
+  },
+
+  getMyReports: () => api.get('/reports/my').then(r => r.data),
 }
 
 export default reportService

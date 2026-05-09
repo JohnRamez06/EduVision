@@ -1,4 +1,5 @@
 import api from './api'
+import { openReport } from '../utils/reportOpener'
 
 const studentService = {
   getDashboard:          ()           => api.get('/facade/student/dashboard').then(r => r.data),
@@ -11,8 +12,11 @@ const studentService = {
   grantConsent:          (policyId)   => api.post('/consent/grant', { policyId }).then(r => r.data),
   revokeConsent:         (policyId)   => api.post('/consent/revoke', { policyId }).then(r => r.data),
   getMyReports:          ()           => api.get('/reports/my').then(r => r.data),
-  generateSessionReport: (sessionId)  => api.post(`/reports/my/session/${sessionId}`).then(r => r.data),
-  downloadReport:        (fileName)   => `/api/v1/reports/download/${fileName}`,
+
+  // HTML reports — uses existing /facade/student/** endpoint (already authenticated)
+  // Opens a tab synchronously first to avoid popup blockers, then writes HTML via axios
+  openSessionReport:   (sessionId) => openReport(`/facade/student/report/session/${sessionId}`),
+  openDashboardReport: ()          => openReport('/facade/student/report/dashboard'),
 }
 
 export default studentService

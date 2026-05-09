@@ -85,6 +85,29 @@ public class WebSocketNotificationService {
         sessionManager.sendToUser(userId, destination, payload);
     }
 
+    // ─── SESSION-START NOTIFICATION ──────────────────────────────────────
+
+    /**
+     * Broadcasts a session-start event to all enrolled students of a course.
+     * Flutter app subscribes to: /topic/session-started/{courseId}
+     *
+     * Payload: { lecturerName, courseName, roomLocation, sessionId }
+     */
+    public void sendSessionStarted(String courseId, String sessionId,
+                                    String lecturerName, String courseName,
+                                    String roomLocation) {
+        var payload = java.util.Map.of(
+            "type",         "SESSION_STARTED",
+            "sessionId",    sessionId,
+            "courseId",     courseId,
+            "lecturerName", lecturerName,
+            "courseName",   courseName,
+            "roomLocation", roomLocation != null ? roomLocation : "TBA"
+        );
+        messagingTemplate.convertAndSend(
+                "/topic/session-started/" + courseId, payload);
+    }
+
     // ─── CONVENIENCE BUILDERS ─────────────────────────────────────────────
 
     /**

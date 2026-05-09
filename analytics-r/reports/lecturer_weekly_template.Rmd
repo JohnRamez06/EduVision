@@ -4,11 +4,9 @@ date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
   html_document:
     theme: flatly
-    highlight: tango
     toc: true
     toc_float: true
     self_contained: true
-    css: report_styles.css
 params:
   lecturer_id: ""
   week_id:     ""
@@ -20,111 +18,101 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
 library(ggplot2)
 library(dplyr)
 library(knitr)
-library(kableExtra)
 
 ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
 source(file.path(ANALYTICS_HOME, "config.R"))
-source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+source(file.path(ANALYTICS_HOME, "scripts",  "utils.R"))
 source(file.path(ANALYTICS_HOME, "analysis", "weekly_lecturer_analysis.R"))
-source(file.path(ANALYTICS_HOME, "scripts", "fetch_data.R"))
-source(file.path(ANALYTICS_HOME, "scripts", "fetch_alerts.R"))
+source(file.path(ANALYTICS_HOME, "scripts",  "fetch_data.R"))
+source(file.path(ANALYTICS_HOME, "scripts",  "fetch_alerts.R"))
 
 lecturer_id <- params$lecturer_id
 week_id     <- params$week_id
 
-stats    <- weekly_lecturer_analysis(lecturer_id, week_id)
-lecturer <- fetch_lecturer(lecturer_id)
-wp       <- fetch_weekly_period(week_id)
-alerts   <- fetch_open_alerts_for_lecturer(lecturer_id)
-
-theme_report <- theme_minimal(base_size = 12) +
-  theme(plot.title    = element_text(size = 13, face = "bold", colour = "#1E3A5F"),
-        axis.text     = element_text(colour = "#555"),
-        panel.grid.minor = element_blank())
+stats    <- tryCatch(weekly_lecturer_analysis(lecturer_id, week_id),
+                     error = function(e) list(n_sessions=0L, avg_engagement=NA_real_,
+                                              avg_concentration=NA_real_, total_students=0L,
+                                              session_details=data.frame()))
+lecturer <- tryCatch(fetch_lecturer(lecturer_id),   error = function(e) data.frame(full_name="Unknown"))
+wp       <- tryCatch(fetch_weekly_period(week_id),  error = function(e) data.frame())
+alerts   <- tryCatch(fetch_open_alerts_for_lecturer(lecturer_id), error = function(e) data.frame())
 ```
 
-<div class="report-header">
-  <h2>`r lecturer$full_name`</h2>
-  <p>Week `r wp$week_number` / `r wp$year` &nbsp;·&nbsp; `r wp$start_date` – `r wp$end_date`</p>
+<div style="background:#1E3A5F;color:white;padding:14px 18px;border-radius:8px;margin-bottom:20px">
+<strong>Lecturer:</strong> `r if(nrow(lecturer)>0) lecturer$full_name[1] else "Unknown"` &nbsp;·&nbsp;
+Week `r if(nrow(wp)>0) paste0(wp$week_number[1],", ",wp$year[1]) else week_id`
+`r if(nrow(wp)>0) paste0("(", wp$start_date[1], " – ", wp$end_date[1], ")") else ""`
 </div>
 
 ## Overview
 
-```{r overview-table}
-overview <- data.frame(
-  Metric = c("Sessions This Week", "Total Students Present",
-             "Avg Engagement Score", "Avg Concentration"),
-  Value  = c(as.character(stats$n_sessions),
-             as.character(stats$total_students),
-             ifelse(is.na(stats$avg_engagement),    "N/A", sprintf("%.0f%%", stats$avg_engagement * 100)),
-             ifelse(is.na(stats$avg_concentration), "N/A", sprintf("%.0f%%", stats$avg_concentration * 100)))
-)
-kable(overview, align = c("l","r")) %>%
-  kable_styling(bootstrap_options = c("striped","hover"), full_width = FALSE)
+```{r overview}
+kable(data.frame(
+  Metric = c("Sessions This Week","Total Students Present","Avg Engagement","Avg Concentration"),
+  Value  = c(
+    as.character(stats$n_sessions   %||% 0),
+    as.character(stats$total_students %||% 0),
+    ifelse(is.na(stats$avg_engagement),    "N/A", paste0(round(stats$avg_engagement    * 100), "%")),
+    ifelse(is.na(stats$avg_concentration), "N/A", paste0(round(stats$avg_concentration * 100), "%"))
+  )
+), col.names = c("Metric","Value"), align = c("l","r"))
 ```
 
-## Session-by-Session Engagement
+## Engagement per Session
 
-```{r session-engagement}
-if (!is.null(stats$session_details) && nrow(stats$session_details) > 0) {
-  sd <- stats$session_details %>%
-    mutate(label = paste0(course_code, " – ",
-                          format(as.POSIXct(actual_start), "%a %d %b")),
-           avg_eng_pct = avg_eng * 100)
-
-  ggplot(sd, aes(x = reorder(label, actual_start), y = avg_eng_pct, fill = avg_eng_pct)) +
-    geom_col(show.legend = FALSE, width = 0.55) +
+```{r eng-chart}
+sd <- stats$session_details
+if (!is.null(sd) && nrow(sd) > 0 && "avg_eng" %in% colnames(sd)) {
+  sd <- sd %>% mutate(
+    label   = paste0(course_code, " – ", format(as.POSIXct(actual_start), "%a %d %b")),
+    eng_pct = round(avg_eng * 100, 1)
+  )
+  ggplot(sd, aes(x = reorder(label, actual_start), y = eng_pct, fill = eng_pct)) +
+    geom_col(width = 0.55, show.legend = FALSE) +
     geom_hline(yintercept = 60, linetype = "dashed", colour = "#E74C3C", alpha = 0.7) +
     scale_fill_gradient(low = "#E74C3C", high = "#27AE60", limits = c(0, 100)) +
     scale_y_continuous(limits = c(0, 100), labels = function(x) paste0(x, "%")) +
-    labs(x = NULL, y = "Avg Engagement", title = "Engagement per Session") +
-    theme_report +
-    theme(axis.text.x = element_text(angle = 25, hjust = 1))
+    labs(x = NULL, y = "Avg Engagement %", title = "Engagement per Session") +
+    theme_minimal() + theme(axis.text.x = element_text(angle = 25, hjust = 1))
 } else {
   cat("No session data available for this week.")
 }
 ```
 
-## Student Performance
+## Student Focus
 
-```{r student-table}
-student_eng <- with_connection(function(con) {
-  tryCatch(
-    dbGetQuery(con, sprintf("
-      SELECT CONCAT(u.first_name,' ',u.last_name) AS student_name,
-             ROUND(AVG(CASE WHEN ses.concentration='high'   THEN 85
-                            WHEN ses.concentration='medium' THEN 55
-                            WHEN ses.concentration='low'    THEN 25
-                            ELSE 10 END), 1) AS avg_focus,
-             COUNT(*) AS snapshots
-        FROM student_emotion_snapshots ses
-        JOIN users u ON u.id = ses.student_id
-        JOIN lecture_sessions ls ON ls.id = ses.session_id
-       WHERE ls.lecturer_id = '%s'
-         AND ses.captured_at BETWEEN '%s 00:00:00' AND '%s 23:59:59'
-       GROUP BY ses.student_id, u.first_name, u.last_name
-       ORDER BY avg_focus DESC",
-      con@ptr, lecturer_id,
-      as.character(wp$start_date[1]),
-      as.character(wp$end_date[1]))),
-    error = function(e) data.frame()
-  )
-})
+```{r student-focus}
+wp_start <- if (nrow(wp) > 0) as.character(wp$start_date[1]) else format(Sys.Date() - 7)
+wp_end   <- if (nrow(wp) > 0) as.character(wp$end_date[1])   else format(Sys.Date())
+
+student_eng <- tryCatch(
+  with_connection(function(con) {
+    DBI::dbGetQuery(con, sprintf(
+      "SELECT CONCAT(u.first_name,' ',u.last_name) AS student_name,
+              ROUND(AVG(CASE WHEN ses.concentration='high'   THEN 85
+                             WHEN ses.concentration='medium' THEN 55
+                             WHEN ses.concentration='low'    THEN 25
+                             ELSE 10 END), 1) AS avg_focus
+         FROM student_emotion_snapshots ses
+         JOIN users u ON u.id = ses.student_id
+         JOIN lecture_sessions ls ON ls.id = ses.session_id
+        WHERE ls.lecturer_id = '%s'
+          AND ses.captured_at BETWEEN '%s 00:00:00' AND '%s 23:59:59'
+        GROUP BY ses.student_id, u.first_name, u.last_name
+        ORDER BY avg_focus DESC",
+      lecturer_id, wp_start, wp_end))
+  }),
+  error = function(e) data.frame()
+)
 
 if (nrow(student_eng) > 0) {
-  n_show <- min(5, nrow(student_eng))
-  bind_rows(
-    head(student_eng, n_show) %>% mutate(Group = "🏆 Top"),
-    tail(student_eng, n_show) %>% mutate(Group = "⚠️ Needs Support")
-  ) %>%
-    select(Group, student_name, avg_focus) %>%
-    rename(Student = student_name, `Avg Focus` = avg_focus) %>%
-    kable(align = c("l","l","r")) %>%
-    kable_styling(bootstrap_options = c("striped","hover"), full_width = FALSE) %>%
-    pack_rows("Top Students", 1, n_show) %>%
-    pack_rows("Students Needing Support", n_show + 1, n_show * 2)
+  n <- min(5, nrow(student_eng))
+  kable(rbind(head(student_eng, n), tail(student_eng, n)),
+        col.names = c("Student", "Avg Focus %"),
+        caption   = paste0("Top ", n, " and Bottom ", n, " students"),
+        align     = c("l","r"))
 } else {
-  cat("No student focus data available for this week.")
+  cat("No student focus data for this week.")
 }
 ```
 
@@ -132,41 +120,28 @@ if (nrow(student_eng) > 0) {
 
 ```{r alerts-table}
 if (!is.null(alerts) && nrow(alerts) > 0) {
-  alerts %>%
-    select(student_name, alert_type, severity, triggered_at) %>%
-    rename(Student = student_name, Type = alert_type,
-           Severity = severity, `Triggered At` = triggered_at) %>%
-    kable() %>%
-    kable_styling(bootstrap_options = c("striped","hover"))
+  keep <- intersect(c("student_name","alert_type","severity","triggered_at"), colnames(alerts))
+  kable(alerts[, keep, drop = FALSE])
 } else {
-  cat("✅ No open alerts for this week.")
+  cat("No open alerts for this week.")
 }
 ```
 
-## Teaching Recommendations
+## Recommendations
 
 ```{r tips}
-avg_eng <- stats$avg_engagement
+avg_eng <- stats$avg_engagement %||% NA_real_
 tips <- character(0)
-
 if (!is.na(avg_eng)) {
-  if (avg_eng < 0.4)       tips <- c(tips, "⚡ Engagement is critically low — consider interactive polls or group activities.")
-  else if (avg_eng < 0.65) tips <- c(tips, "📈 Moderate engagement — try varying lecture pacing with short Q&A breaks.")
-  else                     tips <- c(tips, "✅ Great engagement this week — keep up the current approach!")
+  if      (avg_eng < 0.40) tips <- c(tips, "⚡ Engagement critically low — try interactive polls or group work.")
+  else if (avg_eng < 0.65) tips <- c(tips, "📈 Moderate engagement — vary pacing with short Q&A breaks.")
+  else                     tips <- c(tips, "✅ Great engagement this week — keep it up!")
 }
-if (!is.null(alerts) && nrow(alerts) > 3) {
-  tips <- c(tips, "🔔 Several alerts triggered — review at-risk students individually.")
-}
+if (!is.null(alerts) && nrow(alerts) > 3)
+  tips <- c(tips, "🔔 Multiple alerts — review at-risk students individually.")
 if (length(tips) == 0) tips <- "No specific recommendations this week."
 cat(paste(tips, collapse = "\n\n"))
 ```
 
 ---
-*Generated by EduVision Analytics · `r format(Sys.time(), "%d %B %Y %H:%M")`*
-
-<script>
-window.addEventListener('load', function() {
-  document.querySelector('.report-print-btn') &&
-    document.querySelector('.report-print-btn').addEventListener('click', window.print);
-});
-</script>
+*EduVision Analytics · `r format(Sys.time(), "%d %B %Y %H:%M")`*

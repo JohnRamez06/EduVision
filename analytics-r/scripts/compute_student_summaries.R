@@ -3,9 +3,43 @@
 #
 # Usage:  Rscript scripts/compute_student_summaries.R <session_id>
 #
-# For every student who has emotion snapshots in the given session,
-# compute all analytics metrics and upsert into student_lecture_summaries.
-# This is the bridge between raw snapshot data and the Java analytics API.
+# PURPOSE:
+#   This is the CRITICAL analytics script that bridges raw vision-engine
+#   output and the student-facing dashboard.  It runs automatically after
+#   every session ends (triggered by ReportService.computeStudentSummariesAsync
+#   which is called from SessionService.endSession in the Java backend).
+#
+# WHAT IT DOES:
+#   For every student who has emotion snapshots in the given session,
+#   this script:
+#     1. Reads raw rows from student_emotion_snapshots (written every 10s
+#        by the Python vision engine via Spring Boot's EmotionDataService).
+#     2. Computes the following per-student metrics:
+#        - Emotion percentages (pct_happy, pct_sad, pct_angry, pct_confused,
+#          pct_neutral, pct_engaged) — share of snapshots for each emotion label.
+#        - Concentration percentages (pct_high_conc, pct_med_conc,
+#          pct_low_conc, pct_distracted) — share of snapshots per level.
+#        - avg_concentration — weighted numeric mean (high=1.0, medium=0.67,
+#          low=0.33, distracted=0.0) normalised to 0-1.
+#        - attentive_percentage — fraction of snapshots where concentration
+#          was high or medium, OR emotion was "engaged".
+#        - attention_score — pct_high_conc + pct_med_conc (focused time).
+#        - participation_score — share of positive-affect snapshots
+#          (happy + engaged + surprised).
+#        - dominant_emotion — the most frequent emotion label.
+#        - overall_engagement — average class-level engagement score from the
+#          class-snapshot table (emotion_snapshots), attached to each student
+#          for context.
+#     3. Upserts each computed row into student_lecture_summaries.
+#        The upsert is INSERT if no row exists for (student_id, session_id),
+#        or UPDATE if one does (allows re-running the script to refresh data).
+#
+# DOWNSTREAM:
+#   StudentService.java reads student_lecture_summaries to power:
+#     - Dashboard KPIs (overall stats)
+#     - Per-session lecture summaries
+#     - RecommendationService rule engine
+#   The concentration timeline chart reads student_emotion_snapshots directly.
 # ============================================================
 
 args <- commandArgs(trailingOnly = TRUE)
@@ -19,6 +53,8 @@ suppressPackageStartupMessages({
 })
 
 # ── Locate config.R ────────────────────────────────────────────────────────────
+# Resolves the script's own directory so that config.R and helper scripts can be
+# sourced with relative paths regardless of where Rscript was launched from.
 .cmd        <- commandArgs(trailingOnly = FALSE)
 .file_flag  <- grep("^--file=", .cmd, value = TRUE)
 .script_dir <- if (length(.file_flag) > 0) {
@@ -31,12 +67,16 @@ source(file.path(dirname(.script_dir), "scripts", "utils.R"),               loca
 source(file.path(dirname(.script_dir), "scripts", "calculate_statistics.R"), local = TRUE)
 
 # ── Connect ────────────────────────────────────────────────────────────────────
+# get_connection() is defined in config.R and returns an RMariaDB connection
+# using the eduvision DB credentials.  on.exit ensures it is closed even if
+# the script errors partway through.
 conn <- get_connection()
 on.exit(try(DBI::dbDisconnect(conn), silent = TRUE), add = TRUE)
 
 message(sprintf("[compute] Processing session: %s", session_id))
 
 # ── Fetch session metadata ─────────────────────────────────────────────────────
+# Needed to attach the correct course_id to each summary row.
 session_meta <- dbGetQuery(conn, sprintf("
   SELECT ls.id AS session_id, ls.course_id,
          ls.actual_start, ls.scheduled_start
@@ -48,6 +88,9 @@ if (nrow(session_meta) == 0) stop(paste("Session not found:", session_id))
 course_id <- session_meta$course_id[1]
 
 # ── Fetch all student snapshots for this session ───────────────────────────────
+# student_emotion_snapshots is populated by EmotionDataService.java every time
+# the Python vision engine calls POST /api/v1/emotion-data/student-snapshots.
+# Each row represents one student's emotion + concentration at a point in time.
 snaps <- dbGetQuery(conn, sprintf("
   SELECT ses.id, ses.student_id, ses.emotion, ses.concentration,
          ses.confidence_score, ses.captured_at
@@ -62,6 +105,9 @@ if (nrow(snaps) == 0) {
 }
 
 # ── Fetch overall engagement from class-level snapshots ────────────────────────
+# emotion_snapshots contains the class-level snapshot rows (one per 10-second
+# flush from the Python engine).  The average engagement_score here is attached
+# to each student summary as "overall_engagement" for context on the dashboard.
 class_eng <- dbGetQuery(conn, sprintf("
   SELECT AVG(COALESCE(engagement_score, 0)) AS overall_engagement
   FROM emotion_snapshots
@@ -71,6 +117,14 @@ overall_session_eng <- as.numeric(class_eng$overall_engagement[1])
 if (is.na(overall_session_eng)) overall_session_eng <- NA_real_
 
 # ── Helper: upsert one row into student_lecture_summaries ─────────────────────
+#
+# INSERT OR UPDATE logic:
+#   1. Check if a row already exists for (student_id, session_id).
+#   2. If it does → UPDATE all metric columns and updated_at.
+#   3. If it does not → INSERT a new row with a randomly generated UUID.
+#
+# This design allows the script to be re-run after a session without
+# creating duplicate summary rows (idempotent).
 upsert_summary <- function(con, row) {
   # Check if a record already exists for this (student_id, session_id) pair
   existing <- dbGetQuery(con, sprintf("
@@ -82,6 +136,7 @@ upsert_summary <- function(con, row) {
   now_ts <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
 
   if (nrow(existing) > 0) {
+    # Row exists — UPDATE all computed columns in place
     rec_id <- existing$id[1]
     sql <- sprintf("
       UPDATE student_lecture_summaries SET
@@ -121,6 +176,7 @@ upsert_summary <- function(con, row) {
                     row$attentive_percentage * 100,
                     row$dominant_emotion))
   } else {
+    # No row exists — INSERT a new one with a freshly generated UUID
     new_id <- paste0(
       paste(sample(c(letters[1:6], 0:9), 8, TRUE), collapse = ""), "-",
       paste(sample(c(letters[1:6], 0:9), 4, TRUE), collapse = ""), "-",
@@ -173,6 +229,8 @@ for (sid in student_ids) {
   if (n == 0) next
 
   # Emotion percentages (normalised to 0-1)
+  # factor() with fixed levels ensures all emotions appear in the table
+  # even if zero snapshots had that label (avoiding NA in division).
   emotion_counts <- table(factor(
     tolower(stu$emotion),
     levels = c("happy", "sad", "angry", "confused", "neutral", "engaged",
@@ -185,7 +243,7 @@ for (sid in student_ids) {
   pct_neutral  <- as.numeric(emotion_counts["neutral"])  / n
   pct_engaged  <- as.numeric(emotion_counts["engaged"])  / n
 
-  # Concentration percentages
+  # Concentration percentages — share of snapshots at each concentration level
   conc_counts <- table(factor(
     tolower(stu$concentration),
     levels = c("high", "medium", "low", "distracted")
@@ -196,22 +254,27 @@ for (sid in student_ids) {
   pct_distracted <- as.numeric(conc_counts["distracted"]) / n
 
   # Weighted average concentration (0-1 scale)
+  # concentration_to_score() maps "high"->100, "medium"->67, "low"->33,
+  # "distracted"->0; we divide by 100 to stay in the 0-1 range.
   conc_scores      <- concentration_to_score(tolower(stu$concentration))
   avg_concentration <- mean(conc_scores, na.rm = TRUE) / 100   # convert 0-100 → 0-1
 
   # Attentiveness: high/medium concentration OR engaged emotion
+  # A student is considered "attentive" in a snapshot if they were focusing
+  # (high or medium concentration) OR showed engaged emotion.
   attentive        <- (tolower(stu$concentration) %in% c("high", "medium")) |
                       (tolower(stu$emotion) == "engaged")
   attentive_pct    <- mean(attentive, na.rm = TRUE)
 
-  # Attention score = high + medium concentration
+  # Attention score = proportion of time spent at high or medium concentration
   attention_score  <- pct_high_conc + pct_med_conc
 
-  # Participation score = positive-affect emotions (happy + engaged + surprised)
+  # Participation score = proportion of positive-affect emotion snapshots
+  # (happy, engaged, or surprised — emotions associated with active learning)
   positive_counts  <- sum(tolower(stu$emotion) %in% c("happy", "engaged", "surprised"))
   participation    <- positive_counts / n
 
-  # Dominant emotion
+  # Dominant emotion — the most frequently occurring emotion label
   dom_emotion <- dominant_emotion(tolower(stu$emotion))
   if (is.na(dom_emotion)) dom_emotion <- "neutral"
 

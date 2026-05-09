@@ -1,5 +1,28 @@
 package com.eduvision.service;
 
+/**
+ * SessionService — Lecture session lifecycle manager.
+ *
+ * <p>This service owns the full lifecycle of a {@link com.eduvision.model.LectureSession}:
+ * creation, activation, monitoring, and completion.  It also acts as the trigger point
+ * for downstream analytics — when a session ends, it fires off the R analytics pipeline
+ * in the background so the student dashboard is populated without blocking the lecturer.
+ *
+ * <p>Key responsibilities:
+ * <ul>
+ *   <li><b>startSession()</b> — Creates the session entity, enforces the singleton guard
+ *       (only one active session per course at a time), and broadcasts a WebSocket
+ *       notification so enrolled students receive a push notification in the Flutter app.</li>
+ *   <li><b>endSession()</b> — Marks the session as completed, clears the singleton registry,
+ *       and asynchronously triggers {@link ReportService#computeStudentSummariesAsync} to
+ *       run the R script that populates {@code student_lecture_summaries}.</li>
+ * </ul>
+ *
+ * <p>The Python vision engine also calls this service indirectly: after the React frontend
+ * POSTs to {@code /session/end} on this backend, this service signals the R pipeline.
+ * The Python side is notified separately via its own {@code /session/end} endpoint.
+ */
+
 import com.eduvision.dto.session.SessionEndRequest;
 import com.eduvision.dto.session.SessionStartRequest;
 import com.eduvision.dto.session.SessionStatusDTO;
@@ -36,6 +59,7 @@ public class SessionService {
     private final SingletonGuardService singletonGuardService;
     private final EntityManager entityManager;
     private final ReportService reportService;
+    private final WebSocketNotificationService wsNotificationService;
 
     public SessionService(
             SessionRepository sessionRepository,
@@ -44,16 +68,40 @@ public class SessionService {
             UserRepository userRepository,
             SingletonGuardService singletonGuardService,
             EntityManager entityManager,
-            ReportService reportService) {
-        this.sessionRepository = sessionRepository;
-        this.attendanceRepository = attendanceRepository;
-        this.registryRepository = registryRepository;
-        this.userRepository = userRepository;
+            ReportService reportService,
+            WebSocketNotificationService wsNotificationService) {
+        this.sessionRepository     = sessionRepository;
+        this.attendanceRepository  = attendanceRepository;
+        this.registryRepository    = registryRepository;
+        this.userRepository        = userRepository;
         this.singletonGuardService = singletonGuardService;
-        this.entityManager = entityManager;
-        this.reportService = reportService;
+        this.entityManager         = entityManager;
+        this.reportService         = reportService;
+        this.wsNotificationService = wsNotificationService;
     }
 
+    /**
+     * Creates and activates a new lecture session for the given course.
+     *
+     * <p>Steps performed:
+     * <ol>
+     *   <li>Looks up the {@link Course} and the currently authenticated lecturer.</li>
+     *   <li>Builds a new {@link LectureSession} entity with status {@code active} and
+     *       saves it to the database.</li>
+     *   <li>Calls {@link SingletonGuardService#activateSession} to enforce the rule that
+     *       only one session may be active per course at a time.  A second call for the
+     *       same course will throw an exception.</li>
+     *   <li>Broadcasts a {@code session_started} WebSocket event via
+     *       {@link WebSocketNotificationService} so the Flutter student app can show
+     *       a real-time "Your lecture has started" notification to enrolled students.</li>
+     *   <li>Upserts the {@link LectureSessionRegistry} row that links the course to its
+     *       currently active session (used for quick lookups without scanning the full
+     *       sessions table).</li>
+     * </ol>
+     *
+     * @param request contains courseId, scheduledStart/End, roomLocation, cameraType
+     * @return a {@link SessionStatusDTO} snapshot of the newly created session
+     */
     public SessionStatusDTO startSession(SessionStartRequest request) {
         Course course = entityManager.find(Course.class, request.getCourseId());
         if (course == null) {
@@ -78,6 +126,13 @@ public class SessionService {
         sessionRepository.save(session);
         singletonGuardService.activateSession(course.getId(), session.getId());
 
+        // Notify enrolled students via WebSocket → Flutter picks this up and shows a notification
+        String lecturerName = buildLecturerName(lecturer);
+        wsNotificationService.sendSessionStarted(
+                course.getId(), session.getId(),
+                lecturerName, course.getTitle(),
+                request.getRoomLocation());
+
         LectureSessionRegistry registry = registryRepository.findByCourse_Id(course.getId())
                 .orElseGet(() -> {
                     LectureSessionRegistry item = new LectureSessionRegistry();
@@ -92,6 +147,31 @@ public class SessionService {
         return buildStatus(session);
     }
 
+    /**
+     * Marks a session as completed and auto-triggers R analytics in the background.
+     *
+     * <p>Steps performed:
+     * <ol>
+     *   <li>Sets {@code actualEnd}, changes status to {@code completed}, persists.</li>
+     *   <li>Clears the {@link LectureSessionRegistry} active session pointer for the
+     *       course so the singleton guard allows a new session to be started later.</li>
+     *   <li>Calls {@link ReportService#computeStudentSummariesAsync} — this is a
+     *       {@code @Async} method that runs the R script
+     *       {@code compute_student_summaries.R} in a background thread pool.  The R
+     *       script reads {@code student_emotion_snapshots} for this session, computes
+     *       per-student analytics (concentration, emotion percentages, attentiveness),
+     *       and upserts rows into {@code student_lecture_summaries}.  This table is
+     *       what the student dashboard reads for all its KPIs.</li>
+     * </ol>
+     *
+     * <p>Because step 3 is asynchronous, the lecturer's "End Session" HTTP response
+     * is returned immediately — the analytics computation happens in the background
+     * without blocking the UI.
+     *
+     * @param sessionId the UUID of the session to end
+     * @param request   contains actualEnd timestamp
+     * @return updated {@link SessionStatusDTO}
+     */
     public SessionStatusDTO endSession(String sessionId, SessionEndRequest request) {
         LectureSession session = getSession(sessionId);
 
@@ -134,6 +214,7 @@ public class SessionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Lecture session not found: " + sessionId));
     }
 
+    /** Resolves the currently authenticated lecturer from the Spring Security context. */
     private User getCurrentUser() {
         String email = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByEmail(email)
