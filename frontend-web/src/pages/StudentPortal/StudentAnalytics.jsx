@@ -3,7 +3,7 @@ import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts'
-import { BarChart3, Brain, TrendingUp, Zap, AlertTriangle } from 'lucide-react'
+import { BarChart3, Brain, TrendingUp, Zap, AlertTriangle, BookOpen } from 'lucide-react'
 import StudentLayout from '../../layouts/StudentLayout'
 import studentService from '../../services/studentService'
 
@@ -37,63 +37,65 @@ export default function StudentAnalytics() {
     const loadAnalytics = async () => {
       setError('')
       setLoading(true)
-
       try {
         const d = await studentService.getDashboard()
         if (!active) return
-
         setDashboard(d)
-
-        // Dedicated endpoint can fail; dashboard summaries are a safe fallback.
-        try {
-          const dedicatedSummaries = await studentService.getSummaries()
-          if (active) setSummaries(normalizeArray(dedicatedSummaries))
-        } catch (dedicatedError) {
-          console.warn('StudentAnalytics: summaries endpoint failed, using dashboard fallback.', dedicatedError)
-          if (active) setSummaries(normalizeArray(d?.recentSummaries))
-        }
-      } catch (caughtError) {
+        const s = await studentService.getSummaries().catch(() => d.recentSummaries ?? [])
         if (!active) return
-        setDashboard(null)
-        setSummaries([])
-        setError(caughtError.response?.data?.message ?? 'Failed to load analytics.')
+        setSummaries(s)
+      } catch (e) {
+        if (active) setError(e.response?.data?.message ?? 'Failed to load analytics.')
       } finally {
         if (active) setLoading(false)
       }
     }
 
     loadAnalytics()
-
     return () => { active = false }
   }, [])
 
   // Concentration trend — chronological order, last 20 sessions
-  const concentrationData = [...normalizeArray(summaries)]
+  const concentrationData = [...summaries]
     .sort((a, b) => new Date(a.date) - new Date(b.date))
     .slice(-20)
     .map(s => ({
       date: s.date ? new Date(s.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '—',
-      concentration: toPercent(s.avgConcentration),
-      attentiveness: toPercent(s.attentivePercentage),
+      concentration: s.avgConcentration != null ? Math.round(s.avgConcentration * 100) : null,
+      attentiveness: s.attentivePercentage != null ? Math.round(s.attentivePercentage * 100) : null,
     }))
 
   // Emotion breakdown pie
-  const emotionBreakdown = dashboard?.overallStats?.emotionBreakdown
-  const emotionPie = emotionBreakdown && typeof emotionBreakdown === 'object'
-    ? Object.entries(emotionBreakdown)
-        .map(([name, value]) => ({ name, value: toPercent(value), fill: EMOTION_COLOR[name] ?? '#94A3B8' }))
-        .filter(e => e.value > 0)
+  const emotionPie = dashboard?.overallStats?.emotionBreakdown
+    ? Object.entries(dashboard.overallStats.emotionBreakdown)
+        .filter(([, v]) => v > 0)
+        .map(([name, value]) => ({ name, value: Math.round(value * 100), fill: EMOTION_COLOR[name] ?? '#94A3B8' }))
     : []
 
   // Attendance per course bar
   const attendanceBar = (dashboard?.enrolledCourses ?? []).map(c => ({
-    name: c.code ?? c.title ?? 'Course',
-    attended: Number(c.attendedSessions ?? 0),
-    total: Number(c.totalSessions ?? 0),
-    pct: Number(c.totalSessions ?? 0) > 0
-      ? Math.round((Number(c.attendedSessions ?? 0) / Number(c.totalSessions ?? 0)) * 100)
-      : 0,
+    name: c.code ?? c.title,
+    attended: c.attendedSessions,
+    total: c.totalSessions,
+    pct: c.totalSessions > 0 ? Math.round((c.attendedSessions / c.totalSessions) * 100) : 0,
   }))
+
+  // Per-course concentration — group summaries by course, average concentration
+  const courseConcentration = Object.values(
+    summaries.reduce((acc, s) => {
+      const key = s.courseId ?? s.courseName
+      if (!key) return acc
+      if (!acc[key]) acc[key] = { name: s.courseName ?? key, total: 0, count: 0 }
+      if (s.avgConcentration != null) {
+        acc[key].total += Number(s.avgConcentration)
+        acc[key].count += 1
+      }
+      return acc
+    }, {})
+  )
+    .filter(c => c.count > 0)
+    .map(c => ({ name: c.name, avg: Math.round((c.total / c.count) * 100) }))
+    .sort((a, b) => b.avg - a.avg)
 
   const stats = dashboard?.overallStats
 
@@ -114,15 +116,16 @@ export default function StudentAnalytics() {
 
       {/* KPI row */}
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
-          {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-20" />)}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-20" />)}
         </div>
       ) : (
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           {[
-            { icon: Brain,     color: 'text-[#667D9D]',   bg: 'bg-[#667D9D]/10',   label: 'Avg Concentration', value: stats?.avgConcentration != null ? `${Math.round(stats.avgConcentration * 100)}%` : '—' },
+            { icon: Brain,      color: 'text-[#667D9D]',   bg: 'bg-[#667D9D]/10',   label: 'Avg Concentration', value: stats?.avgConcentration != null ? `${Math.round(stats.avgConcentration * 100)}%` : '—' },
             { icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10', label: 'Avg Attentiveness', value: stats?.avgAttentiveness != null ? `${Math.round(stats.avgAttentiveness * 100)}%` : '—' },
-            { icon: Zap,        color: 'text-[#667D9D]',  bg: 'bg-[#667D9D]/10',  label: 'Sessions Recorded', value: summaries.length },
+            { icon: Zap,        color: 'text-amber-400',   bg: 'bg-amber-500/10',   label: 'Top Emotion',       value: stats?.mostFrequentEmotion ? (stats.mostFrequentEmotion.charAt(0).toUpperCase() + stats.mostFrequentEmotion.slice(1).toLowerCase()) : '—' },
+            { icon: BookOpen,   color: 'text-[#667D9D]',   bg: 'bg-[#667D9D]/10',   label: 'Sessions Recorded', value: summaries.length },
           ].map(({ icon: Icon, color, bg, label, value }) => (
             <div key={label} className="glass rounded-2xl p-4 flex items-center gap-3">
               <div className={`w-10 h-10 rounded-xl ${bg} flex items-center justify-center shrink-0`}>
@@ -140,7 +143,7 @@ export default function StudentAnalytics() {
       {/* Concentration trend */}
       <div className="glass rounded-2xl p-5 mb-5">
         <h2 className="font-semibold text-white flex items-center gap-2 mb-5">
-          <Brain size={16} className="text-[#667D9D]" /> Concentration Over Time
+          <Brain size={16} className="text-[#667D9D]" /> Concentration & Attentiveness Over Time
         </h2>
         {loading ? <Skeleton className="h-56" /> : concentrationData.length === 0 ? (
           <div className="flex items-center justify-center h-40 text-slate-600 text-sm">No session data yet</div>
@@ -154,13 +157,14 @@ export default function StudentAnalytics() {
               <Legend wrapperStyle={{ fontSize: 12, color: '#94A3B8' }} />
               <Line type="monotone" dataKey="concentration" name="Concentration" stroke="#3B82F6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} connectNulls />
               <Line type="monotone" dataKey="attentiveness" name="Attentiveness" stroke="#10B981" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="4 2" connectNulls />
+              <Line type="monotone" dataKey="engagement"    name="Engagement"    stroke="#F59E0B" strokeWidth={2} dot={{ r: 3 }} strokeDasharray="2 3" connectNulls />
             </LineChart>
           </ResponsiveContainer>
         )}
       </div>
 
       {/* Emotion + Attendance row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
 
         {/* Emotion breakdown */}
         <div className="glass rounded-2xl p-5">
@@ -205,7 +209,10 @@ export default function StudentAnalytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#1E293B" />
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#64748B' }} angle={-30} textAnchor="end" interval={0} />
                 <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748B' }} unit="%" />
-                <Tooltip {...CHART_TOOLTIP} formatter={v => [`${v}%`, 'Attendance']} />
+                <Tooltip
+                  {...CHART_TOOLTIP}
+                  formatter={(v, n, p) => [`${v}% (${p.payload.attended}/${p.payload.total} sessions)`, 'Attendance']}
+                />
                 <Bar dataKey="pct" name="Attendance %" radius={[4, 4, 0, 0]}>
                   {attendanceBar.map((entry, i) => (
                     <Cell key={i} fill={entry.pct >= 80 ? '#10B981' : entry.pct >= 60 ? '#F59E0B' : '#F43F5E'} />
@@ -216,6 +223,38 @@ export default function StudentAnalytics() {
           )}
         </div>
       </div>
+
+      {/* Per-course concentration */}
+      {!loading && courseConcentration.length > 0 && (
+        <div className="glass rounded-2xl p-5">
+          <h2 className="font-semibold text-white flex items-center gap-2 mb-4">
+            <BookOpen size={16} className="text-[#667D9D]" /> Average Concentration by Course
+          </h2>
+          <div className="space-y-3">
+            {courseConcentration.map(c => {
+              const barColor = c.avg >= 70 ? 'from-emerald-500 to-teal-500'
+                             : c.avg >= 45 ? 'from-amber-500 to-orange-400'
+                             :               'from-rose-500 to-pink-500'
+              return (
+                <div key={c.name}>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs text-slate-300 truncate max-w-[70%]">{c.name}</span>
+                    <span className={`text-xs font-semibold tabular-nums ${
+                      c.avg >= 70 ? 'text-emerald-400' : c.avg >= 45 ? 'text-amber-400' : 'text-rose-400'
+                    }`}>{c.avg}%</span>
+                  </div>
+                  <div className="h-2 bg-slate-800 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full bg-gradient-to-r ${barColor} transition-all duration-700`}
+                      style={{ width: `${c.avg}%` }}
+                    />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </StudentLayout>
   )
 }

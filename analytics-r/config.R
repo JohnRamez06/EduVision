@@ -28,9 +28,9 @@ BASE_DIR <- .resolve_base()
 
 DB_CONFIG <- list(
   host     = "127.0.0.1",
-  port     = 8889,
+  port     = 3306,
   user     = "root",
-  password = "root",
+  password = "",
   database = "eduvision"
 )
 

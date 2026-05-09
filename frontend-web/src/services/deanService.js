@@ -23,3 +23,12 @@ export const getWeeklyTrends = async () => {
   const res = await api.get("/facade/dean/weekly-trends");
   return res.data;
 };
+
+export const getAttendanceAnalytics = () =>
+  api.get("/facade/dean/reports/attendance").then(r => r.data);
+
+export const getStudentFocusReport = () =>
+  api.get("/facade/dean/reports/focus").then(r => r.data);
+
+export const getPeakActivityReport = () =>
+  api.get("/facade/dean/reports/peak-activity").then(r => r.data);

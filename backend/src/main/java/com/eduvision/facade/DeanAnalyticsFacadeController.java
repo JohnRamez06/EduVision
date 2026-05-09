@@ -79,4 +79,34 @@ public class DeanAnalyticsFacadeController {
             return ResponseEntity.internalServerError().build();
         }
     }
+
+    @GetMapping("/reports/attendance")
+    public ResponseEntity<Map<String, Object>> getAttendanceAnalytics() {
+        try {
+            return ResponseEntity.ok(deanService.getAttendanceAnalytics());
+        } catch (Exception e) {
+            logger.error("Error in attendance analytics: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/reports/focus")
+    public ResponseEntity<Map<String, Object>> getStudentFocusReport() {
+        try {
+            return ResponseEntity.ok(deanService.getStudentFocusReport());
+        } catch (Exception e) {
+            logger.error("Error in student focus report: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    @GetMapping("/reports/peak-activity")
+    public ResponseEntity<Map<String, Object>> getPeakActivityReport() {
+        try {
+            return ResponseEntity.ok(deanService.getPeakActivityReport());
+        } catch (Exception e) {
+            logger.error("Error in peak activity report: {}", e.getMessage());
+            return ResponseEntity.internalServerError().build();
+        }
+    }
 }

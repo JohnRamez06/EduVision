@@ -1,6 +1,7 @@
 package com.eduvision.facade;
 
 import com.eduvision.dto.lecturer.SessionHistoryDTO;
+import com.eduvision.service.LecturerAnalyticsService;
 import com.eduvision.service.LecturerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,9 +17,12 @@ import java.util.Map;
 public class LecturerPortalFacadeController {
 
     private final LecturerService lecturerService;
+    private final LecturerAnalyticsService analyticsService;
 
-    public LecturerPortalFacadeController(LecturerService lecturerService) {
+    public LecturerPortalFacadeController(LecturerService lecturerService,
+                                           LecturerAnalyticsService analyticsService) {
         this.lecturerService = lecturerService;
+        this.analyticsService = analyticsService;
     }
 
     /** GET /api/v1/facade/lecturer/dashboard */
@@ -52,5 +56,40 @@ public class LecturerPortalFacadeController {
     public ResponseEntity<List<LecturerService.DetectedStudentDTO>> getDetectedStudents(
             @PathVariable String sessionId) {
         return ResponseEntity.ok(lecturerService.getDetectedStudents(sessionId));
+    }
+
+    /** GET /api/v1/facade/lecturer/sessions/{sessionId}/focus-timeline */
+    @GetMapping("/sessions/{sessionId}/focus-timeline")
+    public ResponseEntity<List<Map<String, Object>>> getSessionFocusTimeline(
+            @PathVariable String sessionId) {
+        return ResponseEntity.ok(analyticsService.getSessionFocusTimeline(sessionId));
+    }
+
+    /** GET /api/v1/facade/lecturer/courses/{courseId}/at-risk */
+    @GetMapping("/courses/{courseId}/at-risk")
+    public ResponseEntity<List<Map<String, Object>>> getCourseAtRiskStudents(
+            @PathVariable String courseId) {
+        return ResponseEntity.ok(analyticsService.getCourseAtRiskStudents(courseId));
+    }
+
+    /** GET /api/v1/facade/lecturer/courses/{courseId}/lecture-comparison */
+    @GetMapping("/courses/{courseId}/lecture-comparison")
+    public ResponseEntity<List<Map<String, Object>>> getCourseLectureComparison(
+            @PathVariable String courseId) {
+        return ResponseEntity.ok(analyticsService.getCourseLectureComparison(courseId));
+    }
+
+    /** GET /api/v1/facade/lecturer/courses/{courseId}/behavioral-patterns */
+    @GetMapping("/courses/{courseId}/behavioral-patterns")
+    public ResponseEntity<Map<String, Object>> getCourseBehavioralPatterns(
+            @PathVariable String courseId) {
+        return ResponseEntity.ok(analyticsService.getCourseBehavioralPatterns(courseId));
+    }
+
+    /** GET /api/v1/facade/lecturer/courses/{courseId}/ai-predictions */
+    @GetMapping("/courses/{courseId}/ai-predictions")
+    public ResponseEntity<List<Map<String, Object>>> getCourseAIPredictions(
+            @PathVariable String courseId) {
+        return ResponseEntity.ok(analyticsService.getCourseAIPredictions(courseId));
     }
 }

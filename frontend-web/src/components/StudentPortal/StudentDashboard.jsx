@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useContext, useEffect, useState } from 'react'
 import { AlertTriangle, BookOpen, Brain, Lightbulb } from 'lucide-react'
 import studentService from '../../services/studentService'
+import { AuthContext } from '../../context/AuthContext'
 import MyCoursesList from './MyCoursesList'
 import ConcentrationTimeline from './ConcentrationTimeline'
 import EmotionBreakdown from './EmotionBreakdown'
@@ -10,7 +11,9 @@ import WeeklyReportViewer from './WeeklyReportViewer'
 import ConsentManager from './ConsentManager'
 
 export default function StudentDashboard() {
+  const { user } = useContext(AuthContext)
   const [data, setData] = useState(null)
+  const [consentStatus, setConsentStatus] = useState({ hasConsented: false })
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -18,6 +21,13 @@ export default function StudentDashboard() {
       .then(setData)
       .catch((caughtError) => setError(caughtError.response?.data?.message ?? 'Failed to load student dashboard.'))
   }, [])
+
+  useEffect(() => {
+    if (!user?.email) return
+    studentService.getConsentStatus(user.email)
+      .then(setConsentStatus)
+      .catch(() => {})
+  }, [user])
 
   const emotionBreakdown = data?.overallStats?.emotionBreakdown ?? {}
   const trend = (data?.recentSummaries ?? []).map((summary, index) => ({
@@ -47,7 +57,7 @@ export default function StudentDashboard() {
 
       <div className="grid gap-5 xl:grid-cols-2">
         <StudyRecommendations recommendations={data?.recommendations ?? []} />
-        <ConsentManager status={{ hasConsented: false }} />
+        <ConsentManager status={consentStatus} />
       </div>
 
       <WeeklyReportViewer reports={data?.weeklyReports ?? []} />

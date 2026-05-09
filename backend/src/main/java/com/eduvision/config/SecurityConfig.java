@@ -66,6 +66,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/v1/facade/student/**").hasRole("STUDENT")
                 .requestMatchers("/api/v1/consent/**").hasRole("STUDENT")
                 // SHARED ENDPOINTS
+                .requestMatchers("/api/v1/reports/my/**").hasRole("STUDENT")
+                .requestMatchers("/api/v1/reports/my").hasRole("STUDENT")
                 .requestMatchers("/api/v1/reports/**").hasAnyRole("STUDENT", "LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/emotion-data/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")
                 .requestMatchers(HttpMethod.GET, "/api/v1/sessions/**").hasAnyRole("LECTURER", "DEAN", "ADMIN")

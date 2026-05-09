@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
@@ -252,6 +253,174 @@ public class DeanService {
         } catch (Exception e) {
             logger.error("Error getting courses: {}", e.getMessage());
             return new ArrayList<>();
+        }
+    }
+
+    // ── DEAN REPORTS ──────────────────────────────────────────────────────────
+
+    /** Attendance Analytics: top absent students, worst courses, weekly comparison, heatmap */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Map<String, Object> getAttendanceAnalytics() {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        safeQuery(result, "topAbsentStudents", () -> jdbc.queryForList("""
+            SELECT CONCAT(u.first_name, ' ', u.last_name) as studentName,
+                   COUNT(*) as totalSessions,
+                   SUM(CASE WHEN sa.status = 'absent' THEN 1 ELSE 0 END) as absences,
+                   ROUND(AVG(CASE WHEN sa.status = 'absent' THEN 100.0 ELSE 0 END), 1) as absenceRate
+            FROM session_attendance sa
+            JOIN users u ON u.id = sa.student_id
+            GROUP BY sa.student_id, u.first_name, u.last_name
+            HAVING SUM(CASE WHEN sa.status = 'absent' THEN 1 ELSE 0 END) > 0
+            ORDER BY absenceRate DESC LIMIT 10
+        """));
+
+        safeQuery(result, "avgAttendancePerCourse", () -> jdbc.queryForList("""
+            SELECT c.code, c.title,
+                   ROUND(AVG(wca.attendance_rate), 1) as avgAttendance,
+                   COUNT(DISTINCT wca.student_id) as studentCount
+            FROM weekly_course_attendance wca
+            JOIN courses c ON c.id = wca.course_id
+            GROUP BY wca.course_id, c.code, c.title
+            ORDER BY avgAttendance ASC
+        """));
+
+        safeQuery(result, "weeklyAttendance", () -> jdbc.queryForList("""
+            SELECT wp.week_number, wp.year,
+                   CONCAT('W', wp.week_number) as label,
+                   ROUND(AVG(wca.attendance_rate), 1) as avgAttendance
+            FROM weekly_periods wp
+            JOIN weekly_course_attendance wca ON wca.week_id = wp.id
+            GROUP BY wp.id, wp.week_number, wp.year, wp.start_date
+            ORDER BY wp.start_date ASC LIMIT 12
+        """));
+
+        safeQuery(result, "attendanceHeatmap", () -> jdbc.queryForList("""
+            SELECT DAYOFWEEK(ls.actual_start) as dayNum,
+                   DAYNAME(ls.actual_start) as dayName,
+                   HOUR(ls.actual_start) as hourOfDay,
+                   ROUND(AVG(CASE WHEN sa.status = 'present' THEN 100.0 ELSE 0 END), 1) as attendanceRate,
+                   COUNT(DISTINCT ls.id) as sessionCount
+            FROM session_attendance sa
+            JOIN lecture_sessions ls ON ls.id = sa.session_id
+            WHERE ls.actual_start IS NOT NULL
+            GROUP BY DAYOFWEEK(ls.actual_start), DAYNAME(ls.actual_start), HOUR(ls.actual_start)
+            ORDER BY DAYOFWEEK(ls.actual_start), HOUR(ls.actual_start)
+        """));
+
+        return result;
+    }
+
+    /** Student Focus Report: avg focus per student, most distracted, low-focus courses, trend */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Map<String, Object> getStudentFocusReport() {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        safeQuery(result, "focusPerStudent", () -> jdbc.queryForList("""
+            SELECT CONCAT(u.first_name, ' ', u.last_name) as studentName,
+                   ROUND(AVG(sls.avg_concentration) * 100, 1) as avgFocus,
+                   ROUND(AVG(sls.attentive_percentage) * 100, 1) as avgAttentiveness,
+                   COUNT(sls.session_id) as sessionsAttended,
+                   MAX(sls.dominant_emotion) as dominantEmotion
+            FROM student_lecture_summaries sls
+            JOIN users u ON u.id = sls.student_id
+            GROUP BY sls.student_id, u.first_name, u.last_name
+            ORDER BY AVG(sls.avg_concentration) ASC
+        """));
+
+        safeQuery(result, "mostDistractedStudents", () -> jdbc.queryForList("""
+            SELECT CONCAT(u.first_name, ' ', u.last_name) as studentName,
+                   ROUND(AVG(sls.avg_concentration) * 100, 1) as avgFocus,
+                   ROUND(AVG(sls.pct_distracted) * 100, 1) as distractionRate
+            FROM student_lecture_summaries sls
+            JOIN users u ON u.id = sls.student_id
+            GROUP BY sls.student_id, u.first_name, u.last_name
+            ORDER BY AVG(sls.avg_concentration) ASC LIMIT 10
+        """));
+
+        safeQuery(result, "focusByCourse", () -> jdbc.queryForList("""
+            SELECT c.code, c.title,
+                   ROUND(AVG(sls.avg_concentration) * 100, 1) as avgFocus,
+                   ROUND(AVG(sls.attentive_percentage) * 100, 1) as avgAttentiveness,
+                   COUNT(DISTINCT sls.student_id) as studentCount
+            FROM student_lecture_summaries sls
+            JOIN courses c ON c.id = sls.course_id
+            GROUP BY sls.course_id, c.code, c.title
+            ORDER BY AVG(sls.avg_concentration) ASC
+        """));
+
+        safeQuery(result, "focusTrend", () -> jdbc.queryForList("""
+            SELECT DATE_FORMAT(ls.actual_start, '%Y-%u') as weekKey,
+                   DATE_FORMAT(ls.actual_start, '%d/%m') as label,
+                   ROUND(AVG(sls.avg_concentration) * 100, 1) as avgFocus
+            FROM student_lecture_summaries sls
+            JOIN lecture_sessions ls ON ls.id = sls.session_id
+            WHERE ls.actual_start IS NOT NULL
+            GROUP BY weekKey, DATE_FORMAT(ls.actual_start, '%d/%m')
+            ORDER BY weekKey ASC LIMIT 12
+        """));
+
+        return result;
+    }
+
+    /** Peak Activity Report: focus by hour/day, best/worst lecture slots */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public Map<String, Object> getPeakActivityReport() {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        safeQuery(result, "focusByHour", () -> jdbc.queryForList("""
+            SELECT HOUR(ses.captured_at) as hourOfDay,
+                   ROUND(AVG(CASE
+                       WHEN ses.concentration = 'high'   THEN 85
+                       WHEN ses.concentration = 'medium' THEN 55
+                       WHEN ses.concentration = 'low'    THEN 25
+                       ELSE 10 END), 1) as avgFocus,
+                   COUNT(*) as snapshotCount
+            FROM student_emotion_snapshots ses
+            GROUP BY HOUR(ses.captured_at)
+            ORDER BY HOUR(ses.captured_at)
+        """));
+
+        safeQuery(result, "focusByDay", () -> jdbc.queryForList("""
+            SELECT DAYOFWEEK(ses.captured_at) as dayNum,
+                   DAYNAME(ses.captured_at) as dayName,
+                   ROUND(AVG(CASE
+                       WHEN ses.concentration = 'high'   THEN 85
+                       WHEN ses.concentration = 'medium' THEN 55
+                       WHEN ses.concentration = 'low'    THEN 25
+                       ELSE 10 END), 1) as avgFocus
+            FROM student_emotion_snapshots ses
+            GROUP BY DAYOFWEEK(ses.captured_at), DAYNAME(ses.captured_at)
+            ORDER BY DAYOFWEEK(ses.captured_at)
+        """));
+
+        safeQuery(result, "lectureSlots", () -> jdbc.queryForList("""
+            SELECT c.code as courseCode,
+                   DATE_FORMAT(ls.actual_start, '%a %H:%i') as slot,
+                   ROUND(AVG(sls.avg_concentration) * 100, 1) as avgFocus,
+                   ROUND(AVG(sls.attentive_percentage) * 100, 1) as avgAttentiveness,
+                   COUNT(DISTINCT sls.session_id) as sessionCount
+            FROM student_lecture_summaries sls
+            JOIN lecture_sessions ls ON ls.id = sls.session_id
+            JOIN courses c ON c.id = sls.course_id
+            WHERE ls.actual_start IS NOT NULL
+            GROUP BY c.code, DATE_FORMAT(ls.actual_start, '%a %H:%i')
+            ORDER BY AVG(sls.avg_concentration) DESC LIMIT 20
+        """));
+
+        return result;
+    }
+
+    // ── Helper: run a query and store result or empty list on failure ──────────
+    @FunctionalInterface
+    private interface SqlSupplier { Object get() throws Exception; }
+
+    private void safeQuery(Map<String, Object> result, String key, SqlSupplier supplier) {
+        try {
+            result.put(key, supplier.get());
+        } catch (Exception e) {
+            logger.warn("Query '{}' failed: {}", key, e.getMessage());
+            result.put(key, new ArrayList<>());
         }
     }
 }

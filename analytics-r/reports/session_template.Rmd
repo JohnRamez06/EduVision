@@ -2,18 +2,23 @@
 title: "Session Report"
 date: "`r format(Sys.Date(), '%B %d, %Y')`"
 output:
-  pdf_document:
+  html_document:
+    theme: flatly
+    highlight: tango
     toc: true
-    toc_depth: 2
+    toc_float: true
+    self_contained: true
 params:
   session_id: ""
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
-                      fig.width = 7, fig.height = 4)
+                      fig.width = 7, fig.height = 4, dpi = 120)
 library(ggplot2)
 library(dplyr)
+library(knitr)
+library(kableExtra)
 
 ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
 source(file.path(ANALYTICS_HOME, "config.R"))
@@ -24,16 +29,18 @@ source(file.path(ANALYTICS_HOME, "analysis", "change_point_detection.R"))
 session_id <- params$session_id
 sa         <- session_analysis(session_id)
 cp         <- change_point_detection(session_id)
+
+theme_report <- theme_minimal(base_size = 12) +
+  theme(plot.title = element_text(size = 13, face = "bold", colour = "#1E3A5F"),
+        panel.grid.minor = element_blank())
 ```
 
----
-
-**Course:** `r sa$session_meta$course_code` – `r sa$session_meta$course_title`  
-**Lecturer:** `r sa$session_meta$lecturer_name`  
-**Start:** `r sa$session_meta$actual_start`  
-**Students Present:** `r sa$n_present`
-
----
+<div style="background:#1E3A5F;color:white;padding:16px 20px;border-radius:8px;margin-bottom:24px">
+<strong>Course:</strong> `r sa$session_meta$course_code` – `r sa$session_meta$course_title`<br/>
+<strong>Lecturer:</strong> `r sa$session_meta$lecturer_name`<br/>
+<strong>Start:</strong> `r sa$session_meta$actual_start` &nbsp;·&nbsp;
+<strong>Students Present:</strong> `r sa$n_present`
+</div>
 
 ## 1. Engagement Timeline
 
@@ -42,37 +49,36 @@ et <- sa$engagement_timeline
 if (nrow(et) > 0) {
   cp_times <- as.POSIXct(cp$changepoints)
   p <- ggplot(et, aes(x = captured_at, y = engagement_val)) +
-    geom_line(colour = "#90CAF9", linewidth = 0.6) +
+    geom_line(colour = "#BDD7EE", linewidth = 0.6) +
     geom_line(aes(y = smooth_eng), colour = "#1565C0", linewidth = 1.2) +
     scale_y_continuous(limits = c(0, 1), labels = scales::percent) +
-    labs(x = "Time", y = "Engagement", title = "Class Engagement Over Session")
-  if (length(cp_times) > 0) {
+    labs(x = "Time", y = "Engagement", title = "Class Engagement Over Session",
+         subtitle = "Blue = smoothed (5-point rolling avg)") +
+    theme_report
+  if (length(cp_times) > 0)
     p <- p + geom_vline(xintercept = as.numeric(cp_times),
-                        linetype = "dashed", colour = "red", alpha = 0.7)
-  }
+                        linetype = "dashed", colour = "red", alpha = 0.6)
   print(p)
 } else {
-  cat("No engagement data.")
+  cat("No engagement data available.")
 }
 ```
 
-## 2. Concentration Heatmap
+## 2. Per-Student Concentration
 
 ```{r conc-heatmap}
 ch <- sa$conc_heatmap
 if (nrow(ch) > 0) {
   ggplot(ch, aes(x = reorder(student_name, avg_conc), y = 1, fill = avg_conc)) +
-    geom_tile(colour = "white") +
-    scale_fill_gradient(low = "#EF5350", high = "#66BB6A",
-                        limits = c(0, 100), name = "Conc.") +
+    geom_tile(colour = "white", linewidth = 0.5) +
+    scale_fill_gradient(low = "#E74C3C", high = "#27AE60",
+                        limits = c(0, 100), name = "Focus") +
     coord_flip() +
-    labs(x = "Student", y = "",
-         title = "Per-Student Average Concentration") +
-    theme_minimal() +
-    theme(axis.text.x = element_blank(),
-          axis.ticks.x = element_blank())
+    labs(x = "Student", y = "", title = "Per-Student Average Concentration") +
+    theme_report +
+    theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 } else {
-  cat("No concentration data.")
+  cat("No concentration data available.")
 }
 ```
 
@@ -81,14 +87,17 @@ if (nrow(ch) > 0) {
 ```{r emo-dist}
 ed <- sa$emotion_dist
 if (nrow(ed) > 0) {
+  emo_colors <- c(happy="#27AE60", engaged="#2980B9", neutral="#95A5A6",
+                  confused="#F39C12", sad="#8E44AD", angry="#E74C3C",
+                  surprised="#16A085", fearful="#E67E22", disgusted="#5D6D7E")
   ggplot(ed, aes(x = reorder(emotion, -count), y = count, fill = emotion)) +
-    geom_col(show.legend = FALSE) +
-    scale_fill_brewer(palette = "Set2") +
-    labs(x = "Emotion", y = "Count", title = "Emotion Distribution") +
-    theme_minimal() +
-    theme(axis.text.x = element_text(angle = 30, hjust = 1))
+    geom_col(show.legend = FALSE, width = 0.55) +
+    scale_fill_manual(values = emo_colors) +
+    scale_y_continuous(labels = scales::comma) +
+    labs(x = NULL, y = "Snapshots", title = "Emotion Distribution") +
+    theme_report
 } else {
-  cat("No emotion data.")
+  cat("No emotion data available.")
 }
 ```
 
@@ -97,22 +106,25 @@ if (nrow(ed) > 0) {
 ```{r alerts-log}
 al <- sa$alerts
 if (nrow(al) > 0) {
-  knitr::kable(
-    al[, c("alert_type","severity","message","triggered_at")],
-    col.names = c("Type","Severity","Message","Triggered At")
-  )
+  al %>%
+    select(any_of(c("alert_type","severity","message","triggered_at"))) %>%
+    kable(col.names = c("Type","Severity","Message","Triggered At")) %>%
+    kable_styling(bootstrap_options = c("striped","hover","condensed"))
 } else {
   cat("No alerts during this session.")
 }
 ```
 
-## 5. Change-Point Summary
+## 5. Engagement Change Points
 
 ```{r cp-summary}
 if (length(cp$changepoints) > 0) {
-  cat(sprintf("Engagement change point(s) detected at:\n%s\n",
-              paste(cp$changepoints, collapse = "\n")))
+  cat(sprintf("Engagement shifts detected at: %s",
+              paste(format(as.POSIXct(cp$changepoints), "%H:%M"), collapse = ", ")))
 } else {
   cat("No significant engagement change points detected.")
 }
 ```
+
+---
+*Generated by EduVision Analytics · `r format(Sys.time(), "%d %B %Y %H:%M")`*

@@ -4,7 +4,7 @@ import ThemeToggle from '../components/common/ThemeToggle'
 import AlertBell from '../components/common/AlertBell'
 import {
   GraduationCap, LayoutDashboard, BookOpen, BarChart3,
-  Lightbulb, ShieldCheck, User, LogOut, Bell, Menu, ChevronRight,
+  Lightbulb, ShieldCheck, User, LogOut, Bell, Menu, ChevronRight, FileText,
 } from 'lucide-react'
 import { AuthContext } from '../context/AuthContext'
 import authService from '../services/authService'
@@ -14,6 +14,7 @@ const PAGE_TITLE = {
   '/student/courses':          'My Courses',
   '/student/analytics':        'Analytics',
   '/student/recommendations':  'Recommendations',
+  '/student/reports':          'My Reports',
   '/student/consent':          'Privacy & Consent',
   '/student/profile':          'Profile',
 }
@@ -23,6 +24,7 @@ const NAV = [
   { to: '/student/courses',        icon: BookOpen,        label: 'My Courses' },
   { to: '/student/analytics',      icon: BarChart3,       label: 'Analytics' },
   { to: '/student/recommendations',icon: Lightbulb,       label: 'Recommendations' },
+  { to: '/student/reports',        icon: FileText,        label: 'My Reports' },
   { to: '/student/consent',        icon: ShieldCheck,     label: 'Consent' },
   { to: '/student/profile',        icon: User,            label: 'Profile' },
 ]

@@ -11,16 +11,19 @@ import StudentCourses from './pages/StudentPortal/StudentCourses'
 import StudentProfile from './pages/StudentPortal/StudentProfile'
 import StudentRecommendations from './pages/StudentPortal/StudentRecommendations'
 import StudentConsent from './pages/StudentPortal/StudentConsent'
+import StudentReports from './pages/StudentPortal/StudentReports'
 import LecturerDashboard from './pages/LecturerPortal/LecturerDashboard'
 import LecturerCourses from './pages/LecturerPortal/LecturerCourses'
 import LecturerLiveSession from './pages/LecturerPortal/LecturerLiveSession'
 import LecturerSessions from './pages/LecturerPortal/LecturerSessions'
 import LecturerProfile from './pages/LecturerPortal/LecturerProfile'
 import LecturerReports from './pages/LecturerPortal/LecturerReports'
+import LecturerCourseAnalytics from './pages/LecturerPortal/LecturerCourseAnalytics'
 import AdminDashboard from './pages/AdminPortal/AdminDashboard'
 import AdminUsers from './pages/AdminPortal/AdminUsers'
 import AdminRoles from './pages/AdminPortal/AdminRoles'
 import DeanDashboard from './components/DeanDashboard/DeanDashboard'
+import DeanReports from './pages/DeanPortal/DeanReports'
 import FaceEnrollment from './components/AdminDashboard/FaceEnrollment'
 import StartLiveSessionPage from './pages/StartLiveSessionPage'
 import ManualAttendance from './components/LecturerDashboard/ManualAttendance'
@@ -65,7 +68,8 @@ export default function App() {
       <Route path="/student/courses" element={<ProtectedRoute role="student"><StudentCourses /></ProtectedRoute>} />
       <Route path="/student/profile" element={<ProtectedRoute role="student"><StudentProfile /></ProtectedRoute>} />
       <Route path="/student/recommendations" element={<ProtectedRoute role="student"><StudentRecommendations /></ProtectedRoute>} />
-      <Route path="/student/consent" element={<ProtectedRoute role="student"><StudentConsent /></ProtectedRoute>} />
+      <Route path="/student/consent"  element={<ProtectedRoute role="student"><StudentConsent /></ProtectedRoute>} />
+      <Route path="/student/reports"  element={<ProtectedRoute role="student"><StudentReports /></ProtectedRoute>} />
 
       <Route path="/lecturer" element={<ProtectedRoute role="lecturer"><LecturerDashboard /></ProtectedRoute>} />
       <Route path="/lecturer/courses" element={<ProtectedRoute role="lecturer"><LecturerCourses /></ProtectedRoute>} />
@@ -73,13 +77,13 @@ export default function App() {
       <Route path="/lecturer/sessions" element={<ProtectedRoute role="lecturer"><LecturerSessions /></ProtectedRoute>} />
       <Route path="/lecturer/reports" element={<ProtectedRoute role="lecturer"><LecturerReports /></ProtectedRoute>} />
       <Route path="/lecturer/profile" element={<ProtectedRoute role="lecturer"><LecturerProfile /></ProtectedRoute>} />
+      <Route path="/lecturer/courses/:courseId/analytics" element={<ProtectedRoute role="lecturer"><LecturerCourseAnalytics /></ProtectedRoute>} />
 
       <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
       <Route path="/admin/users" element={<ProtectedRoute role="admin"><AdminUsers /></ProtectedRoute>} />
       <Route path="/admin/roles" element={<ProtectedRoute role="admin"><AdminRoles /></ProtectedRoute>} />
       <Route path="/dean" element={<ProtectedRoute role="dean"><DeanDashboard /></ProtectedRoute>} />
-
-      <Route path="/dean" element={<ProtectedRoute role="dean"><DeanDashboard /></ProtectedRoute>} />
+      <Route path="/dean/reports" element={<ProtectedRoute role="dean"><DeanReports /></ProtectedRoute>} />
       <Route path="/admin/face-enrollment" element={<ProtectedRoute role="admin"><FaceEnrollment /></ProtectedRoute>} />
       <Route path="/start-live-session" element={<ProtectedRoute role="lecturer"><StartLiveSessionPage /></ProtectedRoute>} />
       <Route path="/lecturer/courses/:courseId/manual-attendance" element={

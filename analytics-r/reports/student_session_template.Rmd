@@ -1,0 +1,243 @@
+---
+title: "My Session Report"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    theme: flatly
+    highlight: tango
+    toc: false
+    self_contained: true
+params:
+  student_id:   ""
+  session_id:   ""
+  student_name: "Student"
+  course_name:  "Course"
+  session_date: ""
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE,
+                      fig.width = 6.5, fig.height = 3.5)
+library(ggplot2)
+library(dplyr)
+library(knitr)
+
+student_id <- params$student_id
+session_id <- params$session_id
+
+ANALYTICS_HOME <- Sys.getenv("ANALYTICS_HOME", ".")
+source(file.path(ANALYTICS_HOME, "config.R"))
+source(file.path(ANALYTICS_HOME, "scripts", "utils.R"))
+
+conn <- get_connection()
+
+# ── Load student snapshot data for this session ─────────────────────────────
+snaps <- dbGetQuery(conn, sprintf("
+  SELECT ses.emotion, ses.concentration, ses.confidence_score, ses.captured_at
+  FROM student_emotion_snapshots ses
+  WHERE ses.student_id = '%s' AND ses.session_id = '%s'
+  ORDER BY ses.captured_at
+", student_id, session_id))
+
+# ── Load stored summary (if already computed by compute_student_summaries.R) ─
+summary_row <- dbGetQuery(conn, sprintf("
+  SELECT avg_concentration, attentive_percentage, dominant_emotion,
+         pct_happy, pct_sad, pct_angry, pct_confused, pct_neutral, pct_engaged,
+         pct_distracted, overall_engagement, snapshot_count
+  FROM student_lecture_summaries
+  WHERE student_id = '%s' AND session_id = '%s'
+  LIMIT 1
+", student_id, session_id))
+
+# ── Load attendance ─────────────────────────────────────────────────────────
+attendance <- dbGetQuery(conn, sprintf("
+  SELECT sa.status, sa.joined_at, sa.left_at,
+         COUNT(el.id) AS exit_count,
+         COALESCE(SUM(el.exit_duration_minutes), 0) AS total_away_mins
+  FROM session_attendance sa
+  LEFT JOIN session_exit_logs el
+         ON el.session_id = sa.session_id AND el.student_id = sa.student_id
+  WHERE sa.student_id = '%s' AND sa.session_id = '%s'
+  GROUP BY sa.status, sa.joined_at, sa.left_at
+  LIMIT 1
+", student_id, session_id))
+
+DBI::dbDisconnect(conn)
+
+# ── Derive metrics ──────────────────────────────────────────────────────────
+n <- nrow(snaps)
+has_snaps <- n > 0
+
+if (has_snaps && nrow(summary_row) == 0) {
+  # Fall back to computing on-the-fly if the summary table hasn't been populated yet
+  conc_score  <- dplyr::case_when(
+    tolower(snaps$concentration) == "high"       ~ 85,
+    tolower(snaps$concentration) == "medium"     ~ 55,
+    tolower(snaps$concentration) == "low"        ~ 25,
+    tolower(snaps$concentration) == "distracted" ~ 10,
+    TRUE ~ NA_real_
+  )
+  avg_conc    <- mean(conc_score, na.rm = TRUE) / 100
+  attentive   <- (tolower(snaps$concentration) %in% c("high", "medium")) |
+                 (tolower(snaps$emotion) == "engaged")
+  attentive_p <- mean(attentive, na.rm = TRUE)
+  dom_emotion <- names(which.max(table(snaps$emotion)))
+  emo_pcts    <- as.data.frame(prop.table(table(tolower(snaps$emotion))) * 100)
+  conc_pcts   <- as.data.frame(prop.table(table(tolower(snaps$concentration))) * 100)
+} else if (nrow(summary_row) > 0) {
+  avg_conc    <- as.numeric(summary_row$avg_concentration[1])
+  attentive_p <- as.numeric(summary_row$attentive_percentage[1])
+  dom_emotion <- summary_row$dominant_emotion[1]
+  emo_pcts    <- data.frame(
+    Var1 = c("happy","sad","angry","confused","neutral","engaged"),
+    Freq = c(summary_row$pct_happy, summary_row$pct_sad, summary_row$pct_angry,
+             summary_row$pct_confused, summary_row$pct_neutral, summary_row$pct_engaged) * 100
+  )
+  conc_pcts   <- data.frame(
+    Var1 = c("high","medium","low","distracted"),
+    Freq = c(
+      100 - summary_row$pct_distracted * 100 - summary_row$attentive_percentage * 100 * 0.5,
+      summary_row$attentive_percentage * 100 * 0.5,
+      summary_row$pct_distracted * 100 * 0.5,
+      summary_row$pct_distracted * 100
+    )
+  )
+  if (has_snaps) {
+    conc_pcts <- as.data.frame(prop.table(table(tolower(snaps$concentration))) * 100)
+    emo_pcts  <- as.data.frame(prop.table(table(tolower(snaps$emotion))) * 100)
+  }
+} else {
+  avg_conc    <- NA; attentive_p <- NA; dom_emotion <- "N/A"
+  emo_pcts    <- data.frame(Var1 = character(), Freq = numeric())
+  conc_pcts   <- data.frame(Var1 = character(), Freq = numeric())
+}
+
+# ── Colour maps ─────────────────────────────────────────────────────────────
+emotion_colors <- c(
+  happy = "#10b981", engaged = "#3b82f6", neutral = "#94a3b8",
+  confused = "#f59e0b", sad = "#8b5cf6", angry = "#ef4444",
+  surprised = "#06b6d4", fearful = "#fb923c", disgusted = "#6366f1"
+)
+conc_colors <- c(high = "#10b981", medium = "#3b82f6",
+                 low  = "#f59e0b", distracted = "#ef4444")
+```
+
+---
+
+**Student:** `r params$student_name` &nbsp;&nbsp;|&nbsp;&nbsp; **Course:** `r params$course_name` &nbsp;&nbsp;|&nbsp;&nbsp; **Date:** `r params$session_date`
+
+---
+
+## Summary
+
+```{r summary-table}
+if (!is.na(avg_conc)) {
+  kable(data.frame(
+    Metric  = c("Average Concentration", "Attentiveness", "Dominant Emotion",
+                "Total Snapshots", "Attendance Status"),
+    Value   = c(
+      sprintf("%.0f%%", avg_conc * 100),
+      sprintf("%.0f%%", attentive_p * 100),
+      tools::toTitleCase(dom_emotion),
+      ifelse(has_snaps, as.character(n), "0"),
+      ifelse(nrow(attendance) > 0, tools::toTitleCase(attendance$status[1]), "N/A")
+    )
+  ), align = c("l","r"))
+} else {
+  cat("No snapshot data was recorded for this student in this session.")
+}
+```
+
+## Concentration Breakdown
+
+```{r conc-chart}
+if (nrow(conc_pcts) > 0 && sum(conc_pcts$Freq) > 0) {
+  conc_pcts$Var1 <- factor(conc_pcts$Var1, levels = c("high","medium","low","distracted"))
+  ggplot(conc_pcts[conc_pcts$Freq > 0, ],
+         aes(x = reorder(Var1, -Freq), y = Freq, fill = Var1)) +
+    geom_col(width = 0.55, show.legend = FALSE) +
+    scale_fill_manual(values = conc_colors, na.value = "#94a3b8") +
+    scale_y_continuous(limits = c(0, 100), labels = function(x) paste0(x, "%")) +
+    labs(x = NULL, y = "% of session", title = "Time Spent at Each Concentration Level") +
+    theme_minimal(base_size = 11) +
+    theme(panel.grid.major.x = element_blank(),
+          axis.text.x = element_text(size = 10, face = "bold"))
+} else {
+  cat("No concentration data available.")
+}
+```
+
+## Emotion Distribution
+
+```{r emo-chart}
+if (nrow(emo_pcts) > 0 && sum(emo_pcts$Freq) > 0) {
+  emo_plot <- emo_pcts[emo_pcts$Freq > 0, ]
+  ggplot(emo_plot, aes(x = reorder(Var1, -Freq), y = Freq, fill = Var1)) +
+    geom_col(width = 0.55, show.legend = FALSE) +
+    scale_fill_manual(values = emotion_colors, na.value = "#94a3b8") +
+    scale_y_continuous(limits = c(0, 100), labels = function(x) paste0(x, "%")) +
+    labs(x = NULL, y = "% of session", title = "Emotion Distribution") +
+    theme_minimal(base_size = 11) +
+    theme(panel.grid.major.x = element_blank(),
+          axis.text.x = element_text(size = 9, face = "bold"))
+} else {
+  cat("No emotion data available.")
+}
+```
+
+## Concentration Over Time
+
+```{r conc-timeline}
+if (has_snaps && "concentration" %in% colnames(snaps)) {
+  snaps$captured_at <- as.POSIXct(snaps$captured_at)
+  snaps$conc_score  <- dplyr::case_when(
+    tolower(snaps$concentration) == "high"       ~ 85,
+    tolower(snaps$concentration) == "medium"     ~ 55,
+    tolower(snaps$concentration) == "low"        ~ 25,
+    tolower(snaps$concentration) == "distracted" ~ 10,
+    TRUE ~ NA_real_
+  )
+  snaps$smooth_conc <- {
+    x <- snaps$conc_score
+    vapply(seq_along(x), function(i) mean(x[max(1, i-4):i], na.rm = TRUE), numeric(1))
+  }
+
+  ggplot(snaps, aes(x = captured_at)) +
+    geom_line(aes(y = conc_score), colour = "#cbd5e1", linewidth = 0.5, alpha = 0.5) +
+    geom_line(aes(y = smooth_conc), colour = "#3b82f6", linewidth = 1.2) +
+    scale_y_continuous(limits = c(0, 100),
+                       breaks = c(10, 25, 55, 85),
+                       labels = c("Distracted","Low","Medium","High")) +
+    labs(x = "Time", y = "Concentration",
+         title = "Your Concentration Throughout the Session",
+         subtitle = "Blue line = smoothed (5-snapshot rolling avg)") +
+    theme_minimal(base_size = 11)
+} else {
+  cat("No timeline data available.")
+}
+```
+
+## Attendance
+
+```{r attendance-table}
+if (nrow(attendance) > 0) {
+  att_display <- data.frame(
+    Field = c("Status", "Joined At", "Left At", "Times Left Room", "Total Away (min)"),
+    Value = c(
+      tools::toTitleCase(as.character(attendance$status[1])),
+      ifelse(is.na(attendance$joined_at[1]),   "—", format(as.POSIXct(attendance$joined_at[1]),   "%H:%M")),
+      ifelse(is.na(attendance$left_at[1]),     "—", format(as.POSIXct(attendance$left_at[1]),     "%H:%M")),
+      as.character(attendance$exit_count[1]),
+      as.character(round(attendance$total_away_mins[1], 1))
+    )
+  )
+  kable(att_display, align = c("l","r"))
+} else {
+  cat("No attendance record found for this session.")
+}
+```
+
+---
+
+*This report was generated automatically by EduVision Analytics.*
+*Data is based on facial recognition analysis and is for academic support purposes only.*

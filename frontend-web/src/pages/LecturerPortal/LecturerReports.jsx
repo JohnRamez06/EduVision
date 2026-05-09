@@ -55,25 +55,12 @@ function ReportButton({ onGenerate, label = 'Generate Report', disabled = false 
     }
   }
 
-  const download = () => {
+  const openReport = () => {
     if (!fileUrl) return
     const fileName = fileUrl.split('/').pop()
-    reportService.download(fileName)
-      .then(res => {
-        // res.data is already a Blob (responseType: 'blob') — use it directly
-        const blob = res.data instanceof Blob
-          ? res.data
-          : new Blob([res.data], { type: 'application/pdf' })
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = fileName
-        document.body.appendChild(a)
-        a.click()
-        a.remove()
-        window.URL.revokeObjectURL(url)
-      })
-      .catch(e => showError(e.response?.status === 404 ? 'File not found on server.' : 'Download failed.'))
+    // HTML reports open in new tab; user can print-to-PDF from there
+    const fullUrl = `http://localhost:8080/api/v1/reports/download/${fileName}`
+    window.open(fullUrl, '_blank')
   }
 
   if (state === 'idle')
@@ -103,9 +90,9 @@ function ReportButton({ onGenerate, label = 'Generate Report', disabled = false 
         <span className="flex items-center gap-1 text-xs text-emerald-400">
           <CheckCircle size={12} /> Ready
         </span>
-        <button onClick={download}
+        <button onClick={openReport}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium transition-colors">
-          <Download size={12} /> Download PDF
+          <Download size={12} /> Open Report
         </button>
         <button onClick={() => setState('idle')}
           className="p-1.5 rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors">
@@ -276,19 +263,7 @@ function HistoryTab() {
   const download = (fileUrl) => {
     if (!fileUrl) return
     const fileName = fileUrl.split('/').pop()
-    reportService.download(fileName).then(res => {
-      const blob = res.data instanceof Blob
-        ? res.data
-        : new Blob([res.data], { type: 'application/pdf' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fileName
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
-    })
+    window.open(`http://localhost:8080/api/v1/reports/download/${fileName}`, '_blank')
   }
 
   if (loading) return <div className="space-y-3">{[...Array(4)].map((_, i) => <Skeleton key={i} className="h-14" />)}</div>

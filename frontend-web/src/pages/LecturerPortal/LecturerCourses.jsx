@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { BookOpen, AlertTriangle, ChevronRight, Clock, Activity, Calendar } from 'lucide-react'
+import { BookOpen, AlertTriangle, ChevronRight, Clock, Activity, Calendar, BarChart3 } from 'lucide-react'
 import LecturerLayout from '../../layouts/LecturerLayout'
 import lecturerService from '../../services/lecturerService'
 
@@ -99,6 +99,13 @@ export default function LecturerCourses() {
                   >
                     <Calendar size={12} />
                     Manual Attendance
+                  </button>
+                  <button
+                    onClick={() => navigate(`/lecturer/courses/${c.courseId}/analytics`)}
+                    className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#667D9D]/15 hover:bg-[#667D9D]/25 text-[#ACBBC6] text-xs font-medium transition-all w-full border border-[#667D9D]/20"
+                  >
+                    <BarChart3 size={12} />
+                    Analytics
                   </button>
                 </div>
               </div>

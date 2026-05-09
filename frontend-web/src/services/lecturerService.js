@@ -22,8 +22,15 @@ const lecturerService = {
     api.get(`/facade/lecturer/sessions/${sessionId}/detected-students`).then(r => r.data),
 
   // Get session history
-  getSessionHistory: () => 
+  getSessionHistory: () =>
     api.get('/facade/lecturer/dashboard').then(r => r.data).then(d => d.recentSessions ?? []),
+
+  // Analytics
+  getSessionFocusTimeline:      (sessionId) => api.get(`/facade/lecturer/sessions/${sessionId}/focus-timeline`).then(r => r.data),
+  getCourseAtRiskStudents:      (courseId)  => api.get(`/facade/lecturer/courses/${courseId}/at-risk`).then(r => r.data),
+  getCourseLectureComparison:   (courseId)  => api.get(`/facade/lecturer/courses/${courseId}/lecture-comparison`).then(r => r.data),
+  getCourseBehavioralPatterns:  (courseId)  => api.get(`/facade/lecturer/courses/${courseId}/behavioral-patterns`).then(r => r.data),
+  getCourseAIPredictions:       (courseId)  => api.get(`/facade/lecturer/courses/${courseId}/ai-predictions`).then(r => r.data),
 }
 
 export default lecturerService

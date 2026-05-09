@@ -8,8 +8,11 @@ import com.eduvision.model.WeeklyPeriods;
 import com.eduvision.repository.ReportRepository;
 import com.eduvision.repository.UserRepository;
 import com.eduvision.repository.WeeklyPeriodsRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -22,6 +25,8 @@ import java.util.UUID;
 
 @Service
 public class ReportService {
+
+    private static final Logger log = LoggerFactory.getLogger(ReportService.class);
 
     private static final String OUTPUT_BASE =
         Paths.get(System.getProperty("user.dir")).getParent().resolve("analytics-r/output").toString();
@@ -46,9 +51,10 @@ public class ReportService {
 
     // ── public API ────────────────────────────────────────────────────────────
 
+    // HTML output — no LaTeX/TinyTeX needed (cross-platform Windows + Mac)
     public Report generateStudentWeeklyReport(String studentId, String weekId) {
         ensureWeeklyPeriod(weekId);
-        String fileName = "student_" + studentId + "_week_" + weekId + ".pdf";
+        String fileName = "student_" + studentId + "_week_" + weekId + ".html";
         String title    = "Student Weekly Report – Week " + weekId;
         return generate(ReportType.weekly_student, title,
                         "generators/generate_student_weekly.R",
@@ -58,7 +64,7 @@ public class ReportService {
 
     public Report generateLecturerWeeklyReport(String lecturerId, String weekId) {
         ensureWeeklyPeriod(weekId);
-        String fileName = "lecturer_" + lecturerId + "_week_" + weekId + ".pdf";
+        String fileName = "lecturer_" + lecturerId + "_week_" + weekId + ".html";
         String title    = "Lecturer Weekly Report – Week " + weekId;
         return generate(ReportType.weekly_lecturer, title,
                         "generators/generate_lecturer_weekly.R",
@@ -68,7 +74,7 @@ public class ReportService {
 
     public Report generateDeanWeeklyReport(String weekId) {
         ensureWeeklyPeriod(weekId);
-        String fileName = "dean_week_" + weekId + ".pdf";
+        String fileName = "dean_week_" + weekId + ".html";
         String title    = "Dean Weekly Report – Week " + weekId;
         return generate(ReportType.weekly_dean, title,
                         "generators/generate_dean_weekly.R",
@@ -77,12 +83,63 @@ public class ReportService {
     }
 
     public Report generateSessionReport(String sessionId) {
-        String fileName = "session_" + sessionId + ".pdf";
+        String fileName = "session_" + sessionId + ".html";
         String title    = "Session Report";
         return generate(ReportType.session_summary, title,
                         "generators/generate_session_report.R",
                         new String[]{"session/", ""},
                         fileName, sessionId, null);
+    }
+
+    /**
+     * Compute and persist student_lecture_summaries for all students in a session.
+     * Must be called after a session ends so the analytics dashboard shows real data.
+     */
+    public boolean computeStudentSummaries(String sessionId) {
+        boolean ok = rScriptExecutor.execute("scripts/compute_student_summaries.R", sessionId);
+        if (!ok) {
+            throw new RuntimeException("R summary computation failed for session: " + sessionId);
+        }
+        return true;
+    }
+
+    /**
+     * Fire-and-forget version — called automatically when a session ends.
+     * Runs in a background thread so the lecturer's "End Session" response is instant.
+     */
+    @Async
+    public void computeStudentSummariesAsync(String sessionId) {
+        log.info("[ReportService] Auto-computing student summaries for session {}", sessionId);
+        try {
+            boolean ok = rScriptExecutor.execute("scripts/compute_student_summaries.R", sessionId);
+            if (ok) {
+                log.info("[ReportService] Student summaries computed successfully for session {}", sessionId);
+            } else {
+                log.warn("[ReportService] R script returned non-zero exit for session {}", sessionId);
+            }
+        } catch (Exception e) {
+            log.error("[ReportService] Failed to compute summaries for session {}: {}", sessionId, e.getMessage());
+        }
+    }
+
+    /**
+     * Generate a per-student session PDF report for the currently authenticated student.
+     */
+    public Report generateMySessionReport(String sessionId) {
+        User me = currentUser();
+        return generateStudentSessionReport(me.getId(), sessionId);
+    }
+
+    /**
+     * Generate a per-student session PDF report visible only to that student.
+     */
+    public Report generateStudentSessionReport(String studentId, String sessionId) {
+        String fileName = "student_" + studentId + "_session_" + sessionId + ".html";
+        String title    = "My Session Report";
+        return generate(ReportType.session_summary, title,
+                        "generators/generate_student_session_report.R",
+                        new String[]{"student/", ""},
+                        fileName, studentId, sessionId);
     }
 
     public List<Report> getMyReports() {
