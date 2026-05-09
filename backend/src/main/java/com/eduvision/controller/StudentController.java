@@ -3,6 +3,7 @@ package com.eduvision.controller;
 import com.eduvision.model.User;
 import com.eduvision.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,7 +23,8 @@ public class StudentController {
     @Autowired
     private UserService userService;
 
-    private static final Path ENROLLMENT_BASE = Paths.get("/Users/cherinehassan/EduVision/face_enrollment");
+    @Value("${eduvision.face-enrollment-dir:./face_enrollment}")
+    private String enrollmentBaseDir;
 
     /**
      * Serves the enrollment photo for a given student number.
@@ -30,7 +32,9 @@ public class StudentController {
      */
     @GetMapping("/{studentNumber}/photo")
     public ResponseEntity<byte[]> getStudentPhoto(@PathVariable String studentNumber) {
-        Path photoPath = ENROLLMENT_BASE.resolve(studentNumber).resolve("photo_1.jpg");
+        Path photoPath = Paths.get(enrollmentBaseDir)
+                .resolve(studentNumber)
+                .resolve("photo_1.jpg");
         if (!Files.exists(photoPath)) {
             return ResponseEntity.notFound().build();
         }
