@@ -23,8 +23,12 @@ public class StudentController {
     @Autowired
     private UserService userService;
 
+    public static String ENROLLMENT_BASE_DIR;
+
     @Value("${eduvision.face-enrollment-dir:./face_enrollment}")
-    private String enrollmentBaseDir;
+    public void setEnrollmentBaseDir(String dir) {
+        ENROLLMENT_BASE_DIR = dir;
+    }
 
     /**
      * Serves the enrollment photo for a given student number.
@@ -32,7 +36,7 @@ public class StudentController {
      */
     @GetMapping("/{studentNumber}/photo")
     public ResponseEntity<byte[]> getStudentPhoto(@PathVariable String studentNumber) {
-        Path photoPath = Paths.get(enrollmentBaseDir)
+        Path photoPath = Paths.get(ENROLLMENT_BASE_DIR)
                 .resolve(studentNumber)
                 .resolve("photo_1.jpg");
         if (!Files.exists(photoPath)) {
